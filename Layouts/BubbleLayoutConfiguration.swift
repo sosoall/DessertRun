@@ -22,6 +22,8 @@ struct BubbleLayoutConfiguration {
     var showGuides: Bool = false         // 显示参考线
     var compact: Bool = false            // 紧凑模式
     var gravitation: CGFloat = 0         // 引力效果(0-1)
+    var maxOffsetX: CGFloat = 200        // X轴最大偏移量
+    var maxOffsetY: CGFloat = 300        // Y轴最大偏移量
     
     // 计算属性
     var maxSize: CGFloat { bubbleSize }
@@ -42,7 +44,9 @@ struct BubbleLayoutConfiguration {
             cornerRadius: 90,        // 中心区域圆角半径
             showGuides: false,       // 参考线
             compact: true,           // 紧凑布局
-            gravitation: 0.4         // 引力效果
+            gravitation: 0.4,         // 引力效果
+            maxOffsetX: 200,         // X轴最大偏移量
+            maxOffsetY: 300          // Y轴最大偏移量
         )
     }
     
@@ -72,7 +76,9 @@ struct BubbleLayoutConfiguration {
                 cornerRadius: 60 * multiplier,
                 showGuides: false,
                 compact: true,
-                gravitation: 0.3
+                gravitation: 0.3,
+                maxOffsetX: 200 * multiplier,
+                maxOffsetY: 300 * multiplier
             )
         } else {
             // 大屏幕配置
@@ -83,12 +89,14 @@ struct BubbleLayoutConfiguration {
                 provideProps: true,
                 numCols: 3,
                 fringeWidth: 180 * multiplier,  // 从80增大到120
-                yRadius: 250 * multiplier,
-                xRadius: 150 * multiplier,
+                yRadius: 220 * multiplier,
+                xRadius: 120 * multiplier,
                 cornerRadius: 70 * multiplier,
                 showGuides: false,
                 compact: true,
-                gravitation: 0
+                gravitation: 0,
+                maxOffsetX: 150 * multiplier,
+                maxOffsetY: 250 * multiplier
             )
         }
     }
