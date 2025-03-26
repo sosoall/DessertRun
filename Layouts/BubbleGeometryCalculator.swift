@@ -11,8 +11,7 @@ import SwiftUI
 struct BubbleGeometryCalculator {
     // 调试开关
     static var enableDebugLog = true
-    static var debugItemName: String? = nil
-    static var debugBoundaryCheck = true
+    static var debugItemName: String? = "红丝绒"
     
     // 调试信息收集
     private static var debugLogs: [String] = []

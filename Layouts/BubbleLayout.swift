@@ -103,34 +103,15 @@ struct BubbleLayout<Item: Identifiable, Content: View>: View {
                                 size: geometry.size
                             )
                             
-                            // 检查边界限制（根据拖动方向检查）
-                            let resistanceFactor = checkBoundaryRestriction(
-                                direction: deltaX,
-                                newOffset: newOffset
-                            )
+                            // 检查是否超出拖动范围限制
+                            newOffset = restrictDragOffset(newOffset)
                             
-                            // 应用边界阻力和可见性检查
-                            if resistanceFactor > 0 {
-                                // 应用渐进式阻力，阻力随着超出边界的程度增加
-                                let elasticDeltaX = deltaX * (1 - resistanceFactor)
-                                newOffset = CGPoint(
-                                    x: oldOffset.x - elasticDeltaX,
-                                    y: oldOffset.y - deltaY
-                                )
-                            } else if !wouldHaveVisibleBubbles {
-                                // 如果没有可见气泡，则添加弹性效果
-                                let elasticFactor: CGFloat = 0.2
-                                
-                                // 应用弹性，偏移量会有一定的移动，但幅度减小 - 同样修正方向
-                                newOffset = CGPoint(
-                                    x: oldOffset.x - deltaX * elasticFactor,
-                                    y: oldOffset.y - deltaY * elasticFactor
-                                )
+                            // 只有在有可见气泡的情况下更新偏移量
+                            if wouldHaveVisibleBubbles {
+                                // 更新偏移量并重新计算气泡状态
+                                contentOffset = newOffset
+                                recalculateBubbleStates(for: geometry.size)
                             }
-                            
-                            // 更新偏移量并重新计算气泡状态
-                            contentOffset = newOffset
-                            recalculateBubbleStates(for: geometry.size)
                         }
                         
                         // 更新上一次拖动位置
@@ -140,51 +121,24 @@ struct BubbleLayout<Item: Identifiable, Content: View>: View {
                         // 重置拖动状态
                         lastDragPosition = nil
                         
-                        // 检查是否需要边界回弹
-                        let rightResistanceFactor = checkBoundaryRestriction(
-                            direction: 1, // 检查向右拖动的限制
-                            newOffset: contentOffset
-                        )
-                        
-                        // 添加对左侧的边界检查
-                        let leftResistanceFactor = checkBoundaryRestriction(
-                            direction: -1, // 检查向左拖动的限制
-                            newOffset: contentOffset
-                        )
-                        
                         // 结束拖动时，检查是否存在可见气泡
                         let hasVisibleBubbles = checkVisibleBubblesAfterOffset(
                             newOffset: contentOffset,
                             size: geometry.size
                         )
                         
-                        // 如果达到边界限制或没有可见气泡，添加回弹动画
-                        if rightResistanceFactor > 0 || leftResistanceFactor > 0 || !hasVisibleBubbles {
+                        // 如果没有可见气泡，将最近的气泡移到中心
+                        if !hasVisibleBubbles {
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                                if rightResistanceFactor > 0 {
-                                    // 找到一个合适的回弹位置
-                                    var adjustedOffset = contentOffset
-                                    
-                                    // 将内容向左回弹一些
-                                    adjustedOffset.x -= config.bubbleSize * 0.5 * rightResistanceFactor
-                                    contentOffset = adjustedOffset
-                                } else if leftResistanceFactor > 0 {
-                                    // 找到一个合适的回弹位置
-                                    var adjustedOffset = contentOffset
-                                    
-                                    // 将内容向右回弹一些
-                                    adjustedOffset.x += config.bubbleSize * 0.5 * leftResistanceFactor
-                                    contentOffset = adjustedOffset
-                                } else if !hasVisibleBubbles {
-                                    // 找到最接近中心的气泡位置
-                                    if let closestPosition = findClosestBubblePosition() {
-                                        // 设置偏移量使该气泡回到中心
-                                        contentOffset = closestPosition
-                                    } else {
-                                        // 如果找不到最近的气泡，重置为原始位置
-                                        contentOffset = .zero
-                                    }
+                                // 找到最接近中心的气泡位置
+                                if let closestPosition = findClosestBubblePosition() {
+                                    // 设置偏移量使该气泡回到中心
+                                    contentOffset = closestPosition
+                                } else {
+                                    // 如果找不到最近的气泡，重置为原始位置
+                                    contentOffset = .zero
                                 }
+                                
                                 recalculateBubbleStates(for: geometry.size)
                             }
                         } else {
@@ -355,96 +309,98 @@ struct BubbleLayout<Item: Identifiable, Content: View>: View {
     ///   - newOffset: 新的偏移量
     /// - Returns: 阻力系数 (0-1)，0表示无阻力，1表示最大阻力
     private func checkBoundaryRestriction(direction: CGFloat, newOffset: CGPoint) -> CGFloat {
-        // 计算所有气泡的位置
-        var visiblePositions: [CGPoint] = []
+        // 按行分组所有位置
+        var rowPositions: [CGFloat: [CGPoint]] = [:]
+        var allYValues: [CGFloat] = []
+        
         for position in initialPositions {
             let offsetPosition = CGPoint(
                 x: position.x - newOffset.x,
                 y: position.y - newOffset.y
             )
-            visiblePositions.append(offsetPosition)
+            
+            // 使用y坐标（四舍五入到整数）作为行标识
+            let roundedY = round(offsetPosition.y / (config.bubbleSize * 0.866)) * (config.bubbleSize * 0.866)
+            if rowPositions[roundedY] == nil {
+                rowPositions[roundedY] = []
+                allYValues.append(roundedY)
+            }
+            rowPositions[roundedY]?.append(offsetPosition)
         }
         
-        // 查找最左侧和最右侧的气泡
-        guard let leftmost = visiblePositions.min(by: { $0.x < $1.x }),
-              let rightmost = visiblePositions.max(by: { $0.x < $1.x }) else {
-            return 0
-        }
+        // 找出中间行的Y值（距离0最近的行）
+        allYValues.sort { abs($0) < abs($1) }
+        let middleRowYValues = allYValues.prefix(min(2, allYValues.count)) // 取最靠近中间的2行（或者更少）
         
-        // 计算屏幕边界
-        let screenLeftEdge = -config.xRadius * 1.5  // 屏幕左边缘
-        let screenRightEdge = config.xRadius * 1.5  // 屏幕右边缘
-        
-        // 调试信息
-        if BubbleGeometryCalculator.debugBoundaryCheck {
-            BubbleGeometryCalculator.debugLog("-----边界限制检查-----")
-            BubbleGeometryCalculator.debugLog("拖动方向: \(direction > 0 ? "向右" : "向左")")
-            BubbleGeometryCalculator.debugLog("最左侧气泡X: \(leftmost.x), 最右侧气泡X: \(rightmost.x)")
-            BubbleGeometryCalculator.debugLog("屏幕左边缘: \(screenLeftEdge), 屏幕右边缘: \(screenRightEdge)")
-        }
-        
-        // 检查当前屏幕是否有足够的气泡填充
-        let leftGap = leftmost.x - screenLeftEdge     // 左侧空白距离
-        let rightGap = screenRightEdge - rightmost.x  // 右侧空白距离
-        
-        // 向右拖动（内容向左移动）
+        // 如果是向右拖动（内容向左移动）
         if direction > 0 {
-            // 如果左侧空白过大且有可能拖入更多气泡，应用阻力
-            let maxAllowedLeftGap = config.bubbleSize * 0.5  // 允许的最大左侧空白
+            // 检查中间行最左侧的气泡是否都达到了最大尺寸
+            var leftmostPositions: [CGPoint] = []
             
-            if leftGap > maxAllowedLeftGap {
-                // 计算超出允许空白的距离
-                let exceedDistance = leftGap - maxAllowedLeftGap
-                // 计算阻力系数，空白越大阻力越大
-                let resistanceFactor = min(0.9, exceedDistance / config.bubbleSize)
-                
-                if BubbleGeometryCalculator.debugBoundaryCheck {
-                    BubbleGeometryCalculator.debugLog("左侧空白过大: \(leftGap)")
-                    BubbleGeometryCalculator.debugLog("允许的最大空白: \(maxAllowedLeftGap)")
-                    BubbleGeometryCalculator.debugLog("超出距离: \(exceedDistance)")
-                    BubbleGeometryCalculator.debugLog("阻力系数: \(resistanceFactor)")
+            // 找出中间行最左侧的气泡位置
+            for y in middleRowYValues {
+                if let positions = rowPositions[y], let leftmost = positions.min(by: { $0.x < $1.x }) {
+                    leftmostPositions.append(leftmost)
                 }
+            }
+            
+            // 检查是否有至少一个最左侧的气泡达到最大尺寸
+            var maxSizeCount = 0
+            for position in leftmostPositions {
+                let region = BubbleGeometryCalculator.determineRegion(position: position, config: config)
+                if region == .center {
+                    maxSizeCount += 1
+                }
+            }
+            
+            // 如果至少有一个最左侧气泡达到最大尺寸，返回阻力系数
+            if maxSizeCount > 0 && !leftmostPositions.isEmpty {
+                // 计算超出边界的程度，用于渐进式阻力
+                let furthestLeftX = leftmostPositions.min(by: { $0.x < $1.x })?.x ?? 0
+                // 计算超出中心区域的距离
+                let exceedDistance = max(0, -furthestLeftX - config.xRadius)
+                // 设置最大阻力距离为最大气泡尺寸的两倍
+                let maxResistanceDistance = config.bubbleSize * 2
                 
+                // 计算阻力系数 (0-0.9)，随着超出距离增加而增加
+                let resistanceFactor = min(0.9, exceedDistance / maxResistanceDistance)
                 return resistanceFactor
             }
-        }
-        // 向左拖动（内容向右移动）
+        } 
+        // 如果是向左拖动（内容向右移动）
         else if direction < 0 {
-            // 如果右侧空白过大且有可能拖入更多气泡，应用阻力
-            let maxAllowedRightGap = config.bubbleSize * 0.5  // 允许的最大右侧空白
+            // 检查中间行最右侧的气泡是否有进入中心区域的
+            var rightmostPositions: [CGPoint] = []
             
-            if rightGap > maxAllowedRightGap {
-                // 计算超出允许空白的距离
-                let exceedDistance = rightGap - maxAllowedRightGap
-                // 计算阻力系数，空白越大阻力越大
-                let resistanceFactor = min(0.9, exceedDistance / config.bubbleSize)
-                
-                if BubbleGeometryCalculator.debugBoundaryCheck {
-                    BubbleGeometryCalculator.debugLog("右侧空白过大: \(rightGap)")
-                    BubbleGeometryCalculator.debugLog("允许的最大空白: \(maxAllowedRightGap)")
-                    BubbleGeometryCalculator.debugLog("超出距离: \(exceedDistance)")
-                    BubbleGeometryCalculator.debugLog("阻力系数: \(resistanceFactor)")
+            // 找出中间行最右侧的气泡位置
+            for y in middleRowYValues {
+                if let positions = rowPositions[y], let rightmost = positions.max(by: { $0.x < $1.x }) {
+                    rightmostPositions.append(rightmost)
                 }
+            }
+            
+            // 检查是否有至少一个最右侧的气泡进入了中心区域
+            var centerRegionCount = 0
+            for position in rightmostPositions {
+                let region = BubbleGeometryCalculator.determineRegion(position: position, config: config)
+                if region == .center {
+                    centerRegionCount += 1
+                }
+            }
+            
+            // 如果至少有一个最右侧气泡进入了中心区域，返回阻力系数
+            if centerRegionCount > 0 && !rightmostPositions.isEmpty {
+                // 计算超出边界的程度，用于渐进式阻力
+                let furthestRightX = rightmostPositions.max(by: { $0.x < $1.x })?.x ?? 0
+                // 计算超出中心区域的距离
+                let exceedDistance = max(0, furthestRightX - config.xRadius)
+                // 设置最大阻力距离为最大气泡尺寸的两倍
+                let maxResistanceDistance = config.bubbleSize * 2
                 
+                // 计算阻力系数 (0-0.9)，随着超出距离增加而增加
+                let resistanceFactor = min(0.9, exceedDistance / maxResistanceDistance)
                 return resistanceFactor
             }
-        }
-        
-        // 额外限制：防止拖动太远
-        if direction > 0 && leftmost.x < -config.xRadius * 3.5 {
-            // 防止向右拖动太远
-            let exceedDistance = abs(leftmost.x) - config.xRadius * 3.5
-            let resistanceFactor = min(0.9, exceedDistance / config.bubbleSize)
-            return resistanceFactor
-        } else if direction < 0 && rightmost.x > config.xRadius * 3.5 {
-            // 防止向左拖动太远
-            let exceedDistance = rightmost.x - config.xRadius * 3.5
-            let resistanceFactor = min(0.9, exceedDistance / config.bubbleSize)
-            return resistanceFactor
-        }
-        
-        if BubbleGeometryCalculator.debugBoundaryCheck {
-            BubbleGeometryCalculator.debugLog("未达到边界限制，无阻力")
         }
         
         return 0 // 未达到限制条件，无阻力
