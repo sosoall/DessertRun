@@ -77,18 +77,18 @@ struct BubbleLayoutConfiguration {
         } else {
             // 大屏幕配置
             return BubbleLayoutConfiguration(
-                bubbleSize: 130 * multiplier,
+                bubbleSize: 200 * multiplier,
                 minBubbleSize: 80 * multiplier,
                 gutter: 14 * multiplier,
                 provideProps: true,
                 numCols: 3,
-                fringeWidth: 120 * multiplier,  // 从80增大到120
+                fringeWidth: 180 * multiplier,  // 从80增大到120
                 yRadius: 250 * multiplier,
                 xRadius: 150 * multiplier,
                 cornerRadius: 70 * multiplier,
                 showGuides: false,
                 compact: true,
-                gravitation: 0.5
+                gravitation: 0
             )
         }
     }
