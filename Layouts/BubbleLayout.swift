@@ -76,6 +76,11 @@ struct BubbleLayout<Item: Identifiable, Content: View>: View {
             .highPriorityGesture(
                 DragGesture(minimumDistance: 1, coordinateSpace: .local)
                     .onChanged { value in
+                        // 当拖动开始时，重置调试日志收集
+                        if lastDragPosition == nil {
+                            BubbleGeometryCalculator.resetDebugLogs()
+                        }
+                        
                         let currentPosition = value.location
                         
                         if let lastPosition = lastDragPosition {
@@ -169,7 +174,13 @@ struct BubbleLayout<Item: Identifiable, Content: View>: View {
                                 }
                                 recalculateBubbleStates(for: geometry.size)
                             }
+                        } else {
+                            // 即使没有回弹，也重新计算最终状态
+                            recalculateBubbleStates(for: geometry.size)
                         }
+                        
+                        // 拖动结束后打印收集的调试信息
+                        BubbleGeometryCalculator.printCollectedLogs()
                     }
             )
             .onAppear {
@@ -182,7 +193,7 @@ struct BubbleLayout<Item: Identifiable, Content: View>: View {
                 // 初始化气泡状态
                 recalculateBubbleStates(for: geometry.size)
             }
-            .onChange(of: geometry.size) { newSize in
+            .onChange(of: geometry.size) { oldSize, newSize in
                 // 当尺寸变化时重新计算
                 recalculateBubbleStates(for: newSize)
             }
@@ -195,7 +206,7 @@ struct BubbleLayout<Item: Identifiable, Content: View>: View {
     ///   - geometry: 几何信息
     /// - Returns: 气泡状态
     private func bubbleState(for item: Item, in geometry: GeometryProxy) -> BubbleState {
-        if let id = item.id as? ID, let state = bubbleStates[id] {
+        if let id = item.id as? AnyHashable, let state = bubbleStates[id] {
             return state
         }
         
@@ -223,8 +234,10 @@ struct BubbleLayout<Item: Identifiable, Content: View>: View {
             let isTargetItem = itemName == BubbleGeometryCalculator.debugItemName
             
             if isTargetItem {
-                print("\n======= 追踪目标气泡: \(itemName ?? "未知") =======")
-                print("当前偏移量: \(contentOffset)")
+                // 将关键信息添加到调试日志中而不是直接打印
+                BubbleGeometryCalculator.debugLog("------- 目标气泡基本信息 -------", itemName: itemName)
+                BubbleGeometryCalculator.debugLog("气泡名称: \(itemName ?? "未知")", itemName: itemName)
+                BubbleGeometryCalculator.debugLog("当前偏移量: \(contentOffset)", itemName: itemName)
             }
             
             // 获取初始位置并应用偏移
@@ -235,8 +248,8 @@ struct BubbleLayout<Item: Identifiable, Content: View>: View {
             )
             
             if isTargetItem {
-                print("初始位置: \(initialPosition)")
-                print("应用偏移后位置: \(offsetPosition)")
+                BubbleGeometryCalculator.debugLog("初始位置: \(initialPosition)", itemName: itemName)
+                BubbleGeometryCalculator.debugLog("应用偏移后位置: \(offsetPosition)", itemName: itemName)
             }
             
             // 确定区域
@@ -269,15 +282,15 @@ struct BubbleLayout<Item: Identifiable, Content: View>: View {
             )
             
             if isTargetItem {
-                print("区域: \(region)")
-                print("计算尺寸: \(bubbleSize)")
-                print("调整后位置: \(adjustedPosition)")
-                print("到中心距离: \(distanceToCenter)")
-                print("======= 追踪结束 =======\n")
+                BubbleGeometryCalculator.debugLog("区域: \(region)", itemName: itemName)
+                BubbleGeometryCalculator.debugLog("计算尺寸: \(bubbleSize)", itemName: itemName)
+                BubbleGeometryCalculator.debugLog("调整后位置: \(adjustedPosition)", itemName: itemName)
+                BubbleGeometryCalculator.debugLog("到中心距离: \(distanceToCenter)", itemName: itemName)
+                BubbleGeometryCalculator.debugLog("------- 信息结束 -------", itemName: itemName)
             }
             
             // 更新状态
-            if let id = item.id as? ID {
+            if let id = item.id as? AnyHashable {
                 newStates[id] = BubbleState(
                     size: bubbleSize,
                     position: adjustedPosition,

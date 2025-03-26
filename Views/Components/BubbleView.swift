@@ -7,6 +7,25 @@
 
 import SwiftUI
 
+/// 扩展Color添加亮度检测
+extension Color {
+    /// 估算颜色的亮度
+    var brightness: CGFloat {
+        // 将颜色转换为UIColor以便访问其组件
+        let uiColor = UIColor(self)
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        
+        uiColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        
+        // 使用相对亮度公式: 0.2126*R + 0.7152*G + 0.0722*B
+        // 这是人眼对不同颜色感知亮度的标准权重
+        return 0.2126 * red + 0.7152 * green + 0.0722 * blue
+    }
+}
+
 /// 气泡背景样式
 enum BubbleBackgroundStyle {
     case circle               // 圆形
@@ -51,11 +70,12 @@ struct BubbleView: View {
             VStack(spacing: 2) {
                 // 图片
                 if let bgColor = item.backgroundColor {
-                    // 使用背景色和占位图标（实际项目中应替换为实际图像）
+                    // 使用背景色设置相应的图标颜色
+                    let iconColor: Color = bgColor.brightness > 0.5 ? .black : .white
                     Image(systemName: "cup.and.saucer.fill")
                         .resizable()
                         .scaledToFit()
-                        .foregroundColor(.white)
+                        .foregroundColor(iconColor)
                         .padding(bubbleSize * 0.25)
                 } else {
                     // 使用系统图标作为占位符

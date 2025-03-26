@@ -78,7 +78,7 @@ struct BubbleLayoutConfiguration {
             // 大屏幕配置
             return BubbleLayoutConfiguration(
                 bubbleSize: 130 * multiplier,
-                minBubbleSize: 60 * multiplier,
+                minBubbleSize: 80 * multiplier,
                 gutter: 14 * multiplier,
                 provideProps: true,
                 numCols: 3,

@@ -13,13 +13,35 @@ struct BubbleGeometryCalculator {
     static var enableDebugLog = true
     static var debugItemName: String? = "红丝绒"
     
-    /// 打印调试信息
+    // 调试信息收集
+    private static var debugLogs: [String] = []
+    
+    /// 重置调试日志
+    static func resetDebugLogs() {
+        debugLogs = []
+    }
+    
+    /// 打印所有收集的调试日志
+    static func printCollectedLogs() {
+        guard enableDebugLog && !debugLogs.isEmpty else { return }
+        
+        print("\n======== 气泡调试信息 ========")
+        debugLogs.forEach { print($0) }
+        print("======== 调试信息结束 ========\n")
+        
+        // 打印后清空日志
+        resetDebugLogs()
+    }
+    
+    /// 收集调试信息
     /// - Parameters:
     ///   - message: 调试信息
     ///   - itemName: 气泡名称
-    private static func debugLog(_ message: String, itemName: String? = nil) {
+    static func debugLog(_ message: String, itemName: String? = nil) {
         if enableDebugLog && (itemName == nil || itemName == debugItemName) {
-            print("DEBUG[\(itemName ?? "Unknown")]: \(message)")
+            // 收集信息而不是立即打印
+            let logMessage = "DEBUG[\(itemName ?? "Unknown")]: \(message)"
+            debugLogs.append(logMessage)
         }
     }
     
@@ -263,26 +285,44 @@ struct BubbleGeometryCalculator {
         
         debugLog("方向向量: \(direction)", itemName: itemName)
         
-        // 计算位移量
-        var translationMagnitude: CGFloat
+        // 紧凑模式基本位移量
+        let baseDisplacement = config.maxSize - config.minSize
         
-        if region == .outer {
-            // 外部区域最大位移
-            translationMagnitude = config.maxSize - config.minSize
-            
-            // 添加引力效果 (只对外部区域生效)
-            if config.gravitation > 0 {
-                let distanceToFringe = max(0, distanceToMiddleRegion - config.fringeWidth)
-                translationMagnitude += distanceToFringe * config.gravitation
-                debugLog("外部区域 - 位移量(含引力): \(translationMagnitude)", itemName: itemName)
-            } else {
-                debugLog("外部区域 - 位移量: \(translationMagnitude)", itemName: itemName)
-            }
-        } else { // fringe
-            // 过渡区域中，位移量随进度变化
+        // 计算位移量
+        var translationMagnitude: CGFloat = 0
+        
+        if region == .fringe {
+            // 过渡区域中，位移量随进度变化（线性过渡）
             let progress = distanceToMiddleRegion / config.fringeWidth
-            translationMagnitude = progress * (config.maxSize - config.minSize)
+            translationMagnitude = progress * baseDisplacement
             debugLog("过渡区域 - 进度: \(progress), 位移量: \(translationMagnitude)", itemName: itemName)
+        }
+        else if region == .outer {
+            // 计算到fringe区域的距离
+            let distanceToFringe = max(0, distanceToMiddleRegion - config.fringeWidth)
+            debugLog("到fringe区域的距离: \(distanceToFringe)", itemName: itemName)
+            
+            // 基本位移量 - 保持与fringe区域边界的连续性
+            // 这是fringe区域在border处的位移量
+            translationMagnitude = baseDisplacement
+            
+            if config.gravitation > 0 {
+                // 额外引力位移量
+                let gravitationalPull = distanceToFringe * config.gravitation
+                debugLog("引力额外位移量: \(gravitationalPull)", itemName: itemName)
+                
+                // 添加引力效果到基本位移量
+                translationMagnitude += gravitationalPull
+                
+                // 安全限制，确保不会因引力效果穿过区域边界
+                let maxAllowedDisplacement = baseDisplacement + distanceToFringe
+                if translationMagnitude > maxAllowedDisplacement {
+                    translationMagnitude = maxAllowedDisplacement
+                    debugLog("限制引力位移量: \(translationMagnitude)", itemName: itemName)
+                }
+            }
+            
+            debugLog("外部区域 - 最终位移量: \(translationMagnitude)", itemName: itemName)
         }
         
         // 计算新位置
