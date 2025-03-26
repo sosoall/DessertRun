@@ -220,7 +220,22 @@ struct BubbleGeometryCalculator {
             return originalPosition
         }
         
-        // 计算到中心区域边界的参考点
+        // 获取当前气泡的实际大小
+        let currentSize = calculateBubbleSize(
+            position: originalPosition, 
+            region: region, 
+            config: config,
+            itemName: itemName
+        )
+        
+        // 计算大小变化量
+        let sizeChange = config.maxSize - currentSize
+        debugLog("当前大小: \(currentSize), 大小变化量: \(sizeChange)", itemName: itemName)
+        
+        // 紧凑度系数 - 控制位移与大小变化的比例关系
+        let compactnessFactor: CGFloat = 0.5
+        
+        // 计算到中心区域边界的参考点和距离
         var referencePoint: CGPoint = .zero
         var distanceToMiddleRegion: CGFloat = 0
         
@@ -274,37 +289,64 @@ struct BubbleGeometryCalculator {
             debugLog("到边界距离: \(distanceToMiddleRegion)", itemName: itemName)
         }
         
-        // 计算方向向量 - 从原始位置指向参考点
-        let dx = referencePoint.x - originalPosition.x
-        let dy = referencePoint.y - originalPosition.y
-        let mag = sqrt(dx * dx + dy * dy)
-        // 确保有非零距离才计算方向
-        let direction = mag > 0 
-            ? CGPoint(x: dx / mag, y: dy / mag) 
-            : CGPoint(x: 0, y: 0)
+        // 计算方向向量 - 针对不同区域优化
+        var direction = CGPoint(x: 0, y: 0)
+        
+        if isInCornerZone {
+            // 角落区域：指向内角的方向
+            let dx = referencePoint.x - originalPosition.x
+            let dy = referencePoint.y - originalPosition.y
+            let mag = sqrt(dx * dx + dy * dy)
+            // 确保有非零距离才计算方向
+            if mag > 0 {
+                direction = CGPoint(x: dx / mag, y: dy / mag)
+            }
+        } else {
+            // 非角落区域：只在相应边界方向上移动
+            let onVerticalBoundary = abs(originalPosition.x) > config.xRadius
+            let onHorizontalBoundary = abs(originalPosition.y) > config.yRadius
+            
+            if onVerticalBoundary && !onHorizontalBoundary {
+                // 在垂直边界外：只修改X方向
+                direction = CGPoint(
+                    x: originalPosition.x < 0 ? 1 : -1,  // 向中心方向
+                    y: 0
+                )
+            } else if onHorizontalBoundary && !onVerticalBoundary {
+                // 在水平边界外：只修改Y方向
+                direction = CGPoint(
+                    x: 0,
+                    y: originalPosition.y < 0 ? 1 : -1  // 向中心方向
+                )
+            } else {
+                // 其他情况：应该不会到这里
+                let dx = referencePoint.x - originalPosition.x
+                let dy = referencePoint.y - originalPosition.y
+                let mag = sqrt(dx * dx + dy * dy)
+                if mag > 0 {
+                    direction = CGPoint(x: dx / mag, y: dy / mag)
+                }
+            }
+        }
         
         debugLog("方向向量: \(direction)", itemName: itemName)
-        
-        // 紧凑模式基本位移量
-        let baseDisplacement = config.maxSize - config.minSize
         
         // 计算位移量
         var translationMagnitude: CGFloat = 0
         
         if region == .fringe {
-            // 过渡区域中，位移量随进度变化（线性过渡）
+            // 过渡区域：位移量与大小变化和距离成比例
             let progress = distanceToMiddleRegion / config.fringeWidth
-            translationMagnitude = progress * baseDisplacement
+            translationMagnitude = sizeChange * compactnessFactor * progress
             debugLog("过渡区域 - 进度: \(progress), 位移量: \(translationMagnitude)", itemName: itemName)
         }
         else if region == .outer {
+            // 外部区域：基础位移量与大小变化成比例
+            translationMagnitude = sizeChange * compactnessFactor
+            
             // 计算到fringe区域的距离
             let distanceToFringe = max(0, distanceToMiddleRegion - config.fringeWidth)
             debugLog("到fringe区域的距离: \(distanceToFringe)", itemName: itemName)
-            
-            // 基本位移量 - 保持与fringe区域边界的连续性
-            // 这是fringe区域在border处的位移量
-            translationMagnitude = baseDisplacement
             
             if config.gravitation > 0 {
                 // 额外引力位移量
@@ -315,7 +357,7 @@ struct BubbleGeometryCalculator {
                 translationMagnitude += gravitationalPull
                 
                 // 安全限制，确保不会因引力效果穿过区域边界
-                let maxAllowedDisplacement = baseDisplacement + distanceToFringe
+                let maxAllowedDisplacement = sizeChange * compactnessFactor + distanceToFringe
                 if translationMagnitude > maxAllowedDisplacement {
                     translationMagnitude = maxAllowedDisplacement
                     debugLog("限制引力位移量: \(translationMagnitude)", itemName: itemName)
