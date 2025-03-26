@@ -36,7 +36,7 @@ struct BubbleLayoutConfiguration {
             gutter: 16,              // 气泡间距
             provideProps: true,      // 传递属性
             numCols: 3,              // 每行最多3个气泡
-            fringeWidth: 70,         // 过渡区域宽度
+            fringeWidth: 120,        // 过渡区域宽度 (从70增大到120)
             yRadius: 180,            // 中心区域垂直半径
             xRadius: 180,            // 中心区域水平半径
             cornerRadius: 90,        // 中心区域圆角半径
@@ -66,7 +66,7 @@ struct BubbleLayoutConfiguration {
                 gutter: 12 * multiplier,
                 provideProps: true,
                 numCols: 4,
-                fringeWidth: 70 * multiplier,
+                fringeWidth: 100 * multiplier,  // 从70增大到100
                 yRadius: 130 * multiplier,
                 xRadius: 130 * multiplier,
                 cornerRadius: 60 * multiplier,
@@ -81,9 +81,9 @@ struct BubbleLayoutConfiguration {
                 minBubbleSize: 60 * multiplier,
                 gutter: 14 * multiplier,
                 provideProps: true,
-                numCols: 5,
-                fringeWidth: 80 * multiplier,
-                yRadius: 150 * multiplier,
+                numCols: 3,
+                fringeWidth: 120 * multiplier,  // 从80增大到120
+                yRadius: 250 * multiplier,
                 xRadius: 150 * multiplier,
                 cornerRadius: 70 * multiplier,
                 showGuides: false,

@@ -90,6 +90,7 @@ struct BubbleView: View {
             .opacity(calculateOpacity())
         }
         .buttonStyle(PlainButtonStyle())
+        .contentShape(Circle())
     }
     
     /// 计算不透明度，基于距离中心远近
