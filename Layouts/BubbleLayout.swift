@@ -76,11 +76,6 @@ struct BubbleLayout<Item: Identifiable, Content: View>: View {
             .highPriorityGesture(
                 DragGesture(minimumDistance: 1, coordinateSpace: .local)
                     .onChanged { value in
-                        // 当拖动开始时，重置调试日志收集
-                        if lastDragPosition == nil {
-                            BubbleGeometryCalculator.resetDebugLogs()
-                        }
-                        
                         let currentPosition = value.location
                         
                         if let lastPosition = lastDragPosition {
@@ -160,9 +155,6 @@ struct BubbleLayout<Item: Identifiable, Content: View>: View {
                             contentOffset.y = min(max(contentOffset.y, -config.maxOffsetY), config.maxOffsetY)
                             recalculateBubbleStates(for: geometry.size)
                         }
-                        
-                        // 拖动结束后打印收集的调试信息
-                        BubbleGeometryCalculator.printCollectedLogs()
                     }
             )
             .onAppear {
@@ -211,17 +203,6 @@ struct BubbleLayout<Item: Identifiable, Content: View>: View {
         for (index, item) in items.enumerated() {
             guard index < initialPositions.count else { continue }
             
-            // 获取名称进行调试（如果有）
-            let itemName = (item as? DessertItem)?.name
-            let isTargetItem = itemName == BubbleGeometryCalculator.debugItemName
-            
-            if isTargetItem {
-                // 将关键信息添加到调试日志中而不是直接打印
-                BubbleGeometryCalculator.debugLog("------- 目标气泡基本信息 -------", itemName: itemName)
-                BubbleGeometryCalculator.debugLog("气泡名称: \(itemName ?? "未知")", itemName: itemName)
-                BubbleGeometryCalculator.debugLog("当前偏移量: \(contentOffset)", itemName: itemName)
-            }
-            
             // 获取初始位置并应用偏移
             let initialPosition = initialPositions[index]
             let offsetPosition = CGPoint(
@@ -229,32 +210,24 @@ struct BubbleLayout<Item: Identifiable, Content: View>: View {
                 y: initialPosition.y - contentOffset.y
             )
             
-            if isTargetItem {
-                BubbleGeometryCalculator.debugLog("初始位置: \(initialPosition)", itemName: itemName)
-                BubbleGeometryCalculator.debugLog("应用偏移后位置: \(offsetPosition)", itemName: itemName)
-            }
-            
             // 确定区域
             let region = BubbleGeometryCalculator.determineRegion(
                 position: offsetPosition,
-                config: config,
-                itemName: itemName
+                config: config
             )
             
             // 计算尺寸
             let bubbleSize = BubbleGeometryCalculator.calculateBubbleSize(
                 position: offsetPosition,
                 region: region,
-                config: config,
-                itemName: itemName
+                config: config
             )
             
             // 计算位置（紧凑布局）
             let adjustedPosition = BubbleGeometryCalculator.calculateBubblePosition(
                 originalPosition: offsetPosition,
                 region: region,
-                config: config,
-                itemName: itemName
+                config: config
             )
             
             // 计算到中心的距离
@@ -262,14 +235,6 @@ struct BubbleLayout<Item: Identifiable, Content: View>: View {
                 from: offsetPosition,
                 to: .zero
             )
-            
-            if isTargetItem {
-                BubbleGeometryCalculator.debugLog("区域: \(region)", itemName: itemName)
-                BubbleGeometryCalculator.debugLog("计算尺寸: \(bubbleSize)", itemName: itemName)
-                BubbleGeometryCalculator.debugLog("调整后位置: \(adjustedPosition)", itemName: itemName)
-                BubbleGeometryCalculator.debugLog("到中心距离: \(distanceToCenter)", itemName: itemName)
-                BubbleGeometryCalculator.debugLog("------- 信息结束 -------", itemName: itemName)
-            }
             
             // 更新状态
             if let id = item.id as? AnyHashable {
