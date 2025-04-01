@@ -87,7 +87,7 @@ struct BubbleLayoutConfiguration {
                 minBubbleSize: 80 * multiplier,
                 gutter: 14 * multiplier,
                 provideProps: true,
-                numCols: 3,
+                numCols: 4,
                 fringeWidth: 180 * multiplier,  // 从80增大到120
                 yRadius: 220 * multiplier,
                 xRadius: 120 * multiplier,
@@ -95,8 +95,8 @@ struct BubbleLayoutConfiguration {
                 showGuides: false,
                 compact: true,
                 gravitation: 0,
-                maxOffsetX: 150 * multiplier,
-                maxOffsetY: 250 * multiplier
+                maxOffsetX: 200 * multiplier,
+                maxOffsetY: 700 * multiplier
             )
         }
     }
