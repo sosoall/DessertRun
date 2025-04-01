@@ -1,170 +1,138 @@
 //
 //  BubbleLayout.swift
 //  DessertRun
-//没看懂啊其实
-
+//
 //  Created by Claude on 2025/3/24.
 //
 
 import SwiftUI
 
-/// 气泡UI的主布局组件
+/// 气泡布局
 struct BubbleLayout<Item: Identifiable, Content: View>: View {
-    /// 配置参数
-    private var config: BubbleLayoutConfiguration
+    // MARK: - 属性
     
     /// 数据项
-    private var items: [Item]
+    private let items: [Item]
     
-    /// 内容构建器
-    private var content: (Item, BubbleState) -> Content
+    /// 布局配置
+    private let config: BubbleLayoutConfiguration
     
-    /// 内容偏移量
-    @State private var contentOffset: CGPoint = .zero
-    
-    /// 气泡状态缓存
-    @State private var bubbleStates: [ID: BubbleState] = [:]
+    /// 气泡内容构建器
+    private let content: (Item, BubbleState) -> Content
     
     /// 气泡初始位置
     @State private var initialPositions: [CGPoint] = []
     
-    /// 上一次拖动位置
-    @State private var lastDragPosition: CGPoint?
+    /// 内容偏移量
+    @State private var contentOffset: CGPoint = .zero
     
-    /// 初始化
+    /// 拖动开始位置
+    @State private var dragStartLocation: CGPoint = .zero
+    
+    /// 气泡状态
+    @State private var bubbleStates: [ID: BubbleState] = [:]
+    
+    /// 屏幕大小
+    @State private var screenSize: CGSize = .zero
+    
+    // MARK: - 初始化器
+    
+    /// 初始化气泡布局
     /// - Parameters:
-    ///   - items: 数据项
+    ///   - items: 数据项数组
     ///   - config: 布局配置
-    ///   - content: 内容构建器
-    init(
-        items: [Item],
-        config: BubbleLayoutConfiguration = BubbleLayoutConfiguration(),
-        @ViewBuilder content: @escaping (Item, BubbleState) -> Content
-    ) {
+    ///   - content: 气泡内容构建器
+    init(items: [Item], config: BubbleLayoutConfiguration, @ViewBuilder content: @escaping (Item, BubbleState) -> Content) {
         self.items = items
         self.config = config
         self.content = content
     }
     
+    // MARK: - 视图构建
+    
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                // 背景
-                Color.clear
-                    // 确保背景可以接收点击事件
-                    .contentShape(Rectangle())
-                
-                // 可选：显示参考线
+                // 显示引导线（如果启用）
                 if config.showGuides {
                     BubbleGuideView(config: config)
+                        .allowsHitTesting(false)
                 }
                 
-                // 气泡内容
-                ForEach(items) { item in
-                    let state = bubbleState(for: item, in: geometry)
-                    
-                    content(item, state)
-                        .id(item.id)
-                        .position(
-                            x: geometry.size.width / 2 + state.position.x,
-                            y: geometry.size.height / 2 + state.position.y
-                        )
-                        // 不要禁用气泡的点击功能
+                // 内容层
+                ZStack {
+                    // 为每个项目渲染气泡
+                    ForEach(items) { item in
+                        let state = bubbleState(for: item, in: geometry)
+                        
+                        // 渲染项目内容
+                        content(item, state)
+                            .position(
+                                x: geometry.size.width / 2 + state.position.x,
+                                y: geometry.size.height / 2 + state.position.y
+                            )
+                    }
                 }
-            }
-            // 使用高优先级手势，确保它能在整个视图区域生效
-            .highPriorityGesture(
-                DragGesture(minimumDistance: 1, coordinateSpace: .local)
-                    .onChanged { value in
-                        let currentPosition = value.location
-                        
-                        if let lastPosition = lastDragPosition {
-                            // 计算与上次位置的差值
-                            let deltaX = currentPosition.x - lastPosition.x
-                            let deltaY = currentPosition.y - lastPosition.y
+                // 处理手势
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture()
+                        .onChanged { value in
+                            if dragStartLocation == .zero {
+                                // 记录拖动开始位置
+                                dragStartLocation = contentOffset
+                            }
                             
-                            // 保存旧的偏移量用于边界检查
-                            let oldOffset = contentOffset
-                            
-                            // 计算新的偏移量 - 修正方向（使用减法而不是加法）
+                            // 计算新偏移量
+                            let translation = value.translation
                             var newOffset = CGPoint(
-                                x: oldOffset.x - deltaX,
-                                y: oldOffset.y - deltaY
+                                x: dragStartLocation.x - translation.width,
+                                y: dragStartLocation.y - translation.height
                             )
                             
-                            // 限制偏移量不超过最大值
-                            newOffset.x = min(max(newOffset.x, -config.maxOffsetX), config.maxOffsetX)
-                            newOffset.y = min(max(newOffset.y, -config.maxOffsetY), config.maxOffsetY)
-                            
-                            // 检查是否存在可见气泡
-                            let wouldHaveVisibleBubbles = checkVisibleBubblesAfterOffset(
-                                newOffset: newOffset,
-                                size: geometry.size
-                            )
-                            
-                            // 如果没有可见气泡，则添加弹性效果
-                            if !wouldHaveVisibleBubbles {
-                                // 添加弹性效果
-                                let elasticFactor: CGFloat = 0.2
-                                
-                                // 应用弹性，偏移量会有一定的移动，但幅度减小
-                                newOffset = CGPoint(
-                                    x: oldOffset.x - deltaX * elasticFactor,
-                                    y: oldOffset.y - deltaY * elasticFactor
-                                )
-                                
-                                // 再次限制在最大范围内
-                                newOffset.x = min(max(newOffset.x, -config.maxOffsetX), config.maxOffsetX)
-                                newOffset.y = min(max(newOffset.y, -config.maxOffsetY), config.maxOffsetY)
-                            }
-                            
-                            // 更新偏移量并重新计算气泡状态
-                            contentOffset = newOffset
-                            recalculateBubbleStates(for: geometry.size)
-                        }
-                        
-                        // 更新上一次拖动位置
-                        lastDragPosition = currentPosition
-                    }
-                    .onEnded { _ in
-                        // 重置拖动状态
-                        lastDragPosition = nil
-                        
-                        // 结束拖动时，检查是否存在可见气泡
-                        let hasVisibleBubbles = checkVisibleBubblesAfterOffset(
-                            newOffset: contentOffset,
-                            size: geometry.size
-                        )
-                        
-                        // 如果没有可见气泡，添加回弹动画
-                        if !hasVisibleBubbles {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                                // 找到最接近中心的气泡位置
+                            // 检查是否会导致屏幕上没有气泡
+                            if !checkVisibleBubblesAfterOffset(newOffset: newOffset, size: geometry.size) {
+                                // 如果没有可见气泡，限制偏移量
                                 if let closestPosition = findClosestBubblePosition() {
-                                    // 设置偏移量使该气泡回到中心
-                                    contentOffset = closestPosition
-                                } else {
-                                    // 如果找不到最近的气泡，重置为原始位置
-                                    contentOffset = .zero
+                                    // 确保至少有一个气泡在屏幕上（最靠近中心的）
+                                    let maxDistance = sqrt(
+                                        pow(geometry.size.width / 2 + config.bubbleSize, 2) +
+                                        pow(geometry.size.height / 2 + config.bubbleSize, 2)
+                                    )
+                                    
+                                    let distanceFromCenter = sqrt(
+                                        pow(closestPosition.x - newOffset.x, 2) +
+                                        pow(closestPosition.y - newOffset.y, 2)
+                                    )
+                                    
+                                    if distanceFromCenter > maxDistance {
+                                        // 限制偏移，使最近的气泡保持在可见范围内
+                                        let factor = maxDistance / distanceFromCenter
+                                        newOffset.x = closestPosition.x - (closestPosition.x - newOffset.x) * factor
+                                        newOffset.y = closestPosition.y - (closestPosition.y - newOffset.y) * factor
+                                    }
                                 }
-                                recalculateBubbleStates(for: geometry.size)
                             }
-                        } else {
-                            // 即使没有回弹，也限制在最大范围内并重新计算最终状态
-                            contentOffset.x = min(max(contentOffset.x, -config.maxOffsetX), config.maxOffsetX)
-                            contentOffset.y = min(max(contentOffset.y, -config.maxOffsetY), config.maxOffsetY)
+                            
+                            // 更新偏移量
+                            contentOffset = newOffset
+                            
+                            // 重新计算气泡状态
                             recalculateBubbleStates(for: geometry.size)
                         }
-                    }
-            )
+                        .onEnded { _ in
+                            // 重置拖动开始位置
+                            dragStartLocation = .zero
+                        }
+                )
+            }
             .onAppear {
-                // 计算初始位置
+                // 生成初始位置
                 initialPositions = BubblePositionProvider.calculateBubblePositions(
                     totalItems: items.count,
                     config: config
                 )
-                
-                // 初始化气泡状态
+                // 初始计算气泡状态
                 recalculateBubbleStates(for: geometry.size)
             }
             .onChange(of: geometry.size) { oldSize, newSize in

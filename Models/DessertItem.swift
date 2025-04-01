@@ -9,7 +9,7 @@ import Foundation
 import SwiftUI
 
 /// 甜品数据模型
-struct DessertItem: Identifiable {
+struct DessertItem: Identifiable, Codable {
     /// 唯一标识符
     let id: Int
     
@@ -27,6 +27,54 @@ struct DessertItem: Identifiable {
     
     /// 可选的背景颜色
     var backgroundColor: Color?
+    
+    // MARK: - Codable 支持
+    
+    enum CodingKeys: String, CodingKey {
+        case id, name, imageName, price, calories
+        case backgroundColorHex
+    }
+    
+    init(id: Int, name: String, imageName: String, price: String, calories: String, backgroundColor: Color? = nil) {
+        self.id = id
+        self.name = name
+        self.imageName = imageName
+        self.price = price
+        self.calories = calories
+        self.backgroundColor = backgroundColor
+    }
+    
+    // 解码
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(Int.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        imageName = try container.decode(String.self, forKey: .imageName)
+        price = try container.decode(String.self, forKey: .price)
+        calories = try container.decode(String.self, forKey: .calories)
+        
+        if let colorHex = try container.decodeIfPresent(String.self, forKey: .backgroundColorHex) {
+            backgroundColor = Color(hex: colorHex)
+        } else {
+            backgroundColor = nil
+        }
+    }
+    
+    // 编码
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(imageName, forKey: .imageName)
+        try container.encode(price, forKey: .price)
+        try container.encode(calories, forKey: .calories)
+        
+        // 将颜色转换为十六进制字符串存储
+        if let bgColor = backgroundColor, let uiColor = bgColor.uiColor {
+            let colorHex = uiColor.toHex()
+            try container.encode(colorHex, forKey: .backgroundColorHex)
+        }
+    }
 }
 
 /// 甜品数据提供者
@@ -76,5 +124,48 @@ struct DessertData {
             DessertItem(id: 39, name: "南瓜派", imageName: "pumpkin_pie", price: "¥38", calories: "310", backgroundColor: Color(hex: "FFCC99")),
             DessertItem(id: 40, name: "枣泥糕", imageName: "jujube_cake", price: "¥24", calories: "220", backgroundColor: Color(hex: "D49A6A"))
         ]
+    }
+}
+
+// MARK: - 扩展支持
+
+extension Color {
+    var uiColor: UIColor? {
+        if #available(iOS 14.0, *) {
+            return UIColor(self)
+        } else {
+            // iOS 14以下版本的回退方案
+            let scanner = Scanner(string: "")
+            var rgbValue: UInt64 = 0
+            scanner.scanHexInt64(&rgbValue)
+            
+            let r = (rgbValue & 0xff0000) >> 16
+            let g = (rgbValue & 0xff00) >> 8
+            let b = rgbValue & 0xff
+            
+            return UIColor(
+                red: CGFloat(r) / 0xff,
+                green: CGFloat(g) / 0xff,
+                blue: CGFloat(b) / 0xff,
+                alpha: 1
+            )
+        }
+    }
+}
+
+extension UIColor {
+    func toHex() -> String {
+        guard let components = cgColor.components, components.count >= 3 else {
+            return "000000"
+        }
+        
+        let r = Float(components[0])
+        let g = Float(components[1])
+        let b = Float(components[2])
+        
+        return String(format: "%02lX%02lX%02lX",
+                      lroundf(r * 255),
+                      lroundf(g * 255),
+                      lroundf(b * 255))
     }
 } 

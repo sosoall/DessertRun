@@ -9,9 +9,13 @@ import SwiftUI
 
 @main
 struct DessertRunApp: App {
+    // 应用全局状态
+    @StateObject private var appState = AppState.shared
+    
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            MainTabView()
+                .environmentObject(appState)
         }
     }
 }
