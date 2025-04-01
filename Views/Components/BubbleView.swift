@@ -28,9 +28,9 @@ extension Color {
 
 /// 气泡背景样式
 enum BubbleBackgroundStyle {
-    case circle               // 圆形
-    case transparent          // 透明
-    case custom(Color)        // 自定义颜色
+    case squircle            // 圆角正方形
+    case transparent         // 透明
+    case custom(Color)       // 自定义颜色
 }
 
 /// 可配置的气泡视图
@@ -57,7 +57,7 @@ struct BubbleView: View {
     var showName: Bool = true
     
     /// 背景样式
-    var backgroundStyle: BubbleBackgroundStyle = .circle
+    var backgroundStyle: BubbleBackgroundStyle = .squircle
     
     /// 内容边距
     var contentPadding: CGFloat = 8
@@ -78,7 +78,8 @@ struct BubbleView: View {
                         Image(imageName)
                             .resizable()
                             .scaledToFit()
-                            .padding(bubbleSize * 0.15)
+                            .padding(bubbleSize * 0.1)
+                            .shadow(color: Color(hex: "7E4A4A").opacity(0.15), radius: 5, x: 2, y: 2)
                     } else {
                         // 如果无法加载图片，显示占位图标和分类图标
                         Image(systemName: item.category.icon)
@@ -100,7 +101,7 @@ struct BubbleView: View {
                             )
                     }
                 }
-                .clipShape(Circle())
+                .clipShape(RoundedRectangle(cornerRadius: bubbleSize * 0.25, style: .continuous))
                 
                 // 名称标签
                 if showName {
@@ -108,16 +109,23 @@ struct BubbleView: View {
                         Text(item.name)
                             .font(.system(size: min(14, bubbleSize * 0.15)))
                             .fontWeight(.medium)
-                            .foregroundColor(.primary)
+                            .foregroundColor(.black)
                             .lineLimit(1)
                             .minimumScaleFactor(0.5)
                         
                         Text(item.calories + " 卡路里")
                             .font(.system(size: min(10, bubbleSize * 0.1)))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.gray)
                             .lineLimit(1)
                             .opacity(bubbleSize > maxSize * 0.5 ? 1 : 0)
                     }
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 8)
+                    .background(
+                        Capsule()
+                            .fill(Color.white.opacity(0.5))
+                    )
+                    .opacity(bubbleSize > maxSize * 0.4 ? 1 : 0)
                 }
             }
             .padding(contentPadding)
@@ -126,7 +134,7 @@ struct BubbleView: View {
             .opacity(calculateOpacity())
         }
         .buttonStyle(PlainButtonStyle())
-        .contentShape(Circle())
+        .contentShape(RoundedRectangle(cornerRadius: bubbleSize * 0.25, style: .continuous))
     }
     
     /// 计算不透明度，基于距离中心远近
@@ -140,19 +148,28 @@ struct BubbleView: View {
     private var backgroundView: some View {
         Group {
             switch backgroundStyle {
-            case .circle:
-                Circle()
-                    .fill(item.backgroundColor ?? Color.white)
-                    .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 2)
+            case .squircle:
+                RoundedRectangle(cornerRadius: bubbleSize * 0.25, style: .continuous)
+                    .fill(Color.white.opacity(0.8))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: bubbleSize * 0.25, style: .continuous)
+                            .stroke(Color.white.opacity(0.9), lineWidth: 0.5)
+                    )
+                    .shadow(color: Color(hex: "7E4A4A").opacity(0.15), radius: 8, x: 5, y: 5)
+                    .shadow(color: Color(hex: "7E4A4A").opacity(0.2), radius: 4, x: 3, y: 3)
                 
             case .transparent:
-                Circle()
+                RoundedRectangle(cornerRadius: bubbleSize * 0.25, style: .continuous)
                     .fill(Color.clear)
                 
             case .custom(let color):
-                Circle()
+                RoundedRectangle(cornerRadius: bubbleSize * 0.25, style: .continuous)
                     .fill(color)
-                    .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 2)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: bubbleSize * 0.25, style: .continuous)
+                            .stroke(Color.white.opacity(0.3), lineWidth: 0.5)
+                    )
+                    .shadow(color: Color(hex: "7E4A4A").opacity(0.15), radius: 7, x: 5, y: 5)
             }
         }
     }

@@ -12,7 +12,8 @@ struct BubbleLayoutConfiguration {
     // 布局主要参数
     var bubbleSize: CGFloat = 200        // 气泡最大尺寸
     var minBubbleSize: CGFloat = 20      // 气泡最小尺寸
-    var gutter: CGFloat = 16             // 气泡间隔
+    var rowGap: CGFloat = 15             // 行间距（垂直方向）
+    var colGap: CGFloat = 15             // 列间距（水平方向）
     var provideProps: Bool = false       // 是否向子组件传递特殊属性
     var numCols: Int = 6                 // 排列的列数
     var fringeWidth: CGFloat = 100       // 过渡区域宽度
@@ -40,39 +41,42 @@ struct BubbleLayoutConfiguration {
         // 屏幕较小时（如iPhone SE、iPhone mini等）
         if smallerDimension < 380 {
             return BubbleLayoutConfiguration(
-                bubbleSize: 110 * multiplier,
-                minBubbleSize: 50 * multiplier,
-                gutter: 12 * multiplier,
+                bubbleSize: 120 * multiplier,
+                minBubbleSize: 60 * multiplier,
+                rowGap: 14 * multiplier,     // 行间距
+                colGap: 10 * multiplier,     // 列间距
                 provideProps: true,
-                numCols: 4,
-                fringeWidth: 100 * multiplier,
+                numCols: 3,
+                fringeWidth: 80 * multiplier, 
                 yRadius: 130 * multiplier,
-                xRadius: 130 * multiplier,
+                xRadius: 120 * multiplier,
                 cornerRadius: 60 * multiplier,
                 showGuides: false,
                 compact: true,
-                gravitation: 0.3,
-                maxOffsetX: 200 * multiplier,
-                maxOffsetY: 300 * multiplier,
+                gravitation: 0.2,
+                maxOffsetX: 150 * multiplier,
+                maxOffsetY: 200 * multiplier,
                 initialSpreadMultiplier: 1.0
             )
         } else {
             // 大屏幕配置（iPhone标准尺寸及以上）
             return BubbleLayoutConfiguration(
                 bubbleSize: 180 * multiplier,
-                minBubbleSize: 80 * multiplier,
-                gutter: 14 * multiplier,
+                minBubbleSize: 120 * multiplier,
+                rowGap: 30 * multiplier,     // 行间距
+                colGap: 15 * multiplier,     // 列间距
                 provideProps: true,
                 numCols: 4,
-                fringeWidth: 180 * multiplier,  // 从80增大到120
-                yRadius: 220 * multiplier,
+                fringeWidth: 120 * multiplier,
+                yRadius: 180 * multiplier,
                 xRadius: 120 * multiplier,
                 cornerRadius: 70 * multiplier,
                 showGuides: false,
                 compact: true,
-                gravitation: 0,
-                maxOffsetX: 200 * multiplier,
-                maxOffsetY: 700 * multiplier
+                gravitation: 0.2,
+                maxOffsetX: 180 * multiplier,
+                maxOffsetY: 250 * multiplier,
+                initialSpreadMultiplier: 1.0
             )
         }
     }

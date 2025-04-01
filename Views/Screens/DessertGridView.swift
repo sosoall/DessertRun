@@ -31,7 +31,8 @@ struct DessertGridView: View {
         GeometryReader { geometry in
             ZStack {
                 // 背景
-                Color(hex: "fae8c8").ignoresSafeArea()
+                Color(hex: "FFFFFF")
+                .ignoresSafeArea()
                 
                 // 气泡布局
                 BubbleLayout(
@@ -53,15 +54,10 @@ struct DessertGridView: View {
                     )
                 }
                 .id(forceLayoutUpdate) // 使用id强制刷新布局
+                .padding(.top, 100) // 为顶部标题留出空间
                 
-                // 顶部标题
+                // 底部控制按钮
                 VStack {
-                    Text("甜品菜单")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-                        .foregroundColor(Color(hex: "61462C"))
-                        .padding(.top, 30)
-                    
                     Spacer()
                     
                     // 底部控制按钮
@@ -69,13 +65,14 @@ struct DessertGridView: View {
                         Button(action: { showGuides.toggle() }) {
                             Image(systemName: showGuides ? "eye.slash.fill" : "eye.fill")
                                 .font(.title3)
-                                .foregroundColor(Color(hex: "61462C"))
+                                .foregroundColor(Color(hex: "212121"))
                                 .padding()
-                                .background(Color.white.opacity(0.7))
-                                .clipShape(Circle())
+                                .background(Color.white.opacity(0.8))
+                                .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+                                .shadow(color: Color(hex: "7E4A4A").opacity(0.25), radius: 10, x: 5, y: 5)
                         }
                     }
-                    .padding(.bottom, 30)
+                    .padding(.bottom, 80) // 为底部导航栏留出空间
                 }
             }
             .navigationDestination(isPresented: $navigateToExerciseType) {

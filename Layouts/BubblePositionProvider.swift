@@ -20,10 +20,15 @@ struct BubblePositionProvider {
         var currentRow = 0
         var currentCol = 0
         
-        // 应用初始分布系数来调整气泡间距
-        let spacing = (config.bubbleSize + config.gutter) * config.initialSpreadMultiplier
+        // 基于气泡大小计算间距
+        let baseColGap = config.colGap * (config.bubbleSize / config.maxSize)
+        let baseRowGap = config.rowGap * (config.bubbleSize / config.maxSize)
         
-        // 根据原始React-Bubble-UI的排列逻辑计算位置
+        // 计算水平和垂直间距
+        let horizontalSpacing = config.bubbleSize + baseColGap
+        let verticalSpacing = config.bubbleSize + baseRowGap
+        
+        // 根据六边形蜂窝状排列逻辑计算位置
         for _ in 0..<totalItems {
             // 是否为奇数行
             let isOddRow = currentRow % 2 != 0
@@ -32,11 +37,12 @@ struct BubblePositionProvider {
             let colsInThisRow = isOddRow ? maxCols - 1 : maxCols
             
             // 计算X位置，奇数行有偏移
-            let xOffset = isOddRow ? spacing / 2 : 0
-            let x = CGFloat(currentCol) * spacing + xOffset
+            let xOffset = isOddRow ? horizontalSpacing / 2 : 0
+            let x = CGFloat(currentCol) * horizontalSpacing + xOffset
             
             // 计算Y位置，使用0.866作为六边形排列的垂直压缩因子
-            let y = CGFloat(currentRow) * spacing * 0.866
+            // 0.866约等于sqrt(3)/2，是六边形蜂窝状排列的标准垂直压缩比例
+            let y = CGFloat(currentRow) * verticalSpacing * 0.866
             
             positions.append(CGPoint(x: x, y: y))
             
@@ -62,6 +68,14 @@ struct BubblePositionProvider {
             
             // 使整体居中
             positions = positions.map { CGPoint(x: $0.x - centerX, y: $0.y - centerY) }
+        }
+        
+        // 应用初始分布乘数因子
+        if config.initialSpreadMultiplier != 1.0 {
+            positions = positions.map { CGPoint(
+                x: $0.x * config.initialSpreadMultiplier,
+                y: $0.y * config.initialSpreadMultiplier
+            )}
         }
         
         return positions
