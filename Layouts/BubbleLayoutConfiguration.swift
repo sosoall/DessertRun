@@ -30,49 +30,22 @@ struct BubbleLayoutConfiguration {
     var maxSize: CGFloat { bubbleSize }
     var minSize: CGFloat { minBubbleSize }
     
-    /// 为iPhone 16创建优化的配置（约390×844点）
-    /// 中间可显示3行，每行2-3个气泡
-    static func foriPhone16() -> BubbleLayoutConfiguration {
-        return BubbleLayoutConfiguration(
-            bubbleSize: 120,         // 气泡最大尺寸
-            minBubbleSize: 60,       // 气泡最小尺寸
-            gutter: 16,              // 气泡间距
-            provideProps: true,      // 传递属性
-            numCols: 3,              // 每行最多3个气泡
-            fringeWidth: 120,        // 过渡区域宽度 (从70增大到120)
-            yRadius: 180,            // 中心区域垂直半径
-            xRadius: 180,            // 中心区域水平半径
-            cornerRadius: 90,        // 中心区域圆角半径
-            showGuides: false,       // 参考线
-            compact: true,           // 紧凑布局
-            gravitation: 0.4,         // 引力效果
-            maxOffsetX: 200,         // X轴最大偏移量
-            maxOffsetY: 300,         // Y轴最大偏移量
-            initialSpreadMultiplier: 1.0 // 保持默认值
-        )
-    }
-    
     /// 创建适配屏幕尺寸的配置
     /// - Parameter size: 屏幕尺寸
     /// - Returns: 适合的布局配置
     static func forScreenSize(_ size: CGSize) -> BubbleLayoutConfiguration {
-        // 检查是否是iPhone 16尺寸（大约390×844）
-        if size.width >= 385 && size.width <= 395 && size.height >= 840 && size.height <= 850 {
-            return foriPhone16()
-        }
-        
         let smallerDimension = min(size.width, size.height)
         let multiplier = smallerDimension / 400 // 基准尺寸
         
-        // 屏幕较小时
-        if smallerDimension < 360 {
+        // 屏幕较小时（如iPhone SE、iPhone mini等）
+        if smallerDimension < 380 {
             return BubbleLayoutConfiguration(
                 bubbleSize: 110 * multiplier,
                 minBubbleSize: 50 * multiplier,
                 gutter: 12 * multiplier,
                 provideProps: true,
                 numCols: 4,
-                fringeWidth: 100 * multiplier,  // 从70增大到100
+                fringeWidth: 100 * multiplier,
                 yRadius: 130 * multiplier,
                 xRadius: 130 * multiplier,
                 cornerRadius: 60 * multiplier,
@@ -84,7 +57,7 @@ struct BubbleLayoutConfiguration {
                 initialSpreadMultiplier: 1.0
             )
         } else {
-            // 大屏幕配置
+            // 大屏幕配置（iPhone标准尺寸及以上）
             return BubbleLayoutConfiguration(
                 bubbleSize: 180 * multiplier,
                 minBubbleSize: 80 * multiplier,
@@ -99,8 +72,7 @@ struct BubbleLayoutConfiguration {
                 compact: true,
                 gravitation: 0,
                 maxOffsetX: 200 * multiplier,
-                maxOffsetY: 700 * multiplier,
-                initialSpreadMultiplier: 1.0
+                maxOffsetY: 700 * multiplier
             )
         }
     }

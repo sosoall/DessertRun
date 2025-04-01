@@ -1,0 +1,39 @@
+# Xcode
+#
+# gitignore 配置文件 - 忽略图片资源等大型文件
+#
+.DS_Store
+
+## 用户设置
+xcuserdata/
+
+## Obj-C/Swift 特定文件
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+## 忽略 Assets 中的图片资源
+Assets.xcassets/**/*.png
+Assets.xcassets/**/*.jpg
+Assets.xcassets/**/*.jpeg
+Assets.xcassets/**/*.gif
+Assets.xcassets/**/*.svg
+*_images.xcassets/**/*.png
+*_images.xcassets/**/*.jpg
+*_images.xcassets/**/*.jpeg
+*_images.xcassets/**/*.gif
+*_images.xcassets/**/*.svg
+
+# Swift Package Manager
+.build/
+
+# 忽略的临时文件
+temp_script/
+
+# CocoaPods
+Pods/
+*.xcworkspace
+
+# Carthage
+Carthage/Build/ 

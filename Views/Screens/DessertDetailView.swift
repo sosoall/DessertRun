@@ -65,28 +65,14 @@ struct DessertDetailView: View {
                 .font(.title)
                 .fontWeight(.bold)
             
-            // 价格和卡路里
-            HStack(spacing: 30) {
-                VStack {
-                    Text("价格")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    Text(dessert.price)
-                        .font(.title3)
-                        .fontWeight(.semibold)
-                }
-                
-                Divider()
-                    .frame(height: 30)
-                
-                VStack {
-                    Text("卡路里")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    Text("\(dessert.calories)")
-                        .font(.title3)
-                        .fontWeight(.semibold)
-                }
+            // 卡路里信息
+            VStack {
+                Text("卡路里")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                Text("\(dessert.calories)")
+                    .font(.title3)
+                    .fontWeight(.semibold)
             }
             
             // 描述

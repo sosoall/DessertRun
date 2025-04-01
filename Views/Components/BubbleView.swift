@@ -56,52 +56,68 @@ struct BubbleView: View {
     /// 是否显示名称
     var showName: Bool = true
     
-    /// 是否显示卡路里
-    var showCalories: Bool = true
-    
     /// 背景样式
     var backgroundStyle: BubbleBackgroundStyle = .circle
     
     /// 内容边距
     var contentPadding: CGFloat = 8
     
+    /// 图片风格
+    var imageStyle: FoodImageStyle = .regular
+    
     var body: some View {
         Button(action: onTap) {
-            VStack(spacing: 2) {
-                // 图片
-                if let bgColor = item.backgroundColor {
-                    // 使用背景色设置相应的图标颜色
-                    let iconColor: Color = bgColor.brightness > 0.5 ? .black : .white
-                    Image(systemName: "cup.and.saucer.fill")
-                        .resizable()
-                        .scaledToFit()
-                        .foregroundColor(iconColor)
-                        .padding(bubbleSize * 0.25)
-                } else {
-                    // 使用系统图标作为占位符
-                    Image(systemName: "cup.and.saucer.fill")
-                        .resizable()
-                        .scaledToFit()
-                        .foregroundColor(.pink)
-                        .padding(bubbleSize * 0.25)
+            VStack(spacing: 4) {
+                // 美食图片
+                ZStack {
+                    // 获取对应风格的图片名称
+                    let imageName = item.getImageName(for: imageStyle)
+                    
+                    if UIImage(named: imageName) != nil {
+                        // 如果可以加载到图片，则显示真实图片
+                        Image(imageName)
+                            .resizable()
+                            .scaledToFit()
+                            .padding(bubbleSize * 0.15)
+                    } else {
+                        // 如果无法加载图片，显示占位图标和分类图标
+                        Image(systemName: item.category.icon)
+                            .resizable()
+                            .scaledToFit()
+                            .foregroundColor(item.backgroundColor != nil && item.backgroundColor!.brightness > 0.5 ? .black : .white)
+                            .padding(bubbleSize * 0.25)
+                            .overlay(
+                                Text(item.category.rawValue)
+                                    .font(.system(size: min(10, bubbleSize * 0.1)))
+                                    .foregroundColor(item.backgroundColor != nil && item.backgroundColor!.brightness > 0.5 ? .black : .white)
+                                    .padding(4)
+                                    .background(
+                                        Capsule()
+                                            .fill(Color.black.opacity(0.2))
+                                    )
+                                    .padding(4),
+                                alignment: .bottomTrailing
+                            )
+                    }
                 }
+                .clipShape(Circle())
                 
                 // 名称标签
                 if showName {
-                    Text(item.name)
-                        .font(.system(size: min(14, bubbleSize * 0.15)))
-                        .fontWeight(.medium)
-                        .foregroundColor(.primary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.5)
-                }
-                
-                // 卡路里标签
-                if showCalories {
-                    Text("\(item.calories) 卡路里")
-                        .font(.system(size: min(10, bubbleSize * 0.1)))
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
+                    VStack(spacing: 0) {
+                        Text(item.name)
+                            .font(.system(size: min(14, bubbleSize * 0.15)))
+                            .fontWeight(.medium)
+                            .foregroundColor(.primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
+                        
+                        Text(item.calories + " 卡路里")
+                            .font(.system(size: min(10, bubbleSize * 0.1)))
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                            .opacity(bubbleSize > maxSize * 0.5 ? 1 : 0)
+                    }
                 }
             }
             .padding(contentPadding)
@@ -127,7 +143,7 @@ struct BubbleView: View {
             case .circle:
                 Circle()
                     .fill(item.backgroundColor ?? Color.white)
-                    .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 2)
+                    .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 2)
                 
             case .transparent:
                 Circle()
@@ -136,7 +152,7 @@ struct BubbleView: View {
             case .custom(let color):
                 Circle()
                     .fill(color)
-                    .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 2)
+                    .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 2)
             }
         }
     }

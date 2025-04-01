@@ -523,18 +523,6 @@ struct VoucherDetailView: View {
             
             // 券信息
             HStack {
-                // 价格
-                VStack {
-                    Text("价格")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    
-                    Text(voucher.dessert.price)
-                        .font(.headline)
-                        .fontWeight(.bold)
-                }
-                .frame(maxWidth: .infinity)
-                
                 // 卡路里
                 VStack {
                     Text("卡路里")
@@ -635,7 +623,7 @@ struct VoucherDetailView: View {
                 instructionRow(number: "2", text: "店员扫描二维码或输入券码核销")
                 instructionRow(number: "3", text: "立即享用美味甜品")
                 if voucher.isPartial {
-                    instructionRow(number: "4", text: "部分券需支付剩余\(100 - Int(voucher.completionPercentage))%的价格")
+                    instructionRow(number: "4", text: "部分券仅可兑换\(Int(voucher.completionPercentage))%的甜品份量")
                 }
             }
             
