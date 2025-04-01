@@ -20,6 +20,9 @@ struct BubblePositionProvider {
         var currentRow = 0
         var currentCol = 0
         
+        // 应用初始分布系数来调整气泡间距
+        let spacing = (config.bubbleSize + config.gutter) * config.initialSpreadMultiplier
+        
         // 根据原始React-Bubble-UI的排列逻辑计算位置
         for _ in 0..<totalItems {
             // 是否为奇数行
@@ -29,11 +32,11 @@ struct BubblePositionProvider {
             let colsInThisRow = isOddRow ? maxCols - 1 : maxCols
             
             // 计算X位置，奇数行有偏移
-            let xOffset = isOddRow ? config.bubbleSize / 2 : 0
-            let x = CGFloat(currentCol) * (config.bubbleSize + config.gutter) + xOffset
+            let xOffset = isOddRow ? spacing / 2 : 0
+            let x = CGFloat(currentCol) * spacing + xOffset
             
             // 计算Y位置，使用0.866作为六边形排列的垂直压缩因子
-            let y = CGFloat(currentRow) * (config.bubbleSize + config.gutter) * 0.866
+            let y = CGFloat(currentRow) * spacing * 0.866
             
             positions.append(CGPoint(x: x, y: y))
             

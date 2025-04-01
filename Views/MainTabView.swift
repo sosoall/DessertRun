@@ -18,7 +18,7 @@ struct MainTabView: View {
     var body: some View {
         TabView(selection: $selectedTab) {
             // 运动标签
-            NavigationView {
+            NavigationStack {
                 ExerciseHomeView()
             }
             .tabItem {
@@ -27,7 +27,7 @@ struct MainTabView: View {
             .tag(0)
             
             // 统计标签
-            NavigationView {
+            NavigationStack {
                 StatsHomeView()
             }
             .tabItem {
@@ -36,7 +36,7 @@ struct MainTabView: View {
             .tag(1)
             
             // 个人信息标签
-            NavigationView {
+            NavigationStack {
                 ProfileHomeView()
             }
             .tabItem {

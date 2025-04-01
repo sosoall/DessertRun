@@ -15,6 +15,12 @@ struct DessertDetailView: View {
     /// 关闭回调
     var onClose: () -> Void = {}
     
+    /// 环境中的应用状态
+    @EnvironmentObject var appState: AppState
+    
+    /// 是否跳转到运动类型选择页面
+    @State private var navigateToExerciseTypeSelection = false
+    
     var body: some View {
         VStack(spacing: 20) {
             // 顶部区域
@@ -99,13 +105,17 @@ struct DessertDetailView: View {
             Spacer()
             
             // 底部按钮
-            Button(action: {}) {
-                Text("加入购物车")
+            Button(action: {
+                // 设置选中的甜品并导航到运动类型选择
+                appState.selectedDessert = dessert
+                navigateToExerciseTypeSelection = true
+            }) {
+                Text("开始运动")
                     .font(.headline)
                     .foregroundColor(.white)
                     .padding()
                     .frame(maxWidth: .infinity)
-                    .background(Color.pink)
+                    .background(Color(hex: "FE2D55"))
                     .cornerRadius(15)
             }
             .padding(.horizontal)
@@ -114,5 +124,15 @@ struct DessertDetailView: View {
         .background(Color(hex: "FAFAFA"))
         .cornerRadius(20)
         .edgesIgnoringSafeArea(.bottom)
+        .navigationDestination(isPresented: $navigateToExerciseTypeSelection) {
+            ExerciseTypeSelectionView()
+        }
+    }
+}
+
+#Preview {
+    NavigationStack {
+        DessertDetailView(dessert: DessertData.getSampleDesserts().first!)
+            .environmentObject(AppState.shared)
     }
 } 

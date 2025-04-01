@@ -18,6 +18,15 @@ struct DessertGridView: View {
     /// 是否显示引导
     @State private var showGuides = false
     
+    /// 是否导航到运动类型选择页面
+    @State private var navigateToExerciseType = false
+    
+    /// 环境中的应用状态
+    @EnvironmentObject var appState: AppState
+    
+    /// 控制布局刷新
+    @State private var forceLayoutUpdate = false
+    
     var body: some View {
         GeometryReader { geometry in
             ZStack {
@@ -38,9 +47,12 @@ struct DessertGridView: View {
                         minSize: createConfig(for: geometry.size).minBubbleSize,
                         onTap: {
                             selectedDessert = dessert
+                            appState.selectedDessert = dessert
+                            navigateToExerciseType = true
                         }
                     )
                 }
+                .id(forceLayoutUpdate) // 使用id强制刷新布局
                 
                 // 顶部标题
                 VStack {
@@ -66,15 +78,15 @@ struct DessertGridView: View {
                     .padding(.bottom, 30)
                 }
             }
-        }
-        .sheet(item: $selectedDessert) { dessert in
-            // 详情页
-            DessertDetailView(
-                dessert: dessert,
-                onClose: {
-                    selectedDessert = nil
+            .navigationDestination(isPresented: $navigateToExerciseType) {
+                ExerciseTypeSelectionView()
+            }
+            .onAppear {
+                // 延迟一点时间确保视图布局完成后再刷新气泡布局
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    forceLayoutUpdate.toggle()
                 }
-            )
+            }
         }
     }
     
