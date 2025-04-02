@@ -112,12 +112,6 @@ struct BubbleView: View {
                         .foregroundColor(.black)
                         .lineLimit(1)
                         .minimumScaleFactor(0.5)
-                    
-                    Text(item.calories + " 卡路里")
-                        .font(.system(size: min(10, bubbleSize * 0.1)))
-                        .foregroundColor(.gray)
-                        .lineLimit(1)
-                        .opacity(bubbleSize > maxSize * 0.5 ? 1 : 0)
                 }
                 .padding(.vertical, 4)
                 .padding(.horizontal, 8)
@@ -125,7 +119,8 @@ struct BubbleView: View {
                     Capsule()
                         .fill(Color.white.opacity(0.5))
                 )
-                .opacity(bubbleSize > maxSize * 0.4 ? 1 : 0)
+                // 只在中心区域显示名称，距离中心越远越透明
+                .opacity(calculateNameOpacity())
             }
         }
         .padding(contentPadding)
@@ -137,6 +132,30 @@ struct BubbleView: View {
         // 使用简单的点击手势，优先级较低
         .onTapGesture {
             onTap()
+        }
+    }
+    
+    /// 计算名称标签的透明度，基于到中心的距离
+    private func calculateNameOpacity() -> Double {
+        // 定义中心区域的半径 (占最大半径的比例)
+        let centerZoneRatio: CGFloat = 0.3
+        
+        // 将距离归一化为0-1的比例 (distanceToCenter / 最大可能距离)
+        // 假设最大距离是屏幕对角线的一半
+        let normalizedDistance = distanceToCenter / (maxSize * 2)
+        
+        // 如果在中心区域内，完全显示
+        if normalizedDistance < centerZoneRatio {
+            return 1.0
+        }
+        // 如果超出中心区域但在过渡区域内，逐渐降低透明度
+        else if normalizedDistance < centerZoneRatio * 2 {
+            // 计算从1到0的线性过渡
+            return Double(1.0 - (normalizedDistance - centerZoneRatio) / centerZoneRatio)
+        }
+        // 如果远离中心，完全隐藏
+        else {
+            return 0.0
         }
     }
     

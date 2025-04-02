@@ -15,36 +15,54 @@ struct MainTabView: View {
     // 当前选中的标签
     @State private var selectedTab = 0
     
+    // 是否隐藏Tab栏
+    @State private var hideTabBar = false
+    
     var body: some View {
-        TabView(selection: $selectedTab) {
-            // 运动标签
-            NavigationStack {
-                ExerciseHomeView()
+        ZStack(alignment: .bottom) {
+            TabView(selection: $selectedTab) {
+                // 运动标签
+                NavigationStack {
+                    ExerciseHomeView(onDraggingChanged: { isDragging in
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            hideTabBar = isDragging
+                        }
+                    })
+                }
+                .tabItem {
+                    Label("运动", systemImage: "figure.run")
+                }
+                .tag(0)
+                
+                // 统计标签
+                NavigationStack {
+                    StatsHomeView()
+                }
+                .tabItem {
+                    Label("统计", systemImage: "chart.bar.fill")
+                }
+                .tag(1)
+                
+                // 个人信息标签
+                NavigationStack {
+                    ProfileHomeView()
+                }
+                .tabItem {
+                    Label("我的", systemImage: "person.fill")
+                }
+                .tag(2)
             }
-            .tabItem {
-                Label("运动", systemImage: "figure.run")
-            }
-            .tag(0)
+            .accentColor(Color(hex: "FE2D55")) // 使用品牌主题色
             
-            // 统计标签
-            NavigationStack {
-                StatsHomeView()
+            // 自定义TabBar覆盖层，当拖动时遮挡原始TabBar
+            if hideTabBar {
+                Rectangle()
+                    .fill(Color.white)
+                    .frame(height: 49) // 标准TabBar高度
+                    .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: -2)
+                    .ignoresSafeArea()
             }
-            .tabItem {
-                Label("统计", systemImage: "chart.bar.fill")
-            }
-            .tag(1)
-            
-            // 个人信息标签
-            NavigationStack {
-                ProfileHomeView()
-            }
-            .tabItem {
-                Label("我的", systemImage: "person.fill")
-            }
-            .tag(2)
         }
-        .accentColor(Color(hex: "FE2D55")) // 使用品牌主题色
         .onAppear {
             // 设置TabBar的外观
             let appearance = UITabBarAppearance()
@@ -60,6 +78,7 @@ struct MainTabView: View {
                 UITabBar.appearance().scrollEdgeAppearance = appearance
             }
         }
+        .ignoresSafeArea(edges: .bottom)
     }
 }
 

@@ -15,6 +15,14 @@ struct ExerciseHomeView: View {
     // 是否正在拖动气泡
     @State private var isDragging: Bool = false
     
+    // 拖动状态回调
+    var onDraggingChanged: ((Bool) -> Void)?
+    
+    // 初始化函数
+    init(onDraggingChanged: ((Bool) -> Void)? = nil) {
+        self.onDraggingChanged = onDraggingChanged
+    }
+    
     var body: some View {
         ZStack {
             // 背景
@@ -24,6 +32,8 @@ struct ExerciseHomeView: View {
             DessertGridView(onDragStateChanged: { isDragging in
                 withAnimation(.easeInOut(duration: 0.3)) {
                     self.isDragging = isDragging
+                    // 调用外部回调
+                    onDraggingChanged?(isDragging)
                 }
             })
             

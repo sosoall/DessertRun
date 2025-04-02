@@ -75,7 +75,7 @@ struct BubbleLayoutConfiguration {
                 compact: true,
                 gravitation: 0.1,
                 maxOffsetX: 200 * multiplier,
-                maxOffsetY: 350 * multiplier,
+                maxOffsetY: 450 * multiplier,
                 initialSpreadMultiplier: 1.0
             )
         }
