@@ -68,7 +68,7 @@ struct BubbleLayoutConfiguration {
                 provideProps: true,
                 numCols: 4,
                 fringeWidth: 120 * multiplier,
-                yRadius: 200 * multiplier,
+                yRadius: 220 * multiplier,
                 xRadius: 120 * multiplier,
                 cornerRadius: 0 * multiplier,
                 showGuides: false,

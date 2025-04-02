@@ -78,7 +78,7 @@ struct BubbleView: View {
                     Image(imageName)
                         .resizable()
                         .scaledToFit()
-                        .padding(bubbleSize * 0.07) // 减少内边距，让图片更大
+                        .padding(bubbleSize * 0.02) // 减少内边距，让图片更大（之前是0.03）
                         .shadow(color: Color(hex: "7E4A4A").opacity(0.15), radius: 5, x: 2, y: 2)
                 } else {
                     // 如果无法加载图片，显示占位图标和分类图标

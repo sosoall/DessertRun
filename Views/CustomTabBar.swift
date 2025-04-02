@@ -29,6 +29,9 @@ struct CustomTabBar: View {
     // 主题颜色
     let accentColor: Color
     
+    // 安全区域底部高度
+    @State private var safeAreaBottom: CGFloat = 0
+    
     // 初始化
     init(
         selectedTab: Binding<Int>,
@@ -43,18 +46,10 @@ struct CustomTabBar: View {
     }
     
     var body: some View {
-        // 整个TabBar作为一个整体向下滑动，不再使用VStack包裹
-        ZStack(alignment: .top) {
-            // 背景和阴影
-            VStack(spacing: 0) {
-                Divider()
-                    .opacity(0.2)
-                
-                Rectangle()
-                    .fill(Color.white)
-                    .frame(height: 49)
-                    .shadow(color: Color.black.opacity(0.07), radius: 10, x: 0, y: -5)
-            }
+        VStack(spacing: 0) {
+            // 分隔线
+            Divider()
+                .opacity(0.2)
             
             // 标签按钮
             HStack(spacing: 0) {
@@ -79,12 +74,28 @@ struct CustomTabBar: View {
                     }
                 }
             }
-            .padding(.top, 1) // 为分隔线预留空间
+            .frame(height: 49)
+            .padding(.bottom, safeAreaBottom > 0 ? 16 : 0) // 添加底部安全距离，仅在有Home指示条的设备上
+            .background(Color.white)
+            
+            // 安全区域填充
+            Rectangle()
+                .fill(Color.white)
+                .frame(height: safeAreaBottom)
+                .edgesIgnoringSafeArea(.bottom)
         }
-        .frame(height: 50)
-        .background(Color.white) // 确保整个TabBar都是白色背景
-        .offset(y: isHidden ? 100 : 0) // 整体向下移出屏幕
+        .background(Color.white)
+        .offset(y: isHidden ? (49 + safeAreaBottom + (safeAreaBottom > 0 ? 16 : 0) + 30) : 0) // 向下移出屏幕，增加额外30点确保完全隐藏
         .animation(.easeInOut(duration: 0.3), value: isHidden)
+        // 获取安全区域底部高度
+        .background(
+            GeometryReader { geometry in
+                Color.clear
+                    .onAppear {
+                        safeAreaBottom = geometry.safeAreaInsets.bottom
+                    }
+            }
+        )
     }
 }
 
@@ -105,6 +116,9 @@ struct CustomTabViewContainer<Content: View>: View {
     // 前景色
     let accentColor: Color
     
+    // 安全区域底部高度 (用于计算内容底部padding)
+    @State private var safeAreaBottom: CGFloat = 0
+    
     // 初始化
     init(
         selectedTab: Binding<Int>,
@@ -119,12 +133,13 @@ struct CustomTabViewContainer<Content: View>: View {
     }
     
     var body: some View {
+        // 使用ZStack完全覆盖，确保TabBar在底部
         ZStack(alignment: .bottom) {
             // 主内容
             content()
-                .ignoresSafeArea(.keyboard)
-                // 当TabBar隐藏时，将内容扩展到底部
-                .padding(.bottom, appState.shouldHideTabBar ? 0 : 49)
+                // 根据TabBar是否隐藏调整底部padding
+                // 当TabBar显示时，内容底部需要留出TabBar的高度 + 安全区域高度 + 安全距离
+                .padding(.bottom, appState.shouldHideTabBar ? 0 : (49 + safeAreaBottom + (safeAreaBottom > 0 ? 16 : 0)))
             
             // 自定义TabBar
             CustomTabBar(
@@ -133,50 +148,34 @@ struct CustomTabViewContainer<Content: View>: View {
                 isHidden: appState.shouldHideTabBar,
                 accentColor: accentColor
             )
-            .ignoresSafeArea(.keyboard)
-            .ignoresSafeArea(.container, edges: .bottom) // 确保TabBar延伸到底部安全区域
         }
+        // 获取安全区域底部高度
+        .background(
+            GeometryReader { geometry in
+                Color.clear
+                    .onAppear {
+                        safeAreaBottom = geometry.safeAreaInsets.bottom
+                    }
+            }
+        )
+        // 忽略底部安全区域，以便TabBar可以扩展到底部
+        .edgesIgnoringSafeArea(.bottom)
     }
 }
 
-// MARK: - 预览
-struct CustomTabBar_Previews: PreviewProvider {
-    static var tabItems = [
+#Preview {
+    let tabItems = [
         TabItem(title: "运动", icon: "figure.run", selectedIcon: "figure.run.circle.fill"),
         TabItem(title: "统计", icon: "chart.bar", selectedIcon: "chart.bar.fill"),
         TabItem(title: "我的", icon: "person", selectedIcon: "person.fill")
     ]
     
-    static var previews: some View {
-        Group {
-            // 正常显示
-            CustomTabBar(
-                selectedTab: .constant(0),
-                tabItems: tabItems,
-                isHidden: false
-            )
-            .previewLayout(.fixed(width: 375, height: 80))
-            .previewDisplayName("显示状态")
-            
-            // 隐藏状态
-            CustomTabBar(
-                selectedTab: .constant(0),
-                tabItems: tabItems,
-                isHidden: true
-            )
-            .previewLayout(.fixed(width: 375, height: 80))
-            .previewDisplayName("隐藏状态")
-            
-            // 完整容器
-            CustomTabViewContainer(
-                selectedTab: .constant(0),
-                tabItems: tabItems
-            ) {
-                Color.blue
-                    .ignoresSafeArea()
-            }
-            .environmentObject(AppState.shared)
-            .previewDisplayName("完整容器")
-        }
+    return CustomTabViewContainer(
+        selectedTab: .constant(0),
+        tabItems: tabItems
+    ) {
+        Color.blue
+            .ignoresSafeArea()
     }
+    .environmentObject(AppState.shared)
 } 
