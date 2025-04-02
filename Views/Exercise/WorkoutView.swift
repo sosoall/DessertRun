@@ -111,11 +111,21 @@ struct WorkoutView: View {
             // 设置为当前活动的运动会话
             appState.activeWorkoutSession = workoutSession
             
+            // 确保TabBar隐藏（运动模式）
+            appState.isInWorkoutMode = true
+            
             // 开始定时更新
             startTimer()
         }
         .navigationDestination(isPresented: $navigateToComplete) {
             WorkoutCompleteView(workoutSession: workoutSession)
+        }
+        .onDisappear {
+            // 当用户点击返回按钮离开运动页面时恢复TabBar显示
+            // WorkoutCompleteView有自己的onDisappear处理，所以这里只处理返回到ExerciseTypeSelectionView的情况
+            if !navigateToComplete {
+                appState.isInWorkoutMode = false
+            }
         }
     }
     

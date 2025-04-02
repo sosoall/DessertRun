@@ -64,6 +64,17 @@ struct ExerciseTypeSelectionView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $navigateToWorkout) {
             WorkoutView()
+                .onAppear {
+                    // 进入运动模式，完全隐藏TabBar
+                    appState.isInWorkoutMode = true
+                }
+        }
+        .onDisappear {
+            // 如果没有进入WorkoutView，恢复TabBar显示
+            // 这确保用户点击返回按钮时TabBar能正常显示
+            if !navigateToWorkout {
+                appState.isInWorkoutMode = false
+            }
         }
     }
     

@@ -76,6 +76,10 @@ struct WorkoutCompleteView: View {
                 }
             }
         }
+        .onDisappear {
+            // 退出运动模式，恢复TabBar显示
+            appState.isInWorkoutMode = false
+        }
         .sheet(isPresented: $showVoucherDetails) {
             // 甜品券详情页
             if let voucher = dessertVoucher {

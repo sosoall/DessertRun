@@ -42,6 +42,17 @@ class AppState: ObservableObject {
     /// 甜品网格的偏移量，用于保持拖动位置
     @Published var dessertGridOffset: CGPoint = .zero
     
+    /// 是否隐藏TabBar（用于拖动时）
+    @Published var hideTabBarForDrag = false
+    
+    /// 是否处于运动状态（运动状态下TabBar完全隐藏）
+    @Published var isInWorkoutMode = false
+    
+    /// TabBar是否应该被隐藏
+    var shouldHideTabBar: Bool {
+        return hideTabBarForDrag || isInWorkoutMode
+    }
+    
     // MARK: - 应用配置
     
     /// 是否显示新手引导
