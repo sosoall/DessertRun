@@ -45,46 +45,85 @@ DessertRun是一款为运动初学者准备的创新健康应用，核心理念�
 
 ## 项目架构
 
-采用MVVM（Model-View-ViewModel）架构模式，结合Clean Architecture思想：
+采用MVVM（Model-View-ViewModel）架构模式，结合Clean Architecture思想，实际项目结构如下：
 
 ```
 DessertRun/
 ├── App/                           # 应用入口和配置
 │   ├── DessertRunApp.swift        # 应用入口
-│   └── AppState.swift             # 全局应用状态
+│   └── AppState.swift             # 全局应用状态（含页面过渡动画状态）
 ├── Assets/                        # 资源文件
 ├── Models/                        # 数据模型
-│   ├── User.swift                 # 用户模型
 │   ├── DessertItem.swift          # 甜品模型
+│   ├── DessertData.swift          # 甜品样本数据
 │   ├── ExerciseType.swift         # 运动类型模型
-│   ├── WorkoutSession.swift       # 运动会话模型
-│   ├── DessertVoucher.swift       # 甜品券模型
-│   └── WorkoutStats.swift         # 运动统计数据模型
-├── Views/                         # 视图组件
-│   ├── Common/                    # 通用组件
-│   ├── Exercise/                  # 运动相关视图
-│   │   ├── DessertSelectionView/  # 甜品选择（气泡UI）
-│   │   ├── ExerciseTypeView/      # 运动方式选择
-│   │   ├── WorkoutView/           # 运动中界面
-│   │   └── WorkoutCompleteView/   # 运动完成界面
-│   ├── Stats/                     # 统计相关视图
-│   │   ├── CalendarView/          # 运动日历
-│   │   └── VouchersView/          # 甜品券管理
-│   └── Profile/                   # 个人信息相关视图
-├── ViewModels/                    # 视图模型
-│   ├── ExerciseViewModel.swift    # 运动相关逻辑
-│   ├── StatsViewModel.swift       # 统计相关逻辑
-│   └── ProfileViewModel.swift     # 个人信息相关逻辑
-├── Services/                      # 服务层
-│   ├── API/                       # API通信
-│   ├── DataSync/                  # 数据同步服务
-│   ├── HealthKit/                 # 健康数据服务
-│   └── Location/                  # 位置服务
-└── Utils/                         # 工具类
-    ├── Animations/                # 动画工具
-    ├── Extensions/                # 扩展方法
-    └── Helpers/                   # 辅助函数
+│   ├── ExerciseData.swift         # 运动类型样本数据
+│   └── WorkoutSession.swift       # 运动会话模型
+├── Views/                         # 视图组件（按类型和功能分类）
+│   ├── Screens/                   # 主要页面视图
+│   │   ├── DessertGridView.swift  # 甜品气泡网格页面
+│   │   ├── DessertDetailView.swift # 甜品详情页（点击甜品查看详情用）
+│   │   └── WorkoutView.swift      # 运动中界面
+│   ├── Components/                # 可复用UI组件
+│   │   ├── BubbleView.swift       # 气泡组件（用于甜品展示）
+│   │   ├── BubbleLayout.swift     # 气泡布局算法
+│   │   └── CustomButton.swift     # 自定义按钮样式
+│   ├── Exercise/                  # 运动相关专用视图
+│   │   ├── ExerciseTypeSelectionView.swift  # 运动类型选择页面
+│   │   ├── ExerciseTypeOptionRow.swift      # 运动类型选项行
+│   │   └── WorkoutCompleteView.swift        # 运动完成界面
+│   └── CustomTabBar.swift         # 自定义底部导航栏
+├── Utils/                         # 工具类
+│   └── Extensions/                # 扩展方法
+│       ├── Color+Extensions.swift # 颜色扩展（hex支持等）
+│       ├── Font+Extensions.swift  # 字体样式扩展
+│       └── View+Extensions.swift  # 视图扩展（圆角等）
+└── SwiftUI最佳实践.md              # SwiftUI开发最佳实践文档
 ```
+
+### 文件说明
+
+#### 核心视图
+
+1. **DessertGridView.swift**：
+   - 甜品选择页面，使用气泡布局展示甜品选项
+   - 实现甜品气泡拖拽交互和点击选择功能
+   - 集成了与ExerciseTypeSelectionView的平滑过渡动画
+
+2. **DessertDetailView.swift**：
+   - 甜品详情页面，展示单个甜品的详细信息
+   - 提供额外的甜品信息和操作入口
+   - 与气泡简洁视图不同，提供更完整的甜品描述和UI
+   - **注意：** 与ExerciseTypeSelectionView不同，本页面是可选的详情查看流程，而非主要运动流程必经页面
+
+3. **ExerciseTypeSelectionView.swift**：
+   - 运动类型选择页面，用户选择运动方式
+   - 展示基于选定甜品热量的运动选项列表
+   - 实现平滑过渡动画效果及内容面板动画
+
+4. **WorkoutView.swift**：
+   - 运动执行页面，展示运动进度和状态
+   - 提供运动控制（开始、暂停、结束）
+   - 收集和展示运动数据
+
+#### 通用组件
+
+1. **BubbleView.swift** 和 **BubbleLayout.swift**：
+   - 实现气泡UI的核心组件，支持拖拽、缩放和动画
+   - 提供响应式布局算法，支持不同屏幕尺寸
+
+2. **CustomTabBar.swift**：
+   - 自定义底部导航栏实现
+   - 支持滑动隐藏/显示和安全区域适配
+   - 提供自定义样式和交互效果
+
+#### 状态管理
+
+**AppState.swift**：
+   - 全局应用状态管理
+   - 保存用户选择和页面状态
+   - 管理页面过渡动画状态
+   - 控制TabBar显示/隐藏行为
 
 ## 主要页面设计与实现
 
@@ -201,13 +240,6 @@ DessertRun/
 3. 准备App Store发布材料
 4. 应用提交和发布
 
-## 已知问题
-
-### 甜品气泡拖拽卡顿问题
-- **问题描述**：当用户手指在气泡上时，无法顺畅拖动页面。点击气泡的操作优先级高于拖动操作，导致用户体验不佳。
-- **原因分析**：气泡上的点击手势优先级高于ScrollView的拖动手势，导致系统将手指接触气泡的行为识别为点击而非拖动。
-- **临时解决方案**：用户可以将手指放在气泡之外的区域进行拖动。
-- **计划解决方案**：需要在BubbleView中修改手势优先级，将拖动手势设置为高于点击手势的优先级。
 
 ## 变更日志
 
@@ -435,3 +467,121 @@ VStack(spacing: 4) {
 4. **性能良好**：减少了不必要的手势处理器层级
 
 在测试中，用户现在可以在气泡上开始拖动操作，系统不会再误将其识别为点击操作，从而实现了顺畅的拖动体验。
+
+
+## 遗留问题（优先级低，暂时不解决）
+### 运动类型选择页
+1. 中间选择区域，要上下滑动，但是现在没有滚动条，交互不太友好。后面要结合实际上有多少种类型、扩展性再看解决方案。
+2. 各种按钮的位置、大小都不太对。
+
+### 2023-04-20
+1. **页面间过渡动画实现**：
+   - 实现了从甜品选择页到运动类型选择页的自然过渡动画
+   - 利用SwiftUI的matchedGeometryEffect实现选中甜品图片的平滑移动过渡
+   - 设计了面板从底部上升的动画效果，增强整体视觉连贯性
+   - 实现了返回动画：面板下移消失，选中甜品图片回到原位置
+
+2. **过渡动画技术实现**：
+   - 在AppState中增加了命名空间和过渡状态管理
+   - 使用GeometryReader记录甜品图片原始位置
+   - 利用matchedGeometryEffect跟踪并匹配两个视图间的图片
+   - 通过动画偏移实现白色面板的滑入滑出效果
+   - 使用延迟和多阶段动画创建更自然的视觉过渡
+
+3. **代码结构优化**：
+   - 将动画逻辑集成到视图生命周期中，维护状态一致性
+   - 使用透明度和offset实现元素的平滑出现与消失
+   - 精细控制动画时序，确保多个元素动画协调统一
+   - 优化返回动画逻辑，确保状态正确重置
+
+### 2023-04-21
+1. **修复部署编译错误**：
+   - 修正了`DessertGridView.swift`中`matchedGeometryEffect`修饰符的参数顺序
+   - 按照Swift要求，将`properties`参数放在`isSource`参数之前
+   - 解决了"Argument 'properties' must precede argument 'isSource'"的编译错误
+   - 确保了应用可以正常编译和部署到物理设备
+
+### 2023-04-22
+1. **修复部署编译错误**：
+   - 再次修正了`DessertGridView.swift`中`matchedGeometryEffect`修饰符的参数顺序
+   - 按照Swift要求，将`anchor`参数放在`isSource`参数之前
+   - 解决了"Argument 'anchor' must precede argument 'isSource'"的编译错误
+   - 总结了matchedGeometryEffect参数的正确顺序：id -> in -> properties -> anchor -> isSource
+
+2. **README项目架构更新**：
+   - 更新了README中的项目架构描述，使其与实际项目结构保持一致
+   - 添加了详细的文件说明，便于团队成员理解项目组织
+   - 明确了`DessertDetailView`与`ExerciseTypeSelectionView`的区别与用途
+   - 完善了各个目录和文件的作用说明
+
+### 2023-04-23
+1. **修复命名空间类型错误**：
+   - 修正了`AppState.swift`中命名空间的类型定义
+   - 将`currentTransitionNamespace`从`UUID`类型改为`Namespace.ID`类型
+   - 添加了`@Namespace`命名空间属性到`AppState`类
+   - 解决了"Cannot convert value of type 'UUID' to expected argument type 'Namespace.ID'"的编译错误
+   - 删除了不再需要的命名空间重置代码
+
+2. **SwiftUI命名空间处理优化**：
+   - 通过将命名空间整合到应用状态中，实现了跨页面平滑过渡
+   - 修复了页面返回时可能出现的命名空间不一致问题
+   - 优化了过渡动画流程，确保动画在各种情况下都能正确执行
+
+### 2023-04-24
+1. **修复命名空间实现错误**：
+   - 解决了"Reading a Namespace property outside View.body"错误
+   - 修正了@Namespace属性在非View中使用的问题
+   - 重构了动画过渡实现方式，将命名空间从AppState移到视图中
+   - 通过参数传递的方式在视图间共享命名空间
+   - 确保了甜品图片的平滑过渡动画正确显示
+
+2. **动画过渡流程优化**：
+   - 修复了运动类型面板从右侧滑入的问题，改为从底部上升
+   - 确保了甜品图片在两个页面间的视觉连续性
+   - 优化了底部面板的上升动画参数，使其更加自然
+   - 调整了元素出现顺序，创建更好的视觉层次感
+
+### 2023-04-25
+1. **页面架构重构优化动画过渡**：
+   - 从NavigationStack改为ZStack和条件渲染的架构
+   - 解决了系统导航动画覆盖自定义动画的问题
+   - 确保了甜品图片的平滑过渡动画显示在正确位置
+   - 实现了白色面板从底部上升的动画效果
+   - 增加了更精确的位置计算逻辑
+
+2. **动画控制逻辑优化**：
+   - 使用精确坐标定位甜品图片过渡
+   - 添加了动画各阶段的精细控制
+   - 优化了视图显示/隐藏的时序
+   - 使用ZIndex确保视图层级正确
+   - 修复了ZStack架构下的事件传递问题
+
+3. **页面架构改进**：
+   - 创建了专用的CustomExerciseTypeSelectionView组件
+   - 设计了更灵活的回调机制处理页面间通信
+   - 保留了现有布局和组件位置不变
+   - 拆分视图以提高代码可维护性
+
+### 2023-04-26
+1. **UI细节优化**：
+   - 按照设计图优化了运动类型选择页面的布局和样式
+   - 调整了甜品图片的位置，使其位于页面顶部合适位置
+   - 修改了白色面板的顶部空间，让甜品图片有足够显示空间
+   - 优化了单选按钮的样式，使其更符合整体设计风格
+
+2. **页面标题显示逻辑优化**：
+   - 实现了转场动画期间自动隐藏/显示主页面标题
+   - 使用appState中的shouldHideTitle状态管理标题显示
+   - 确保在返回时正确恢复标题的显示
+
+3. **选项样式优化**：
+   - 更新了选项卡的背景色，采用更柔和的颜色方案
+   - 优化了选项卡选中状态的视觉效果
+   - 调整了运动类型选项的内边距和布局
+
+### 2023-04-27
+1. **代码组织重构**：
+   - 将ExerciseTypeOptionRow从ExerciseTypeSelectionView.swift中分离到独立文件
+   - 修复了由于代码结构拆分导致的编译错误
+   - 优化了组件的复用性，使项目结构更加清晰
+   - 确保了视图复用组件的正确导入和引用

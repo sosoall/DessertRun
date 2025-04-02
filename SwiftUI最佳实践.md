@@ -288,3 +288,256 @@ VStack(spacing: 16) {
 - **极端屏幕尺寸**：测试小屏幕和大屏幕设备上的显示效果
 - **文本溢出**：处理长文本和多语言场景下的布局适应
 - **暗黑模式兼容**：确保设计在浅色和深色模式下都有良好表现 
+
+## 10. 页面转场与自定义动画
+
+### 10.1 匹配几何效果(MatchedGeometryEffect)
+
+- **实现跨视图元素的平滑过渡**：
+  - 使用`matchedGeometryEffect`创建元素从一个视图到另一个视图的无缝过渡
+  - 关键是保持相同的ID和命名空间，并正确设置源和目标
+```swift
+// 在源视图中 - 注意参数顺序非常重要
+Image(dessert.imageName)
+    .matchedGeometryEffect(
+        id: "dessert_image_\(dessert.id)",  // 1. id 参数
+        in: namespace,                     // 2. in 参数
+        properties: .position,             // 3. properties 参数
+        anchor: .center,                   // 4. anchor 参数
+        isSource: true                     // 5. isSource 参数
+    )
+
+// 在目标视图中
+Image(dessert.imageName)
+    .matchedGeometryEffect(
+        id: "dessert_image_\(dessert.id)",
+        in: namespace,
+        isSource: false  // 简单用法可以省略其他可选参数
+    )
+```
+
+- **参数顺序问题**：
+  - Swift API严格要求参数顺序，错误的顺序会导致编译失败
+  - `matchedGeometryEffect`必须遵循的参数顺序：id → in → properties → anchor → isSource
+  - 编译错误如"Argument 'X' must precede argument 'Y'"表示参数顺序错误
+  - 建议：如果不确定参数顺序，使用Xcode代码补全或查看API文档
+
+- **管理共享命名空间**：
+  - 在应用状态中保存共享命名空间，确保跨页面一致性
+  - 视图转换完成后重置命名空间，避免异常行为
+```swift
+// 在AppState中
+@Published var currentTransitionNamespace: UUID = UUID()
+
+// 重置命名空间
+func resetTransition() {
+    currentTransitionNamespace = UUID()
+}
+```
+
+- **处理位置和大小变化**：
+  - 使用`properties`参数指定要匹配的属性（位置、大小、整体）
+  - 在复杂布局中使用`.position`而非`.frame`获取更精确的位置信息
+
+### 10.2 多阶段协调动画
+
+- **创建视觉层次感**：
+  - 使用不同的动画时序创建视觉层次，增强用户体验
+  - 主元素动画先开始，次要元素动画随后跟进
+```swift
+// 主元素立即动画
+.animation(.spring(), value: isActive)
+
+// 次要元素延迟动画
+.animation(.easeInOut.delay(0.2), value: isActive)
+```
+
+- **使用延迟和顺序**：
+  - 精确控制动画时序，创建流畅的视觉叙事
+  - 使用`withAnimation`和`asyncAfter`组合实现复杂序列
+```swift
+// 先执行第一阶段动画
+withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+    state.firstStage = true
+}
+
+// 延迟执行第二阶段动画
+DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+    withAnimation {
+        state.secondStage = true
+    }
+}
+```
+
+### 10.3 协调导航与过渡状态
+
+- **导航状态管理**：
+  - 使用共享状态管理导航过渡，而不仅依赖于NavigationStack
+  - 在导航前后维护过渡状态的一致性
+```swift
+// 导航前设置状态
+Button(action: {
+    appState.isTransitioning = true
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+        navigationDestination = true
+    }
+})
+
+// 在目标视图中
+.onDisappear {
+    // 确保导航回退时重置状态
+    appState.isTransitioning = false
+}
+```
+
+- **处理取消和中断**：
+  - 设计过渡动画时考虑用户可能中断或取消过渡的情况
+  - 实现反向动画，确保状态正确恢复
+
+### 10.4 自定义转场动画的性能优化
+
+- **减少视图层次和复杂性**：
+  - 在转场动画中使用尽可能简单的视图结构
+  - 使用轻量级视图如`Color`、`Rectangle`代替复杂视图进行过渡
+
+- **避免重复渲染**：
+  - 使用`drawingGroup()`提高复杂过渡动画的性能
+  - 对大型图片进行尺寸优化，避免在动画过程中处理超大图像
+
+- **使用懒加载和预加载**：
+  - 预先加载目标视图资源，减少过渡期间的加载延迟
+  - 使用懒加载避免一次性加载所有资源 
+
+- **命名空间的正确使用与共享**：
+  - 命名空间必须在视图的body内使用，不能在非View类型中定义
+  - 错误示例：在AppState等非View类中使用@Namespace
+  - 正确的跨视图共享命名空间方式：
+```swift
+// 在父视图中定义命名空间
+struct ParentView: View {
+    @Namespace private var namespace
+    
+    var body: some View {
+        // 将命名空间作为参数传递给子视图
+        ChildView(namespace: namespace)
+    }
+}
+
+// 子视图接收命名空间作为参数
+struct ChildView: View {
+    // 作为参数接收命名空间
+    var namespace: Namespace.ID
+    
+    var body: some View {
+        // 使用传入的命名空间
+        Image("someImage")
+            .matchedGeometryEffect(
+                id: "shared_element",
+                in: namespace,
+                isSource: false
+            )
+    }
+}
+```
+  - "Reading a Namespace property outside View.body"错误：表示在非视图body中使用了@Namespace属性 
+
+## 11. 自定义页面过渡与导航
+
+### 11.1 ZStack代替NavigationStack实现自定义过渡
+
+- **为什么要用ZStack替代NavigationStack**：
+  - NavigationStack有系统默认的水平滑动过渡动画
+  - 系统动画会覆盖或干扰自定义动画效果
+  - ZStack允许完全控制页面过渡动画和时序
+  - 可以实现更丰富的过渡效果，如垂直滑动、缩放等
+
+- **实现方式**：
+```swift
+struct ContainerView: View {
+    @State private var showDetailPage = false
+    @Namespace private var namespace
+    
+    var body: some View {
+        ZStack {
+            // 主页面
+            MainView(onItemSelected: { 
+                withAnimation {
+                    showDetailPage = true
+                } 
+            })
+            .zIndex(showDetailPage ? 0 : 1) // 控制层级
+            
+            // 详情页面（条件渲染）
+            if showDetailPage {
+                DetailView(
+                    namespace: namespace,
+                    onClose: {
+                        withAnimation {
+                            showDetailPage = false
+                        }
+                    }
+                )
+                .zIndex(1) // 显示时在上层
+                .transition(.identity) // 不使用系统过渡
+            }
+        }
+    }
+}
+```
+
+- **注意事项**：
+  - 需要手动管理导航状态和历史记录
+  - 要注意处理手势冲突和事件传递
+  - 使用`zIndex`确保正确的视图层级
+  - 维护统一的命名空间以便动画元素匹配
+
+### 11.2 自定义过渡的状态管理
+
+- **分离状态和视图逻辑**：
+  - 将页面显示状态和动画状态分开管理
+  - 使用两阶段转场：先触发动画，再切换视图
+```swift
+// 两阶段过渡模式
+withAnimation {
+    isAnimating = true // 第一阶段：启动动画
+}
+
+DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+    withAnimation {
+        isShowingDetail = true // 第二阶段：切换视图
+    }
+}
+```
+
+- **使用回调传递事件**：
+  - 通过闭包回调处理页面间通信，而非直接依赖
+  - 为视图组件提供清晰的功能接口
+```swift
+DetailView(
+    namespace: namespace,
+    onClose: { /* 处理关闭逻辑 */ },
+    onAction: { data in /* 处理操作 */ }
+)
+```
+
+### 11.3 元素位置计算
+
+- **精确定位过渡元素**：
+  - 使用GeometryReader获取准确的尺寸和位置
+  - 为过渡元素预先计算目标位置
+```swift
+// 计算元素目标位置
+let targetFrame = CGRect(
+    x: (screenWidth - imageWidth) / 2,
+    y: screenHeight * 0.18, // 使用屏幕比例
+    width: imageWidth,
+    height: imageHeight
+)
+
+// 定位元素
+.position(x: targetFrame.midX, y: targetFrame.midY)
+```
+
+- **适配不同屏幕尺寸**：
+  - 使用屏幕比例而非固定数值
+  - 考虑安全区域和动态元素尺寸

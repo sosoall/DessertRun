@@ -21,6 +21,9 @@ struct ExerciseTypeSelectionView: View {
     /// 选中的运动类型
     @State private var selectedExerciseType: ExerciseType?
     
+    /// 共享的命名空间（从DessertGridView传入）
+    var namespace: Namespace.ID
+    
     /// 卡路里值
     private var calories: Double {
         guard let selectedDessert = appState.selectedDessert else { return 0 }
@@ -84,8 +87,10 @@ struct ExerciseTypeSelectionView: View {
                                 }
                             }
                             .padding(.horizontal, 25)
+                            .padding(.bottom, 16)
                         }
-                        .padding(.bottom, 20)
+                        
+                        Spacer()
                         
                         // 开始按钮 - 固定在底部
                         Button(action: {
@@ -98,7 +103,7 @@ struct ExerciseTypeSelectionView: View {
                                 .h1Style()
                                 .foregroundColor(.white)
                                 .frame(height: 56)
-                                .frame(width: 100)
+                                .frame(width: 192)
                                 .background(
                                     LinearGradient(
                                         gradient: Gradient(colors: [Color(hex: "FF329A"), Color(hex: "FF2C3E")]),
@@ -117,11 +122,22 @@ struct ExerciseTypeSelectionView: View {
                     .cornerRadius(24, corners: [.topLeft, .topRight])
                 }
                 .ignoresSafeArea(.container, edges: .bottom)
+                // 添加面板动画
+                .offset(y: appState.isTransitioningToExerciseType ? 0 : geometry.size.height)
+                .animation(.spring(response: 0.5, dampingFraction: 0.8), value: appState.isTransitioningToExerciseType)
                 
                 // 关闭按钮 - 放在最上层
                 HStack {
                     Button(action: {
-                        dismiss()
+                        // 返回动画：先设置过渡状态，面板会通过动画下移
+                        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                            appState.isTransitioningToExerciseType = false
+                        }
+                        
+                        // 延迟关闭页面，等待动画完成
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                            dismiss()
+                        }
                     }) {
                         Image(systemName: "xmark")
                             .font(.system(size: 18))
@@ -136,18 +152,26 @@ struct ExerciseTypeSelectionView: View {
                 }
                 .padding(.top, 20)
                 .zIndex(3) // 放在最上层
+                // 关闭按钮的出现动画
+                .opacity(appState.isTransitioningToExerciseType ? 1 : 0)
+                .animation(.easeInOut.delay(0.3), value: appState.isTransitioningToExerciseType)
                 
                 // 实拍图 - 确保覆盖面板
                 if let dessert = appState.selectedDessert {
                     VStack {
                         Spacer()
-                            .frame(height: geometry.size.height * 0.05) // 实拍图垂直位置
+                            .frame(height: geometry.size.height * 0.12) // 实拍图垂直位置
                         
                         Image(dessert.imageName)
                             .resizable()
                             .aspectRatio(contentMode: .fit)
-                            .frame(height: 150)
+                            .frame(height: 160)
                             .frame(maxWidth: .infinity)
+                            .matchedGeometryEffect(
+                                id: "dessert_image_\(dessert.id)",
+                                in: namespace,
+                                isSource: false
+                            )
                         
                         Spacer()
                     }
@@ -158,6 +182,15 @@ struct ExerciseTypeSelectionView: View {
         .navigationBarHidden(true)
         .onAppear {
             appState.hideTabBarForDrag = true
+            
+            // 触发面板上移动画
+            if !appState.isTransitioningToExerciseType {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                        appState.isTransitioningToExerciseType = true
+                    }
+                }
+            }
         }
         .onDisappear {
             if !navigateToWorkout {
@@ -173,120 +206,189 @@ struct ExerciseTypeSelectionView: View {
     }
 }
 
-/// 运动类型选项行
-struct ExerciseTypeOptionRow: View {
-    let exerciseType: ExerciseType
-    let calories: Double
-    let isSelected: Bool
-    let action: () -> Void
+/// 自定义运动类型选择视图（用于ZStack中的条件渲染）
+struct CustomExerciseTypeSelectionView: View {
+    /// 环境中的应用状态
+    @EnvironmentObject var appState: AppState
     
-    private var estimatedTime: Double {
-        exerciseType.estimatedTimeToComplete(calories: calories)
+    /// 运动类型列表
+    private let exerciseTypes = ExerciseTypeData.getSampleExerciseTypes()
+    
+    /// 选中的运动类型
+    @State private var selectedExerciseType: ExerciseType?
+    
+    /// 共享的命名空间
+    var namespace: Namespace.ID
+    
+    /// 关闭回调
+    var onClose: () -> Void
+    
+    /// 开始运动回调
+    var onWorkoutStart: (ExerciseType) -> Void
+    
+    /// 卡路里值
+    private var calories: Double {
+        guard let selectedDessert = appState.selectedDessert else { return 0 }
+        if let calValue = Double(selectedDessert.calories.replacingOccurrences(of: "kcal", with: "")) {
+            return calValue
+        }
+        return 0
     }
     
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                // 运动图标
-                Image(systemName: exerciseType.iconName)
-                    .font(.system(size: 24))
-                    .foregroundColor(.black)
-                    .padding(10)
-                    .padding(.leading, 8)
+        GeometryReader { geometry in
+            ZStack(alignment: .top) {
+                // 背景 - 单色背景F8F8F8
+                Color(hex: "F8F8F8")
+                    .ignoresSafeArea()
                 
-                // 运动信息
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(exerciseType.name)
-                        .bodyBoldStyle()
-                        .foregroundColor(.black)
-                    
-                    Text("约\(formatTime(estimatedTime))，\(String(format: "%.1f", calories / 500))公里。")
-                        .captionStyle()
-                        .foregroundColor(Color(hex: "757575"))
+                // 甜品图片 - 确保在最上层并与气泡匹配
+                if let dessert = appState.selectedDessert {
+                    Image(dessert.imageName)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(height: 160)
+                        // 添加带有阴影的效果提高质感
+                        .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
+                        .matchedGeometryEffect(
+                            id: "dessert_image_\(dessert.id)",
+                            in: namespace,
+                            isSource: false
+                        )
+                        .position(
+                            x: appState.targetDessertFrame.midX, 
+                            y: appState.targetDessertFrame.midY
+                        )
+                        .zIndex(2)
                 }
-                .padding(.vertical, 4)
                 
-                Spacer()
-                
-                // 单选按钮
-                ZStack {
-                    Circle()
-                        .stroke(isSelected ? Color(hex: "FE2D55") : Color(hex: "49454F"), lineWidth: 2)
-                        .frame(width: 24, height: 24)
+                // 白色面板（主内容区）- 从屏幕下方滑入
+                VStack(spacing: 0) {
+                    // 为图片预留足够空间（仅预留图片高度+边距的空间）
+                    Spacer()
+                        .frame(height: 200)
                     
-                    if isSelected {
-                        Circle()
-                            .fill(Color(hex: "FE2D55"))
-                            .frame(width: 14, height: 14)
+                    // 白色面板内容
+                    VStack(spacing: 0) {
+                        // 目标信息
+                        if let dessert = appState.selectedDessert {
+                            Text("运动目标：\(dessert.name)")
+                                .h1Style()
+                                .foregroundColor(.black)
+                                .multilineTextAlignment(.center)
+                                .padding(.top, 25)
+                            
+                            Text("（约\(String(format: "%.0f", calories))卡路里）")
+                                .captionStyle()
+                                .foregroundColor(.black)
+                                .padding(.bottom, 20)
+                        }
+                        
+                        // 选择提示文字
+                        Text("请选择运动类型")
+                            .h2Style()
+                            .foregroundColor(Color(hex: "757575"))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 25)
+                            .padding(.bottom, 16)
+                        
+                        // 选项列表区域 - 填充空间直到开始按钮
+                        ScrollView {
+                            VStack(spacing: 16) {
+                                ForEach(exerciseTypes) { exerciseType in
+                                    ExerciseTypeOptionRow(
+                                        exerciseType: exerciseType,
+                                        calories: calories,
+                                        isSelected: selectedExerciseType?.id == exerciseType.id,
+                                        action: {
+                                            selectedExerciseType = exerciseType
+                                        }
+                                    )
+                                }
+                            }
+                            .padding(.horizontal, 25)
+                            .padding(.bottom, 16)
+                        }
+                        .frame(maxHeight: .infinity)
+                        
+                        // 开始按钮 - 固定在底部
+                        Button(action: {
+                            if let selectedType = selectedExerciseType {
+                                onWorkoutStart(selectedType)
+                            }
+                        }) {
+                            Text("开始")
+                                .h1Style()
+                                .foregroundColor(.white)
+                                .frame(height: 56)
+                                .frame(width: 192)
+                                .background(
+                                    LinearGradient(
+                                        gradient: Gradient(colors: [Color(hex: "FF329A"), Color(hex: "FF2C3E")]),
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .cornerRadius(28)
+                        }
+                        .disabled(selectedExerciseType == nil)
+                        .opacity(selectedExerciseType == nil ? 0.6 : 1.0)
+                        .padding(.vertical, geometry.safeAreaInsets.bottom > 0 ? 24 : 16)
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.white)
+                    .cornerRadius(24, corners: [.topLeft, .topRight])
                 }
-                .padding(.trailing, 16)
+                .ignoresSafeArea(.container, edges: .bottom)
+                // 添加面板滑入动画
+                .offset(y: appState.isTransitioningToExerciseType ? 0 : geometry.size.height)
+                .animation(.spring(response: 0.5, dampingFraction: 0.8), value: appState.isTransitioningToExerciseType)
+                
+                // 关闭按钮 - 放在最上层
+                HStack {
+                    Button(action: onClose) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 18))
+                            .foregroundColor(.black)
+                            .padding()
+                            .background(Color.white.opacity(0.8))
+                            .clipShape(Circle())
+                    }
+                    .padding(.leading)
+                    
+                    Spacer()
+                }
+                .padding(.top, 20)
+                .zIndex(3) // 放在最上层
+                // 关闭按钮的出现动画
+                .opacity(appState.isTransitioningToExerciseType ? 1 : 0)
+                .animation(.easeInOut.delay(0.3), value: appState.isTransitioningToExerciseType)
             }
-            .frame(height: 75) // 固定高度为75pt
-            .background(
-                optionBackground(isSelected: isSelected)
-            )
         }
-    }
-    
-    // 提取复杂背景代码为单独函数，避免长表达式可能导致的编译器问题
-    @ViewBuilder
-    private func optionBackground(isSelected: Bool) -> some View {
-        // 简化条件表达式和嵌套逻辑
-        let shape = RoundedRectangle(cornerRadius: 24)
-        
-        if isSelected {
-            // 选中状态的背景
-            shape
-                .fill(
-                    LinearGradient(
-                        gradient: Gradient(colors: [Color(hex: "FF329A"), Color(hex: "FFD12C")]),
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ).opacity(0.15)
-                )
-                .overlay(
-                    shape.stroke(
-                        LinearGradient(
-                            gradient: Gradient(colors: [Color(hex: "FF329A"), Color(hex: "FF2C3E")]),
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 3
-                    )
-                )
-        } else {
-            // 未选中状态的背景 - 更新为F1F1F1
-            shape.fill(Color(hex: "F1F1F1"))
+        .onAppear {
+            appState.hideTabBarForDrag = true
         }
-    }
-    
-    /// 格式化时间
-    private func formatTime(_ minutes: Double) -> String {
-        if minutes < 1 {
-            return "1分钟"
-        } else if minutes < 60 {
-            return "\(Int(minutes.rounded()))分钟"
-        } else {
-            let hours = Int(minutes / 60)
-            let mins = Int(minutes.truncatingRemainder(dividingBy: 60))
-            
-            if mins == 0 {
-                return "\(hours)小时"
-            } else {
-                return "\(hours)小时\(mins)分钟"
-            }
+        .onDisappear {
+            appState.hideTabBarForDrag = false
         }
     }
 }
 
 #Preview {
-    NavigationStack {
-        ExerciseTypeSelectionView()
-            .environmentObject({
-                let state = AppState.shared
-                state.selectedDessert = DessertData.getSampleDesserts().first!
-                return state
-            }())
+    struct PreviewWrapper: View {
+        @Namespace var namespace
+        
+        var body: some View {
+            NavigationStack {
+                ExerciseTypeSelectionView(namespace: namespace)
+                    .environmentObject({
+                        let state = AppState.shared
+                        state.selectedDessert = DessertData.getSampleDesserts().first
+                        return state
+                    }())
+            }
+        }
     }
+    
+    return PreviewWrapper()
 } 

@@ -45,6 +45,9 @@ class AppState: ObservableObject {
     /// 是否隐藏TabBar（用于拖动时）
     @Published var hideTabBarForDrag = false
     
+    /// 是否隐藏顶部标题（用于转场动画）
+    @Published var shouldHideTitle = false
+    
     /// 是否处于运动状态（运动状态下TabBar完全隐藏）
     @Published var isInWorkoutMode = false
     
@@ -52,6 +55,20 @@ class AppState: ObservableObject {
     var shouldHideTabBar: Bool {
         return hideTabBarForDrag || isInWorkoutMode
     }
+    
+    // MARK: - 页面过渡动画相关状态
+    
+    /// 用于匹配几何效果的过渡ID标识符
+    @Published var transitionDessertID: String = ""
+    
+    /// 是否正在执行甜品到运动类型的过渡动画
+    @Published var isTransitioningToExerciseType: Bool = false
+    
+    /// 选中的甜品在网格中的原始位置
+    @Published var selectedDessertOriginalFrame: CGRect = .zero
+    
+    /// 甜品在运动类型页中的目标位置
+    @Published var targetDessertFrame: CGRect = .zero
     
     // MARK: - 应用配置
     

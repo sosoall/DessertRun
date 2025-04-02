@@ -68,8 +68,8 @@ struct ExerciseHomeView: View {
                 .padding(.horizontal, 15)
                 .padding(.top, 10)
                 // 标题的显示/隐藏动画
-                .offset(y: isDragging ? -100 : 0)
-                .opacity(isDragging ? 0 : 1)
+                .offset(y: isDragging || appState.shouldHideTitle ? -100 : 0)
+                .opacity(isDragging || appState.shouldHideTitle ? 0 : 1)
                 
                 Spacer()
             }
