@@ -200,3 +200,137 @@ DessertRun/
 2. 性能优化
 3. 准备App Store发布材料
 4. 应用提交和发布
+
+## 已知问题
+
+### 甜品气泡拖拽卡顿问题
+- **问题描述**：当用户手指在气泡上时，无法顺畅拖动页面。点击气泡的操作优先级高于拖动操作，导致用户体验不佳。
+- **原因分析**：气泡上的点击手势优先级高于ScrollView的拖动手势，导致系统将手指接触气泡的行为识别为点击而非拖动。
+- **临时解决方案**：用户可以将手指放在气泡之外的区域进行拖动。
+- **计划解决方案**：需要在BubbleView中修改手势优先级，将拖动手势设置为高于点击手势的优先级。
+
+## 变更日志
+
+### 2023-04-02
+1. **UI优化**：
+   - 根据Figma设计，将气泡形状从圆形改为圆角方形（squircle）
+   - 更新了气泡阴影和内部阴影效果，增强现代感
+   - 更新气泡颜色，提高视觉吸引力
+   - 添加了标签文字的阴影和背景，提高可读性
+
+2. **页面背景优化**：
+   - 将主页背景从单一颜色更改为渐变色效果(FFA751到FFE259)
+   - 添加了微妙的径向渐变覆盖层，增加深度感
+   - 更新了标题和按钮样式，与新设计保持一致
+
+3. **布局改进**：
+   - 调整了气泡大小关系，优化了不同屏幕尺寸的显示效果
+   - 更新了栅格系统，增加了大屏幕的列数(从4列到5列)
+   - 微调了气泡之间的间距，提高了整体布局的均衡感
+
+4. **代码修复**：
+   - 修复了各文件中的语法错误和重复代码问题
+   - 修复了AppState.swift中的重复变量声明
+
+5. **版本控制优化**：
+   - 创建了.gitignore文件，避免将图片资源文件添加到版本控制系统
+   - 配置了忽略临时脚本和构建文件的规则
+
+### 下一步计划
+1. 修复甜品气泡拖拽卡顿问题
+2. 继续优化运动监控页面的UI
+3. 完善甜品券管理系统的视觉效果
+
+## 技术问题分析与解决方案
+
+### 气泡拖拽卡顿问题深入分析
+
+#### 问题技术原因
+在SwiftUI中，手势识别有优先级系统。我们当前的实现中，BubbleView使用了Button组件封装了气泡内容，这导致：
+
+1. Button自带的点击手势优先级默认高于ScrollView的拖动手势
+2. 当用户手指接触气泡时，系统优先考虑这可能是对气泡的点击，因此阻止了滚动行为
+3. 只有当系统确定这不是点击（例如手指移动超过一定阈值）时，才会将事件传递给ScrollView
+
+#### 推荐解决方案
+
+##### 方案1：使用高优先级的拖动手势
+```swift
+.highPriorityGesture(
+    DragGesture()
+        .onChanged { _ in }
+)
+.simultaneousGesture(
+    TapGesture()
+        .onEnded { _ in
+            onTap()
+        }
+)
+```
+
+##### 方案2：使用手势识别器修饰符
+```swift
+Button(action: onTap) {
+    // 气泡内容...
+}
+.buttonStyle(PlainButtonStyle())
+.gesture(
+    DragGesture(minimumDistance: 0)
+        .onChanged { _ in }
+        .exclusively(
+            before: TapGesture()
+                .onEnded { _ in
+                    onTap()
+                }
+        )
+)
+```
+
+##### 方案3：放弃Button，使用自定义手势
+```swift
+// 替换Button为普通View
+VStack {
+    // 气泡内容...
+}
+.contentShape(RoundedRectangle(cornerRadius: bubbleSize * 0.25, style: .continuous))
+.onTapGesture {
+    onTap()
+}
+.allowsHitTesting(true) 
+```
+
+#### 实施计划
+1. 备份当前BubbleView.swift文件
+2. 实施方案1，测试效果
+3. 如效果不理想，尝试方案2或方案3
+4. 进行性能测试，确保UI响应流畅
+5. 更新文档，记录解决方案
+
+#### 最终解决方案
+
+经过测试，我们采用了**方案3**，放弃使用Button组件，改为使用普通的VStack加上简单的点击手势：
+
+```swift
+// 放弃Button，改用VStack和独立的点击手势
+VStack(spacing: 4) {
+    // 气泡内容...
+}
+.padding(contentPadding)
+.frame(width: bubbleSize, height: bubbleSize)
+.background(backgroundView)
+.opacity(calculateOpacity())
+.blur(radius: calculateBlurRadius())
+.contentShape(RoundedRectangle(cornerRadius: bubbleSize * 0.25, style: .continuous))
+// 使用简单的点击手势，优先级较低
+.onTapGesture {
+    onTap()
+}
+```
+
+这种实现方式有以下优势：
+1. **手势优先级合理**：默认情况下，`onTapGesture`的优先级低于ScrollView的拖动手势
+2. **行为一致**：保持了点击气泡的功能，同时允许用户在气泡上开始拖动
+3. **简洁可维护**：代码结构简单明了，易于维护和调整
+4. **性能良好**：减少了不必要的手势处理器层级
+
+在测试中，用户现在可以在气泡上开始拖动操作，系统不会再误将其识别为点击操作，从而实现了顺畅的拖动体验。

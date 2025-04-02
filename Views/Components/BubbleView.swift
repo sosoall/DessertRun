@@ -66,82 +66,135 @@ struct BubbleView: View {
     var imageStyle: FoodImageStyle = .regular
     
     var body: some View {
-        Button(action: onTap) {
-            VStack(spacing: 4) {
-                // 美食图片
-                ZStack {
-                    // 获取对应风格的图片名称
-                    let imageName = item.getImageName(for: imageStyle)
-                    
-                    if UIImage(named: imageName) != nil {
-                        // 如果可以加载到图片，则显示真实图片
-                        Image(imageName)
-                            .resizable()
-                            .scaledToFit()
-                            .padding(bubbleSize * 0.1)
-                            .shadow(color: Color(hex: "7E4A4A").opacity(0.15), radius: 5, x: 2, y: 2)
-                    } else {
-                        // 如果无法加载图片，显示占位图标和分类图标
-                        Image(systemName: item.category.icon)
-                            .resizable()
-                            .scaledToFit()
-                            .foregroundColor(item.backgroundColor != nil && item.backgroundColor!.brightness > 0.5 ? .black : .white)
-                            .padding(bubbleSize * 0.25)
-                            .overlay(
-                                Text(item.category.rawValue)
-                                    .font(.system(size: min(10, bubbleSize * 0.1)))
-                                    .foregroundColor(item.backgroundColor != nil && item.backgroundColor!.brightness > 0.5 ? .black : .white)
-                                    .padding(4)
-                                    .background(
-                                        Capsule()
-                                            .fill(Color.black.opacity(0.2))
-                                    )
-                                    .padding(4),
-                                alignment: .bottomTrailing
-                            )
-                    }
-                }
-                .clipShape(RoundedRectangle(cornerRadius: bubbleSize * 0.25, style: .continuous))
+        // 放弃Button，改用VStack和独立的点击手势
+        VStack(spacing: 4) {
+            // 美食图片
+            ZStack {
+                // 获取对应风格的图片名称
+                let imageName = item.getImageName(for: imageStyle)
                 
-                // 名称标签
-                if showName {
-                    VStack(spacing: 0) {
-                        Text(item.name)
-                            .font(.system(size: min(14, bubbleSize * 0.15)))
-                            .fontWeight(.medium)
-                            .foregroundColor(.black)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.5)
-                        
-                        Text(item.calories + " 卡路里")
-                            .font(.system(size: min(10, bubbleSize * 0.1)))
-                            .foregroundColor(.gray)
-                            .lineLimit(1)
-                            .opacity(bubbleSize > maxSize * 0.5 ? 1 : 0)
-                    }
-                    .padding(.vertical, 4)
-                    .padding(.horizontal, 8)
-                    .background(
-                        Capsule()
-                            .fill(Color.white.opacity(0.5))
-                    )
-                    .opacity(bubbleSize > maxSize * 0.4 ? 1 : 0)
+                if UIImage(named: imageName) != nil {
+                    // 如果可以加载到图片，则显示真实图片
+                    Image(imageName)
+                        .resizable()
+                        .scaledToFit()
+                        .padding(bubbleSize * 0.07) // 减少内边距，让图片更大
+                        .shadow(color: Color(hex: "7E4A4A").opacity(0.15), radius: 5, x: 2, y: 2)
+                } else {
+                    // 如果无法加载图片，显示占位图标和分类图标
+                    Image(systemName: item.category.icon)
+                        .resizable()
+                        .scaledToFit()
+                        .foregroundColor(item.backgroundColor != nil && item.backgroundColor!.brightness > 0.5 ? .black : .white)
+                        .padding(bubbleSize * 0.25)
+                        .overlay(
+                            Text(item.category.rawValue)
+                                .font(.system(size: min(10, bubbleSize * 0.1)))
+                                .foregroundColor(item.backgroundColor != nil && item.backgroundColor!.brightness > 0.5 ? .black : .white)
+                                .padding(4)
+                                .background(
+                                    Capsule()
+                                        .fill(Color.black.opacity(0.2))
+                                )
+                                .padding(4),
+                            alignment: .bottomTrailing
+                        )
                 }
             }
-            .padding(contentPadding)
-            .frame(width: bubbleSize, height: bubbleSize)
-            .background(backgroundView)
-            .opacity(calculateOpacity())
+            .clipShape(RoundedRectangle(cornerRadius: bubbleSize * 0.25, style: .continuous))
+            
+            // 名称标签
+            if showName {
+                VStack(spacing: 0) {
+                    Text(item.name)
+                        .font(.system(size: min(14, bubbleSize * 0.15)))
+                        .fontWeight(.medium)
+                        .foregroundColor(.black)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
+                    
+                    Text(item.calories + " 卡路里")
+                        .font(.system(size: min(10, bubbleSize * 0.1)))
+                        .foregroundColor(.gray)
+                        .lineLimit(1)
+                        .opacity(bubbleSize > maxSize * 0.5 ? 1 : 0)
+                }
+                .padding(.vertical, 4)
+                .padding(.horizontal, 8)
+                .background(
+                    Capsule()
+                        .fill(Color.white.opacity(0.5))
+                )
+                .opacity(bubbleSize > maxSize * 0.4 ? 1 : 0)
+            }
         }
-        .buttonStyle(PlainButtonStyle())
+        .padding(contentPadding)
+        .frame(width: bubbleSize, height: bubbleSize)
+        .background(backgroundView)
+        .opacity(calculateOpacity())
+        .blur(radius: calculateBlurRadius()) // 将模糊应用于整个气泡
         .contentShape(RoundedRectangle(cornerRadius: bubbleSize * 0.25, style: .continuous))
+        // 使用简单的点击手势，优先级较低
+        .onTapGesture {
+            onTap()
+        }
     }
     
-    /// 计算不透明度，基于距离中心远近
+    /// 计算不透明度，基于距离中心远近和区域
     private func calculateOpacity() -> Double {
-        let maxDistance = 1000.0 // 可调整此值以改变透明度变化范围
-        let distanceRatio = min(distanceToCenter / maxDistance, 1.0)
-        return 1.0 - distanceRatio * 0.3 // 最低不透明度为0.7
+        // 只有白色方形气泡才应用透明度变化
+        guard case .squircle = backgroundStyle else { return 1.0 }
+        
+        // 根据尺寸比例计算不透明度
+        // 中心区域保持完全不透明，外围区域逐渐变淡
+        let sizeRatio = bubbleSize / maxSize
+        
+        // 当气泡尺寸超过90%，保持完全不透明
+        if sizeRatio > 0.9 {
+            return 1.0
+        }
+        // 当气泡尺寸在60%-90%之间，逐渐降低不透明度到0.7
+        else if sizeRatio > 0.6 {
+            let t = (sizeRatio - 0.6) / 0.3 // 映射0.6-0.9到0-1
+            return 0.7 + (t * 0.3) // 映射0-1到0.7-1.0
+        } 
+        // 当气泡尺寸小于60%，进一步降低不透明度到0.4
+        else {
+            let t = min(max(sizeRatio / 0.6, 0), 1) // 映射0-0.6到0-1
+            return 0.4 + (t * 0.3) // 映射0-1到0.4-0.7
+        }
+    }
+    
+    /// 计算气泡模糊程度，基于尺寸比例
+    private func calculateBlurRadius() -> CGFloat {
+        // 只有白色方形气泡才应用模糊效果
+        guard case .squircle = backgroundStyle else { return 0 }
+        
+        // 最大模糊半径
+        let maxBlur: CGFloat = 3.0
+        
+        // 根据尺寸比例计算模糊度
+        let sizeRatio = bubbleSize / maxSize
+        
+        // 当气泡尺寸超过90%，没有模糊
+        if sizeRatio > 0.9 {
+            return 0
+        }
+        // 当气泡尺寸在70%-90%之间，轻微模糊
+        else if sizeRatio > 0.7 {
+            let t = 1.0 - ((sizeRatio - 0.7) / 0.2) // 映射0.7-0.9到1-0
+            return maxBlur * 0.3 * t
+        } 
+        // 当气泡尺寸在50%-70%之间，中等模糊
+        else if sizeRatio > 0.5 {
+            let t = (sizeRatio - 0.5) / 0.2 // 映射0.5-0.7到0-1
+            return maxBlur * (0.3 + (1.0 - t) * 0.4) // 从0.7倍模糊到0.3倍模糊
+        } 
+        // 当气泡尺寸小于50%，最大模糊
+        else {
+            let t = max(sizeRatio / 0.5, 0) // 映射0-0.5到0-1
+            return maxBlur * (1.0 - t * 0.3) // 从最大模糊到0.7倍模糊
+        }
     }
     
     /// 背景视图，根据背景样式变化

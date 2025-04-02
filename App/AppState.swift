@@ -39,6 +39,9 @@ class AppState: ObservableObject {
     /// 用户获得的甜品券
     @Published var dessertVouchers: [DessertVoucher] = []
     
+    /// 甜品网格的偏移量，用于保持拖动位置
+    @Published var dessertGridOffset: CGPoint = .zero
+    
     // MARK: - 应用配置
     
     /// 是否显示新手引导

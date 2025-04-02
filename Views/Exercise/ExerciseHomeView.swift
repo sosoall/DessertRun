@@ -12,13 +12,20 @@ struct ExerciseHomeView: View {
     // 全局应用状态
     @EnvironmentObject var appState: AppState
     
+    // 是否正在拖动气泡
+    @State private var isDragging: Bool = false
+    
     var body: some View {
         ZStack {
             // 背景
             Color(hex: "FFFFFF").ignoresSafeArea()
             
             // 甜品网格视图
-            DessertGridView()
+            DessertGridView(onDragStateChanged: { isDragging in
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    self.isDragging = isDragging
+                }
+            })
             
             // 顶部和底部覆盖层（确保在气泡上方）
             VStack {
@@ -50,6 +57,9 @@ struct ExerciseHomeView: View {
                 )
                 .padding(.horizontal, 15)
                 .padding(.top, 10)
+                // 标题的显示/隐藏动画
+                .offset(y: isDragging ? -100 : 0)
+                .opacity(isDragging ? 0 : 1)
                 
                 Spacer()
             }

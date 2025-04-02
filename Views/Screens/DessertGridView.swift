@@ -27,6 +27,14 @@ struct DessertGridView: View {
     /// 控制布局刷新
     @State private var forceLayoutUpdate = false
     
+    /// 拖动状态回调
+    var onDragStateChanged: ((Bool) -> Void)?
+    
+    // 初始化方法，可选传入拖动状态回调
+    init(onDragStateChanged: ((Bool) -> Void)? = nil) {
+        self.onDragStateChanged = onDragStateChanged
+    }
+    
     var body: some View {
         GeometryReader { geometry in
             ZStack {
@@ -37,22 +45,24 @@ struct DessertGridView: View {
                 // 气泡布局
                 BubbleLayout(
                     items: desserts,
-                    config: createConfig(for: geometry.size)
-                ) { dessert, state in
-                    // 单个气泡内容
-                    BubbleView(
-                        item: dessert,
-                        bubbleSize: state.size,
-                        distanceToCenter: state.distanceToCenter,
-                        maxSize: createConfig(for: geometry.size).bubbleSize,
-                        minSize: createConfig(for: geometry.size).minBubbleSize,
-                        onTap: {
-                            selectedDessert = dessert
-                            appState.selectedDessert = dessert
-                            navigateToExerciseType = true
-                        }
-                    )
-                }
+                    config: createConfig(for: geometry.size),
+                    onDragStateChanged: onDragStateChanged,
+                    content: { dessert, state in
+                        // 单个气泡内容
+                        BubbleView(
+                            item: dessert,
+                            bubbleSize: state.size,
+                            distanceToCenter: state.distanceToCenter,
+                            maxSize: createConfig(for: geometry.size).bubbleSize,
+                            minSize: createConfig(for: geometry.size).minBubbleSize,
+                            onTap: {
+                                selectedDessert = dessert
+                                appState.selectedDessert = dessert
+                                navigateToExerciseType = true
+                            }
+                        )
+                    }
+                )
                 .id(forceLayoutUpdate) // 使用id强制刷新布局
                 .padding(.top, 100) // 为顶部标题留出空间
                 

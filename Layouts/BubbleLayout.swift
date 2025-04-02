@@ -27,13 +27,22 @@ struct BubbleLayout<Item: Identifiable, Content: View>: View {
     @State private var contentOffset: CGPoint = .zero
     
     /// 上一次拖动位置
-    @State private var lastDragPosition: CGPoint?
+    @State private var lastDragPosition: CGPoint? = nil
     
     /// 气泡状态
     @State private var bubbleStates: [ID: BubbleState] = [:]
     
+    /// 是否正在拖动
+    @State private var isDragging: Bool = false
+    
     /// 屏幕大小
     @State private var screenSize: CGSize = .zero
+    
+    /// 拖动状态回调
+    var onDragStateChanged: ((Bool) -> Void)? = nil
+    
+    /// 环境中的应用状态
+    @EnvironmentObject var appState: AppState
     
     // MARK: - 初始化器
     
@@ -42,10 +51,27 @@ struct BubbleLayout<Item: Identifiable, Content: View>: View {
     ///   - items: 数据项数组
     ///   - config: 布局配置
     ///   - content: 气泡内容构建器
-    init(items: [Item], config: BubbleLayoutConfiguration, @ViewBuilder content: @escaping (Item, BubbleState) -> Content) {
+    init(
+        items: [Item],
+        config: BubbleLayoutConfiguration = BubbleLayoutConfiguration(),
+        @ViewBuilder content: @escaping (Item, BubbleState) -> Content
+    ) {
         self.items = items
         self.config = config
         self.content = content
+    }
+    
+    /// 带拖动回调的初始化
+    init(
+        items: [Item],
+        config: BubbleLayoutConfiguration = BubbleLayoutConfiguration(),
+        onDragStateChanged: ((Bool) -> Void)? = nil,
+        @ViewBuilder content: @escaping (Item, BubbleState) -> Content
+    ) {
+        self.items = items
+        self.config = config
+        self.content = content
+        self.onDragStateChanged = onDragStateChanged
     }
     
     // MARK: - 视图构建
@@ -53,83 +79,93 @@ struct BubbleLayout<Item: Identifiable, Content: View>: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                // 背景（确保整个区域可接收手势）
-                Color.clear
-                    .contentShape(Rectangle())
-                
-                // 显示引导线（如果启用）
+                // 背景指南（仅调试模式显示）
                 if config.showGuides {
-                    BubbleGuideView(config: config)
-                        .allowsHitTesting(false)
+                    guides
                 }
                 
-                // 内容层
+                // 气泡内容
                 ForEach(items) { item in
                     let state = bubbleState(for: item, in: geometry)
-                    
-                    // 渲染项目内容
                     content(item, state)
-                        .position(
-                            x: geometry.size.width / 2 + state.position.x,
-                            y: geometry.size.height / 2 + state.position.y
-                        )
+                        .position(x: geometry.size.width/2 + state.position.x, y: geometry.size.height/2 + state.position.y)
+                        .animation(isDragging ? nil : .interpolatingSpring(stiffness: 300, damping: 15), value: state.position)
+                        .animation(isDragging ? nil : .easeInOut, value: state.size)
                 }
             }
-            // 使用高优先级手势，确保拖动优先于气泡点击
-            .highPriorityGesture(
-                DragGesture(minimumDistance: 1, coordinateSpace: .local)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 10, coordinateSpace: .local)
                     .onChanged { value in
+                        // 首次拖动时通知状态变更
+                        if !isDragging {
+                            isDragging = true
+                            onDragStateChanged?(true)
+                        }
+                        
+                        // 获取当前拖动位置
                         let currentPosition = value.location
                         
-                        if let lastPosition = lastDragPosition {
-                            // 计算与上次位置的差值
-                            let deltaX = currentPosition.x - lastPosition.x
-                            let deltaY = currentPosition.y - lastPosition.y
+                        // 如果是第一次拖动，初始化lastDragPosition
+                        if lastDragPosition == nil {
+                            lastDragPosition = currentPosition
+                            return
+                        }
+                        
+                        // 计算拖动距离
+                        let deltaX = currentPosition.x - lastDragPosition!.x
+                        let deltaY = currentPosition.y - lastDragPosition!.y
+                        
+                        // 保存旧的偏移量用于边界检查
+                        let oldOffset = contentOffset
+                        
+                        // 更新偏移量（直接更新，不使用动画）
+                        var newOffset = CGPoint(
+                            x: contentOffset.x - deltaX,
+                            y: contentOffset.y - deltaY
+                        )
+                        
+                        // 限制在最大范围内
+                        newOffset.x = min(max(newOffset.x, -config.maxOffsetX), config.maxOffsetX)
+                        newOffset.y = min(max(newOffset.y, -config.maxOffsetY), config.maxOffsetY)
+                        
+                        // 检查是否存在可见气泡
+                        let wouldHaveVisibleBubbles = checkVisibleBubblesAfterOffset(
+                            newOffset: newOffset,
+                            size: geometry.size
+                        )
+                        
+                        // 如果没有可见气泡，则添加弹性效果
+                        if !wouldHaveVisibleBubbles {
+                            // 添加弹性效果
+                            let elasticFactor: CGFloat = 0.2
                             
-                            // 保存旧的偏移量用于边界检查
-                            let oldOffset = contentOffset
-                            
-                            // 计算新的偏移量
-                            var newOffset = CGPoint(
-                                x: oldOffset.x - deltaX,
-                                y: oldOffset.y - deltaY
+                            // 应用弹性，偏移量会有一定的移动，但幅度减小
+                            newOffset = CGPoint(
+                                x: oldOffset.x - deltaX * elasticFactor,
+                                y: oldOffset.y - deltaY * elasticFactor
                             )
                             
-                            // 限制偏移量不超过最大值
+                            // 再次限制在最大范围内
                             newOffset.x = min(max(newOffset.x, -config.maxOffsetX), config.maxOffsetX)
                             newOffset.y = min(max(newOffset.y, -config.maxOffsetY), config.maxOffsetY)
-                            
-                            // 检查是否存在可见气泡
-                            let wouldHaveVisibleBubbles = checkVisibleBubblesAfterOffset(
-                                newOffset: newOffset,
-                                size: geometry.size
-                            )
-                            
-                            // 如果没有可见气泡，则添加弹性效果
-                            if !wouldHaveVisibleBubbles {
-                                // 添加弹性效果
-                                let elasticFactor: CGFloat = 0.2
-                                
-                                // 应用弹性，偏移量会有一定的移动，但幅度减小
-                                newOffset = CGPoint(
-                                    x: oldOffset.x - deltaX * elasticFactor,
-                                    y: oldOffset.y - deltaY * elasticFactor
-                                )
-                                
-                                // 再次限制在最大范围内
-                                newOffset.x = min(max(newOffset.x, -config.maxOffsetX), config.maxOffsetX)
-                                newOffset.y = min(max(newOffset.y, -config.maxOffsetY), config.maxOffsetY)
-                            }
-                            
-                            // 更新偏移量并重新计算气泡状态
-                            contentOffset = newOffset
-                            recalculateBubbleStates(for: geometry.size)
                         }
+                        
+                        // 更新偏移量并重新计算气泡状态
+                        contentOffset = newOffset
+                        recalculateBubbleStates(for: geometry.size)
                         
                         // 更新上一次拖动位置
                         lastDragPosition = currentPosition
+                        
+                        // 保存到应用状态
+                        appState.dessertGridOffset = contentOffset
                     }
                     .onEnded { _ in
+                        // 标记结束拖动
+                        isDragging = false
+                        onDragStateChanged?(false)
+                        
                         // 重置拖动状态
                         lastDragPosition = nil
                         
@@ -161,6 +197,11 @@ struct BubbleLayout<Item: Identifiable, Content: View>: View {
                     }
             )
             .onAppear {
+                // 尝试从应用状态恢复偏移量
+                if appState.dessertGridOffset != .zero {
+                    contentOffset = appState.dessertGridOffset
+                }
+                
                 // 生成初始位置
                 initialPositions = BubblePositionProvider.calculateBubblePositions(
                     totalItems: items.count,
@@ -303,6 +344,14 @@ struct BubbleLayout<Item: Identifiable, Content: View>: View {
         }
         
         return closestPosition
+    }
+    
+    // MARK: - 辅助视图
+    
+    /// 引导线视图
+    private var guides: some View {
+        BubbleGuideView(config: config)
+            .allowsHitTesting(false)
     }
 }
 

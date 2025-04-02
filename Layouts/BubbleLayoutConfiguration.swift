@@ -63,19 +63,19 @@ struct BubbleLayoutConfiguration {
             return BubbleLayoutConfiguration(
                 bubbleSize: 180 * multiplier,
                 minBubbleSize: 120 * multiplier,
-                rowGap: 30 * multiplier,     // 行间距
-                colGap: 15 * multiplier,     // 列间距
+                rowGap: 35 * multiplier,     // 行间距
+                colGap: 10 * multiplier,     // 列间距
                 provideProps: true,
                 numCols: 4,
                 fringeWidth: 120 * multiplier,
                 yRadius: 180 * multiplier,
                 xRadius: 120 * multiplier,
-                cornerRadius: 70 * multiplier,
+                cornerRadius: 0 * multiplier,
                 showGuides: false,
                 compact: true,
                 gravitation: 0.1,
-                maxOffsetX: 180 * multiplier,
-                maxOffsetY: 250 * multiplier,
+                maxOffsetX: 200 * multiplier,
+                maxOffsetY: 350 * multiplier,
                 initialSpreadMultiplier: 1.0
             )
         }
