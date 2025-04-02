@@ -466,6 +466,18 @@ struct WorkoutCompleteView: View {
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter.string(from: date)
     }
+    
+    /// 状态颜色
+    private func statusColor(_ status: VoucherStatus) -> Color {
+        switch status {
+        case .active:
+            return .green
+        case .used:
+            return .gray
+        case .expired:
+            return .red
+        }
+    }
 }
 
 /// 甜品券详情页
@@ -716,28 +728,6 @@ struct VoucherDetailView: View {
         case .expired:
             return .red
         }
-    }
-}
-
-/// 圆角扩展
-extension View {
-    func cornerRadius(_ radius: CGFloat, corners: UIRectCorner) -> some View {
-        clipShape(RoundedCornerShape(radius: radius, corners: corners))
-    }
-}
-
-/// 圆角形状
-struct RoundedCornerShape: Shape {
-    var radius: CGFloat = .infinity
-    var corners: UIRectCorner = .allCorners
-    
-    func path(in rect: CGRect) -> Path {
-        let path = UIBezierPath(
-            roundedRect: rect,
-            byRoundingCorners: corners,
-            cornerRadii: CGSize(width: radius, height: radius)
-        )
-        return Path(path.cgPath)
     }
 }
 

@@ -6,6 +6,9 @@
 //
 
 import SwiftUI
+// 删除错误的导入语句
+// @_exported import struct DessertRun.RoundedCorner
+// @_exported import extension DessertRun.View
 
 @main
 struct DessertRunApp: App {
