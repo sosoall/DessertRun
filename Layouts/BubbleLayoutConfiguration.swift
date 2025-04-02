@@ -73,7 +73,7 @@ struct BubbleLayoutConfiguration {
                 cornerRadius: 70 * multiplier,
                 showGuides: false,
                 compact: true,
-                gravitation: 0.2,
+                gravitation: 0.1,
                 maxOffsetX: 180 * multiplier,
                 maxOffsetY: 250 * multiplier,
                 initialSpreadMultiplier: 1.0
