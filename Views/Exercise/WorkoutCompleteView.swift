@@ -7,6 +7,9 @@
 
 import SwiftUI
 
+// 注意: 使用 ViewExtensions.swift 中的共享扩展实现圆角
+// 文件底部的扩展应该被删除以避免冲突
+
 /// 运动完成页面
 struct WorkoutCompleteView: View {
     /// 环境中的应用状态
@@ -19,7 +22,7 @@ struct WorkoutCompleteView: View {
     @State private var animationComplete = false
     
     /// 生成的甜品券
-    @State private var dessertVoucher: DessertVoucher?
+    @State private var dessertVoucher: DessertRun.DessertVoucher?
     
     /// 展示甜品券详情
     @State private var showVoucherDetails = false
@@ -355,7 +358,7 @@ struct WorkoutCompleteView: View {
     /// 生成甜品券
     private func generateDessertVoucher() {
         // 创建甜品券
-        let voucher = DessertVoucher(
+        let voucher = DessertRun.DessertVoucher(
             dessert: workoutSession.targetDessert,
             completionPercentage: workoutSession.completionPercentage,
             workoutSessionId: workoutSession.id
@@ -369,7 +372,7 @@ struct WorkoutCompleteView: View {
     }
     
     /// 甜品券卡片
-    private func voucherCard(voucher: DessertVoucher) -> some View {
+    private func voucherCard(voucher: DessertRun.DessertVoucher) -> some View {
         ZStack {
             // 卡片背景
             RoundedRectangle(cornerRadius: 20)
@@ -470,7 +473,7 @@ struct WorkoutCompleteView: View {
 
 /// 甜品券详情页
 struct VoucherDetailView: View {
-    let voucher: DessertVoucher
+    let voucher: DessertRun.DessertVoucher
     
     @Environment(\.dismiss) private var dismiss
     

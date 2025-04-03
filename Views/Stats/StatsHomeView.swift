@@ -182,7 +182,7 @@ struct StatsHomeView: View {
     }
     
     // 甜品券卡片
-    func voucherCard(voucher: DessertVoucher) -> some View {
+    func voucherCard(voucher: DessertRun.DessertVoucher) -> some View {
         VStack(alignment: .leading) {
             HStack {
                 // 甜品图片（使用占位图）

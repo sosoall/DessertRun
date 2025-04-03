@@ -12,14 +12,11 @@ struct DessertGridView: View {
     /// 甜品数据
     private let desserts = DessertData.getSampleDesserts()
     
-    /// 选中的甜品
-    @State private var selectedDessert: DessertItem?
+    /// 动画状态管理
+    @ObservedObject var animationState: TransitionAnimationState
     
     /// 是否显示引导
     @State private var showGuides = false
-    
-    /// 是否导航到运动类型选择页面
-    @State private var navigateToExerciseType = false
     
     /// 环境中的应用状态
     @EnvironmentObject var appState: AppState
@@ -30,8 +27,9 @@ struct DessertGridView: View {
     /// 拖动状态回调
     var onDragStateChanged: ((Bool) -> Void)?
     
-    // 初始化方法，可选传入拖动状态回调
-    init(onDragStateChanged: ((Bool) -> Void)? = nil) {
+    // 初始化方法
+    init(animationState: TransitionAnimationState, onDragStateChanged: ((Bool) -> Void)? = nil) {
+        self.animationState = animationState
         self.onDragStateChanged = onDragStateChanged
     }
     
@@ -55,10 +53,9 @@ struct DessertGridView: View {
                             distanceToCenter: state.distanceToCenter,
                             maxSize: createConfig(for: geometry.size).bubbleSize,
                             minSize: createConfig(for: geometry.size).minBubbleSize,
-                            onTap: {
-                                selectedDessert = dessert
-                                appState.selectedDessert = dessert
-                                navigateToExerciseType = true
+                            onTap: { bubbleFrame in
+                                // 记录选中的甜品和位置信息
+                                animationState.selectDessert(dessert, originFrame: bubbleFrame, originalSize: state.size)
                             }
                         )
                     }
@@ -84,9 +81,6 @@ struct DessertGridView: View {
                     }
                     .padding(.bottom, 80) // 为底部导航栏留出空间
                 }
-            }
-            .navigationDestination(isPresented: $navigateToExerciseType) {
-                ExerciseTypeSelectionView()
             }
             .onAppear {
                 // 延迟一点时间确保视图布局完成后再刷新气泡布局

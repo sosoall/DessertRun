@@ -223,7 +223,7 @@ struct BubbleLayout<Item: Identifiable, Content: View>: View {
     ///   - geometry: 几何信息
     /// - Returns: 气泡状态
     private func bubbleState(for item: Item, in geometry: GeometryProxy) -> BubbleState {
-        if let id = item.id as? AnyHashable, let state = bubbleStates[id] {
+        if let state = bubbleStates[item.id] {
             return state
         }
         
@@ -279,17 +279,15 @@ struct BubbleLayout<Item: Identifiable, Content: View>: View {
                 to: .zero
             )
             
-            // 更新状态
-            if let id = item.id as? AnyHashable {
-                newStates[id] = BubbleState(
-                    size: bubbleSize,
-                    position: adjustedPosition,
-                    originalPosition: offsetPosition,
-                    scale: bubbleSize / config.bubbleSize,
-                    distanceToCenter: distanceToCenter,
-                    region: region
-                )
-            }
+            // 更新状态 - 直接使用item.id作为键
+            newStates[item.id] = BubbleState(
+                size: bubbleSize,
+                position: adjustedPosition,
+                originalPosition: offsetPosition,
+                scale: bubbleSize / config.bubbleSize,
+                distanceToCenter: distanceToCenter,
+                region: region
+            )
         }
         
         bubbleStates = newStates

@@ -7,25 +7,6 @@
 
 import SwiftUI
 
-/// 扩展Color添加亮度检测
-extension Color {
-    /// 估算颜色的亮度
-    var brightness: CGFloat {
-        // 将颜色转换为UIColor以便访问其组件
-        let uiColor = UIColor(self)
-        var red: CGFloat = 0
-        var green: CGFloat = 0
-        var blue: CGFloat = 0
-        var alpha: CGFloat = 0
-        
-        uiColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
-        
-        // 使用相对亮度公式: 0.2126*R + 0.7152*G + 0.0722*B
-        // 这是人眼对不同颜色感知亮度的标准权重
-        return 0.2126 * red + 0.7152 * green + 0.0722 * blue
-    }
-}
-
 /// 气泡背景样式
 enum BubbleBackgroundStyle {
     case squircle            // 圆角正方形
@@ -50,8 +31,8 @@ struct BubbleView: View {
     /// 最小气泡尺寸
     let minSize: CGFloat
     
-    /// 点击回调
-    var onTap: () -> Void = {}
+    /// 点击回调，传入气泡位置
+    var onTap: (CGRect) -> Void = { _ in }
     
     /// 是否显示名称
     var showName: Bool = true
@@ -64,6 +45,38 @@ struct BubbleView: View {
     
     /// 图片风格
     var imageStyle: FoodImageStyle = .regular
+    
+    // 用于跟踪视图框架
+    @State private var viewFrame: CGRect = .zero
+    
+    /// 背景视图，根据背景样式变化
+    @ViewBuilder
+    private var backgroundView: some View {
+        switch backgroundStyle {
+        case .squircle:
+            RoundedRectangle(cornerRadius: bubbleSize * 0.25, style: .continuous)
+                .fill(Color.white.opacity(0.8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: bubbleSize * 0.25, style: .continuous)
+                        .stroke(Color.white.opacity(0.9), lineWidth: 0.5)
+                )
+                .shadow(color: Color(hex: "7E4A4A").opacity(0.15), radius: 8, x: 5, y: 5)
+                .shadow(color: Color(hex: "7E4A4A").opacity(0.2), radius: 4, x: 3, y: 3)
+            
+        case .transparent:
+            RoundedRectangle(cornerRadius: bubbleSize * 0.25, style: .continuous)
+                .fill(Color.clear)
+            
+        case .custom(let color):
+            RoundedRectangle(cornerRadius: bubbleSize * 0.25, style: .continuous)
+                .fill(color)
+                .overlay(
+                    RoundedRectangle(cornerRadius: bubbleSize * 0.25, style: .continuous)
+                        .stroke(Color.white.opacity(0.3), lineWidth: 0.5)
+                )
+                .shadow(color: Color(hex: "7E4A4A").opacity(0.15), radius: 7, x: 5, y: 5)
+        }
+    }
     
     var body: some View {
         // 放弃Button，改用VStack和独立的点击手势
@@ -131,8 +144,18 @@ struct BubbleView: View {
         .contentShape(RoundedRectangle(cornerRadius: bubbleSize * 0.25, style: .continuous))
         // 使用简单的点击手势，优先级较低
         .onTapGesture {
-            onTap()
+            onTap(viewFrame)
         }
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear {
+                        // 获取和更新视图框架信息
+                        let frame = geo.frame(in: .global)
+                        self.viewFrame = frame
+                    }
+            }
+        )
     }
     
     /// 计算名称标签的透明度，基于到中心的距离
@@ -213,36 +236,6 @@ struct BubbleView: View {
         else {
             let t = max(sizeRatio / 0.5, 0) // 映射0-0.5到0-1
             return maxBlur * (1.0 - t * 0.3) // 从最大模糊到0.7倍模糊
-        }
-    }
-    
-    /// 背景视图，根据背景样式变化
-    private var backgroundView: some View {
-        Group {
-            switch backgroundStyle {
-            case .squircle:
-                RoundedRectangle(cornerRadius: bubbleSize * 0.25, style: .continuous)
-                    .fill(Color.white.opacity(0.8))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: bubbleSize * 0.25, style: .continuous)
-                            .stroke(Color.white.opacity(0.9), lineWidth: 0.5)
-                    )
-                    .shadow(color: Color(hex: "7E4A4A").opacity(0.15), radius: 8, x: 5, y: 5)
-                    .shadow(color: Color(hex: "7E4A4A").opacity(0.2), radius: 4, x: 3, y: 3)
-                
-            case .transparent:
-                RoundedRectangle(cornerRadius: bubbleSize * 0.25, style: .continuous)
-                    .fill(Color.clear)
-                
-            case .custom(let color):
-                RoundedRectangle(cornerRadius: bubbleSize * 0.25, style: .continuous)
-                    .fill(color)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: bubbleSize * 0.25, style: .continuous)
-                            .stroke(Color.white.opacity(0.3), lineWidth: 0.5)
-                    )
-                    .shadow(color: Color(hex: "7E4A4A").opacity(0.15), radius: 7, x: 5, y: 5)
-            }
         }
     }
 } 

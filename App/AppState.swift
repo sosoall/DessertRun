@@ -8,6 +8,15 @@
 import SwiftUI
 import Combine
 
+// 显式导入所需的模型
+// 这些导入确保编译器知道该使用哪些类型定义
+import Foundation
+
+// 导入甜品券模型
+// 注意: 在Swift中，这些导入实际上是不需要的，因为它们都在同一个模块中
+// 但为了确保编译器能找到正确的类型，我们在这里显式声明
+// 如果有其他方式访问DessertVoucher.swift中的定义，请使用该方式
+
 /// 全局应用状态
 class AppState: ObservableObject {
     /// 共享的单例实例
@@ -37,7 +46,8 @@ class AppState: ObservableObject {
     @Published var activeWorkoutSession: WorkoutSession?
     
     /// 用户获得的甜品券
-    @Published var dessertVouchers: [DessertVoucher] = []
+    /// 使用完全限定类型路径解决歧义问题
+    @Published var dessertVouchers: [DessertRun.DessertVoucher] = []
     
     /// 甜品网格的偏移量，用于保持拖动位置
     @Published var dessertGridOffset: CGPoint = .zero

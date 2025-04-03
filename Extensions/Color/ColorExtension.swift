@@ -1,15 +1,17 @@
 //
-//  ColorExtensions.swift
+//  ColorExtension.swift
 //  DessertRun
 //
-//  Created by Claude on 2025/3/24.
+//  Created by Claude on 2025/4/3.
 //
 
 import SwiftUI
 
+// MARK: - 颜色扩展
+
 extension Color {
     /// 从十六进制字符串创建颜色
-    /// - Parameter hex: 十六进制颜色代码，例如 "FF0000" 或 "#FF0000"
+    /// - Parameter hex: 十六进制颜色代码，如"FF0000"
     init(hex: String) {
         let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
         var int: UInt64 = 0
@@ -48,5 +50,26 @@ extension Color {
             Int(g * 255),
             Int(b * 255)
         )
+    }
+    
+    /// 估算颜色的亮度
+    var brightness: CGFloat {
+        // 将颜色转换为UIColor以便访问其组件
+        let uiColor = UIColor(self)
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        
+        uiColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        
+        // 使用相对亮度公式: 0.2126*R + 0.7152*G + 0.0722*B
+        // 这是人眼对不同颜色感知亮度的标准权重
+        return 0.2126 * red + 0.7152 * green + 0.0722 * blue
+    }
+    
+    /// 获取对比色（白色或黑色）
+    var contrastingColor: Color {
+        return brightness > 0.5 ? .black : .white
     }
 } 
