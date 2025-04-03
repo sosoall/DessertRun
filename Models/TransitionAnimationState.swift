@@ -57,64 +57,40 @@ class TransitionAnimationState: ObservableObject {
     
     /// 开始动画序列
     private func startAnimationSequence() {
-        // 开始气泡动画
-        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+        // 使用easeOut动画，开始快结束慢
+        withAnimation(.easeOut(duration: 0.5)) {
             animationPhase = .bubbleAnimating
-            animationProgress = 0.6
+            animationProgress = 1.0 // 直接到达最终位置
+            isShowingExercisePanel = true
             
-            print("【调试】动画阶段1 - progress: \(animationProgress), 位置: \(bubbleOriginFrame)")
+            print("【调试】动画开始 - 直接到最终位置，使用easeOut效果")
+            print("【调试】进度: \(animationProgress)")
         }
         
-        // 延迟后显示面板
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.75)) {
-                self.isShowingExercisePanel = true
-                self.animationPhase = .panelRevealing
-                self.animationProgress = 0.85
-            }
-            
-            // 完成动画
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                    self.animationPhase = .panelVisible
-                    self.animationProgress = 1.0
-                }
-            }
+        // 完成后更新状态
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            self.animationPhase = .panelVisible
         }
     }
     
     /// 关闭面板并返回
     func dismissPanel() {
-        // 反向动画 - 第一阶段，开始关闭面板
-        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+        // 使用easeIn动画，开始慢结束快（返回时应该相反）
+        withAnimation(.easeIn(duration: 0.5)) {
             animationPhase = .panelDismissing
-            animationProgress = 0.5 // 修改为0.5，确保图片回到中间位置
+            animationProgress = 0.0 // 直接回到起始位置
             isShowingExercisePanel = false
             
-            print("【调试-返回】动画第一阶段 - 关闭面板")
-            print("【调试-返回】进度值: \(animationProgress)")
-            print("【调试-返回】面板状态: \(animationPhase)")
+            print("【调试-返回】开始返回 - 直接回原位，使用easeIn效果")
+            print("【调试-返回】进度: \(animationProgress)")
         }
         
-        // 第二阶段 - 图片返回原始位置
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
-                self.animationProgress = 0.0 // 回到0，表示返回起始位置
-                
-                print("【调试-返回】动画第二阶段 - 图片返回")
-                print("【调试-返回】进度值: \(self.animationProgress)")
-                print("【调试-返回】原始位置: \(self.bubbleOriginFrame)")
-            }
+        // 完全恢复初始状态
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            self.animationPhase = .initial
+            self.selectedDessert = nil
             
-            // 第三阶段 - 完全恢复初始状态
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                withAnimation(.easeOut(duration: 0.2)) {
-                    self.animationPhase = .initial
-                    self.selectedDessert = nil
-                    
-                    print("【调试-返回】动画第三阶段 - 恢复初始状态")
-                }
-            }
+            print("【调试-返回】恢复初始状态")
         }
     }
 } 

@@ -10,6 +10,9 @@ import SwiftUI
 // 注意: 使用 Extensions/View/CornerRadiusExtension.swift 中的共享扩展实现圆角
 // 文件底部的扩展已被删除以避免冲突
 
+// 在文件开头添加全局常量
+let globalCoordinateSpaceName = "dessertRunGlobalSpace"
+
 /// 甜品到运动类型的过渡动画视图
 struct DessertToExerciseTransition: View {
     /// 动画状态
@@ -35,11 +38,32 @@ struct DessertToExerciseTransition: View {
         // 起始位置 - 使用bubbleOriginFrame作为初始位置
         let originFrame = animationState.bubbleOriginFrame
         let startX = originFrame.midX
-        // 修正垂直位置 - 向上偏移，使动画起点对准图片中心而非整个气泡视图中心
-        // 大约是名称标签高度的一半加上内边距，约25像素
-        let labelHeightCorrection: CGFloat = 50.0
-        let startY = originFrame.midY - labelHeightCorrection 
-        let startSize = animationState.bubbleOriginalSize
+        
+        // 添加动态垂直偏移修正
+        // 根据设备和应用状态动态计算
+        let verticalOffset: CGFloat
+        
+        // 获取设备信息 - 以安全的方式访问窗口属性
+        let keyWindow = UIApplication.shared.connectedScenes
+            .filter { $0.activationState == .foregroundActive }
+            .compactMap { $0 as? UIWindowScene }
+            .first?.windows
+            .filter { $0.isKeyWindow }.first
+        
+        let hasTopNotch = keyWindow?.safeAreaInsets.top ?? 0 > 20
+        
+        // 根据设备类型确定合适的偏移量
+        if hasTopNotch {
+            verticalOffset = -40 // 刘海屏设备需要更大的偏移
+        } else {
+            verticalOffset = -30 // 标准设备的偏移
+        }
+        
+        print("【调试-坐标】设备信息: 刘海屏:\(hasTopNotch), 偏移量:\(verticalOffset)")
+        
+        let startY = originFrame.midY + verticalOffset
+        
+        let startSize = min(originFrame.width, originFrame.height) * 0.9 // 使用90%的框架大小作为实际大小
         
         // 目标位置
         let endX = targetFrame.midX
@@ -53,8 +77,9 @@ struct DessertToExerciseTransition: View {
         
         if animationState.animationPhase == .bubbleAnimating {
             print("【调试-详细】动画计算 - 进度: \(progress)")
-            print("【调试-详细】原始框架: \(originFrame)")
-            print("【调试-详细】修正后起始位置: (\(startX), \(startY)), 原始中心: (\(originFrame.midX), \(originFrame.midY))")
+            print("【调试-详细】原始图片框架: \(originFrame)")
+            print("【调试-详细】原始中心点: (\(originFrame.midX), \(originFrame.midY))")
+            print("【调试-详细】修正后起始位置: (\(startX), \(startY)), 垂直偏移: \(verticalOffset)")
             print("【调试-详细】当前位置: (\(currentX), \(currentY)), 当前大小: \(currentSize)")
         }
         
@@ -81,14 +106,17 @@ struct DessertToExerciseTransition: View {
     /// 面板偏移
     private var panelOffset: CGFloat {
         let phase = animationState.animationPhase
+        let progress = animationState.animationProgress
         
-        if phase == .panelRevealing || phase == .panelVisible {
+        if phase == .panelVisible {
             return 0 // 完全显示
         } else if phase == .bubbleAnimating {
-            // 当气泡正在动画时，面板应该在屏幕外等待
-            return screenSize.height * 0.3 // 减小偏移量，使面板更快进入视野
+            // 基于同一个进度值计算面板位置
+            return screenSize.height * (1 - progress) * 0.3
         } else if phase == .panelDismissing {
-            return screenSize.height // 消失时的偏移
+            // 基于同一个进度值计算退出位置
+            let exitProgress = (1 - progress) // 从0到1的范围
+            return screenSize.height * exitProgress * 0.5
         } else {
             return screenSize.height // 默认隐藏
         }
@@ -146,11 +174,12 @@ struct DessertToExerciseTransition: View {
                         .shadow(color: Color.black.opacity(0.2), radius: 20)
                 )
                 .offset(y: panelOffset)
-                .animation(.spring(response: 0.6, dampingFraction: 0.78), value: panelOffset)
+                .animation(.easeOut(duration: 0.5), value: panelOffset) // 与图片动画一致使用easeOut
             }
             .edgesIgnoringSafeArea(.bottom)
             .zIndex(0) // 确保面板在甜品图片下层
         }
+        .coordinateSpace(name: globalCoordinateSpaceName)
     }
 }
 

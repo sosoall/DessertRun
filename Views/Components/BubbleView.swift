@@ -103,6 +103,16 @@ struct BubbleView: View {
                             .scaledToFit()
                             .padding(bubbleSize * 0.02) // 减少内边距，让图片更大（之前是0.03）
                             .shadow(color: Color(hex: "7E4A4A").opacity(0.15), radius: 5, x: 2, y: 2)
+                            .background(
+                                GeometryReader { imageGeo in
+                                    Color.clear
+                                        .onAppear {
+                                            // 记录图片区域的相对位置
+                                            let imageFrame = imageGeo.frame(in: .named("bubbleCoordinateSpace"))
+                                            print("【调试-位置】图片区域位置: \(imageFrame)")
+                                        }
+                                }
+                            )
                     } else {
                         // 如果无法加载图片，显示占位图标和分类图标
                         Image(systemName: item.category.icon)
@@ -125,6 +135,7 @@ struct BubbleView: View {
                     }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: bubbleSize * 0.25, style: .continuous))
+                .frame(width: bubbleSize * 0.9, height: bubbleSize * 0.7) // 明确给图片区域设置大小
                 
                 // 名称标签
                 if showName {
@@ -156,12 +167,33 @@ struct BubbleView: View {
             .onTapGesture {
                 // 获取气泡在全局坐标系中的位置
                 let bubbleFrame = geometry.frame(in: .global)
-                print("【调试】气泡[\(item.name)]被点击 - 位置: \(bubbleFrame), 大小: \(bubbleSize)")
-                onTap(bubbleFrame)
+                
+                // 计算图片区域的精确位置
+                // 图片区域在气泡中的大致位置：顶部，高度约占70%，扣除padding
+                let imageFrameHeight = bubbleSize * 0.7
+                let imageY = bubbleFrame.minY + contentPadding + imageFrameHeight / 2
+                
+                // 创建图片区域的框架，保持原始气泡的宽度
+                let imageFrame = CGRect(
+                    x: bubbleFrame.minX,
+                    y: imageY - imageFrameHeight / 2,
+                    width: bubbleFrame.width,
+                    height: imageFrameHeight
+                )
+                
+                print("【调试】气泡[\(item.name)]被点击")
+                print("【调试】气泡框架: \(bubbleFrame)")
+                print("【调试】图片框架: \(imageFrame)")
+                print("【调试】图片中心: (\(imageFrame.midX), \(imageFrame.midY))")
+                
+                // 传递在全局坐标空间中的位置，使坐标更一致
+                onTap(imageFrame) // 传递图片区域的框架而非整个气泡
             }
             .position(x: geometry.size.width/2, y: geometry.size.height/2)
+            .coordinateSpace(name: "bubbleCoordinateSpace")
         }
         .frame(width: bubbleSize, height: bubbleSize)
+        .coordinateSpace(name: globalCoordinateSpaceName) // 使用全局共享的坐标空间
     }
     
     /// 计算名称标签的透明度，基于到中心的距离

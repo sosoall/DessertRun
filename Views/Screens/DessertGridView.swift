@@ -36,7 +36,6 @@ struct DessertGridView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                // 背景
                 Color(hex: "FFFFFF")
                 .ignoresSafeArea()
                 
@@ -85,6 +84,7 @@ struct DessertGridView: View {
                     .padding(.bottom, 80) // 为底部导航栏留出空间
                 }
             }
+            .coordinateSpace(name: globalCoordinateSpaceName)
             .onAppear {
                 // 延迟一点时间确保视图布局完成后再刷新气泡布局
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
