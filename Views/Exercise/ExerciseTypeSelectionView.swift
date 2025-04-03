@@ -13,7 +13,7 @@ struct ExerciseTypeSelectionView: View {
     @EnvironmentObject var appState: AppState
     
     /// 运动类型列表
-    private let exerciseTypes = ExerciseTypeData.getSampleExerciseTypes()
+    private let exerciseTypes = ExerciseType.allCases
     
     /// 是否导航到运动界面
     @State private var navigateToWorkout = false

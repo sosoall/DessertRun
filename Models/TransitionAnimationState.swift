@@ -27,14 +27,28 @@ class TransitionAnimationState: ObservableObject {
     /// 动画阶段
     @Published var animationPhase: AnimationPhase = .initial
     
+    /// 当前正在动画的甜品ID，用于在原始气泡中隐藏图片
+    @Published var animatingDessertID: Int? = nil
+    
+    /// 背景暗化程度 (0-1)
+    @Published var backgroundDimLevel: CGFloat = 0
+    
+    /// 甜品图片位置进度 (0-1)，0表示在原位置，1表示在顶部中心
+    @Published var dessertPositionProgress: CGFloat = 0
+    
+    /// 面板位置进度 (0-1)，0表示在屏幕外，1表示完全显示
+    @Published var panelPositionProgress: CGFloat = 0
+    
     /// 动画阶段枚举
     enum AnimationPhase {
-        case initial          // 初始状态
-        case bubbleSelected   // 气泡被选中
-        case bubbleAnimating  // 气泡正在动画
-        case panelRevealing   // 面板正在显示
-        case panelVisible     // 面板完全可见
-        case panelDismissing  // 面板正在关闭
+        case initial            // 初始状态
+        case backgroundDimming  // 背景正在变暗
+        case dessertMoving      // 甜品图片正在移动
+        case panelRevealing     // 面板正在显示
+        case panelVisible       // 面板完全可见
+        case panelDismissing    // 面板正在关闭
+        case dessertReturning   // 甜品图片正在返回
+        case backgroundRestoring // 背景正在恢复
     }
     
     /// 选择甜品并开始动画
@@ -42,7 +56,8 @@ class TransitionAnimationState: ObservableObject {
         selectedDessert = dessert
         bubbleOriginFrame = originFrame
         bubbleOriginalSize = originalSize
-        animationPhase = .bubbleSelected
+        animationPhase = .backgroundDimming
+        animatingDessertID = dessert.id // 设置正在动画的甜品ID
         
         print("【调试-详细】动画状态已更新 - 甜品: \(dessert.name)")
         print("【调试-详细】原始位置: \(originFrame), 宽高: \(originFrame.width)x\(originFrame.height)")
@@ -57,40 +72,70 @@ class TransitionAnimationState: ObservableObject {
     
     /// 开始动画序列
     private func startAnimationSequence() {
-        // 使用easeOut动画，开始快结束慢
-        withAnimation(.easeOut(duration: 0.5)) {
-            animationPhase = .bubbleAnimating
-            animationProgress = 1.0 // 直接到达最终位置
-            isShowingExercisePanel = true
-            
-            print("【调试】动画开始 - 直接到最终位置，使用easeOut效果")
-            print("【调试】进度: \(animationProgress)")
+        // 第一步：背景变暗 + title隐藏 + 原气泡中图片隐藏 + 可移动甜品图片出现
+        withAnimation(.standardTransition) {
+            animationPhase = .backgroundDimming
+            backgroundDimLevel = 0.5
         }
         
-        // 完成后更新状态
+        // 第二步：甜品图片移动到顶部居中
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            withAnimation(.standardTransition) {
+                self.animationPhase = .dessertMoving
+                self.dessertPositionProgress = 1.0
+                self.animationProgress = 1.0 // 保持兼容性
+            }
+        }
+        
+        // 第三步：面板升起
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            self.animationPhase = .panelVisible
+            withAnimation(.standardTransition) {
+                self.animationPhase = .panelRevealing
+                self.panelPositionProgress = 1.0
+                self.isShowingExercisePanel = true
+            }
+            
+            // 完成后更新状态
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                self.animationPhase = .panelVisible
+                print("【调试】动画完成 - 面板完全显示")
+            }
         }
     }
     
     /// 关闭面板并返回
     func dismissPanel() {
-        // 使用easeIn动画，开始慢结束快（返回时应该相反）
-        withAnimation(.easeIn(duration: 0.5)) {
+        // 第一步：面板落下
+        withAnimation(.standardReverseTransition) {
             animationPhase = .panelDismissing
-            animationProgress = 0.0 // 直接回到起始位置
-            isShowingExercisePanel = false
-            
-            print("【调试-返回】开始返回 - 直接回原位，使用easeIn效果")
-            print("【调试-返回】进度: \(animationProgress)")
+            panelPositionProgress = 0.0
         }
         
-        // 完全恢复初始状态
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            self.animationPhase = .initial
-            self.selectedDessert = nil
+        // 第二步：甜品图片移动回原位
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            withAnimation(.standardReverseTransition) {
+                self.animationPhase = .dessertReturning
+                self.dessertPositionProgress = 0.0
+                self.animationProgress = 0.0 // 保持兼容性
+            }
+        }
+        
+        // 第三步：背景恢复 + 其他元素恢复
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            withAnimation(.standardReverseTransition) {
+                self.animationPhase = .backgroundRestoring
+                self.backgroundDimLevel = 0.0
+                self.isShowingExercisePanel = false
+            }
             
-            print("【调试-返回】恢复初始状态")
+            // 完全恢复初始状态
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                self.animationPhase = .initial
+                self.selectedDessert = nil
+                self.animatingDessertID = nil // 清除正在动画的甜品ID
+                
+                print("【调试-返回】恢复初始状态")
+            }
         }
     }
 } 

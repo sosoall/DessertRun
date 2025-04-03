@@ -29,11 +29,17 @@ struct WorkoutView: View {
         pageIndex == 0 ? "运动激励" : "运动数据"
     }
     
+    /// 当前运动类型
+    private var exerciseType: ExerciseType {
+        // 尝试从AppState获取，否则使用默认值
+        AppState.shared.selectedExerciseType ?? ExerciseType.allCases.first!
+    }
+    
     // 初始化会话
     init() {
         // 创建并初始化StateObject
         let targetDessert = AppState.shared.selectedDessert ?? DessertData.getSampleDesserts().first!
-        let exerciseType = AppState.shared.selectedExerciseType ?? ExerciseTypeData.getSampleExerciseTypes().first!
+        let exerciseType = AppState.shared.selectedExerciseType ?? ExerciseType.allCases.first!
         
         _workoutSession = StateObject(wrappedValue: WorkoutSession(
             targetDessert: targetDessert,

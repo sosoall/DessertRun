@@ -85,6 +85,7 @@ struct DessertGridView: View {
                 }
             }
             .coordinateSpace(name: globalCoordinateSpaceName)
+            .environmentObject(animationState) // 将animationState作为环境对象提供给子视图
             .onAppear {
                 // 延迟一点时间确保视图布局完成后再刷新气泡布局
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {

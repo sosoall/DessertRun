@@ -748,13 +748,15 @@ struct RoundedCornerShape: Shape {
     NavigationStack {
         WorkoutCompleteView(
             workoutSession: {
-                let dessert = DessertData.getSampleDesserts().first!
-                let exerciseType = ExerciseTypeData.getSampleExerciseTypes().first!
-                let session = WorkoutSession(targetDessert: dessert, exerciseType: exerciseType)
-                session.totalElapsedSeconds = 1200 // 20分钟
-                session.burnedCalories = 240 // 80%完成
-                session.distanceInMeters = 2500 // 2.5公里
-                return session
+                // 预览用示例数据
+                let workoutSession = WorkoutSession(
+                    targetDessert: DessertData.getSampleDesserts().first!,
+                    exerciseType: ExerciseType.allCases.first!
+                )
+                workoutSession.totalElapsedSeconds = 1200 // 20分钟
+                workoutSession.burnedCalories = 240 // 80%完成
+                workoutSession.distanceInMeters = 2500 // 2.5公里
+                return workoutSession
             }()
         )
         .environmentObject(AppState.shared)

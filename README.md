@@ -102,7 +102,7 @@ DessertRun/
 - **选择运动方式**:
   - 根据甜品热量，算法推荐适合的运动方式
   - 展示每种运动预计完成所需时间
-  - 点击“开始”按钮后，立刻开始运动。
+  - 点击"开始"按钮后，立刻开始运动。
   - 支持关闭，会回到甜品气泡布局页面。
 
 - **运动中**:
@@ -172,12 +172,21 @@ DessertRun/
 
 ## 动效设计
 ### 从甜品选择页到运动类型页
-1. 点击目标甜品后，其他甜品都隐藏，title和导航栏隐藏。目标甜品缓慢移动到页面顶部居中。
+1. 点击目标甜品后，其他甜品都隐藏，title和导航栏隐藏（easeout）。目标甜品缓慢移动到页面顶部居中。
 2. 从底部升起一个运动选择类型面板。
 3. 点击关闭后，上述动效反向。
+4 动画有先后顺序
+   4.1 点击甜品后，出现运动选择类型面板时：
+      第一步：加深色背景+title隐藏+原气泡中图片隐藏+可移动甜品图片出现
+      第二步：甜品图片移动到顶部居中
+      第三步：面板升起
+   4.2 关闭甜品面板时
+      第一步：面板落下
+      第二步：甜品图片移动回去
+      第三步：深色背景消失，title出现，可移动甜品图片消失，原气泡中图片出现。
 
 ### 运动选择页到运动中
-1. 点击“开始”后，开始按钮的颜色从按钮的圆形扩展到整个页面，布满整个页面。
+1. 点击"开始"后，开始按钮的颜色从按钮的圆形扩展到整个页面，布满整个页面。
 2. 倒计时三秒钟。让用户在这三秒内做好准备
 3. 三秒结束后。出现运动中的动画激励页，开始运动。
 
@@ -459,3 +468,191 @@ VStack(spacing: 4) {
 4. **性能良好**：减少了不必要的手势处理器层级
 
 在测试中，用户现在可以在气泡上开始拖动操作，系统不会再误将其识别为点击操作，从而实现了顺畅的拖动体验。
+
+## 备份代码
+
+### 删除的ExerciseTypeSelectionPanel代码
+```swift
+/// 运动类型选择面板
+struct ExerciseTypeSelectionPanel: View {
+    /// 选中的甜品
+    let dessert: DessertItem?
+    
+    /// 取消回调
+    var onDismiss: () -> Void
+    
+    /// 是否导航到运动界面
+    @State private var navigateToWorkout = false
+    
+    /// 环境中的应用状态
+    @EnvironmentObject var appState: AppState
+    
+    /// 运动类型列表
+    private let exerciseTypes = ExerciseTypeData.getSampleExerciseTypes()
+    
+    /// 卡路里值
+    private var calories: Double {
+        guard let selectedDessert = dessert else { return 0 }
+        if let calValue = Double(selectedDessert.calories.replacingOccurrences(of: "kcal", with: "")) {
+            return calValue
+        }
+        return 0
+    }
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            // 顶部拖动条
+            RoundedRectangle(cornerRadius: 2.5)
+                .fill(Color.gray.opacity(0.5))
+                .frame(width: 60, height: 5)
+                .padding(.top, 12)
+            
+            // 标题
+            Text("请选择运动方式")
+                .font(.title2)
+                .fontWeight(.bold)
+                .foregroundColor(Color(hex: "61462C"))
+                .padding(.top, 5)
+            
+            // 甜品信息卡片
+            if let dessert = dessert {
+                HStack {
+                    Text("目标甜品 • \(dessert.name)")
+                        .font(.headline)
+                    
+                    Spacer()
+                    
+                    Text("\(dessert.calories)")
+                        .font(.headline)
+                        .foregroundColor(Color(hex: "FE2D55"))
+                }
+                .padding(.horizontal, 20)
+            }
+            
+            // 运动类型列表
+            ScrollView {
+                LazyVStack(spacing: 16) {
+                    ForEach(exerciseTypes) { exerciseType in
+                        ExerciseTypeCard(
+                            exerciseType: exerciseType,
+                            calories: calories,
+                            onSelect: {
+                                // 选择运动类型并导航到运动界面
+                                appState.selectedExerciseType = exerciseType
+                                navigateToWorkout = true
+                            }
+                        )
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 30)
+            }
+        }
+        .padding(.horizontal)
+        .frame(height: UIScreen.main.bounds.height * 0.75)
+        .background(Color(hex: "faf0dd"))
+        .cornerRadius(20, corners: [.topLeft, .topRight])
+        .gesture(
+            DragGesture()
+                .onEnded { gesture in
+                    if gesture.translation.height > 100 {
+                        onDismiss()
+                    }
+                }
+        )
+        .navigationDestination(isPresented: $navigateToWorkout) {
+            WorkoutView()
+                .onAppear {
+                    appState.isInWorkoutMode = true
+                }
+        }
+    }
+}
+
+/// 运动类型卡片
+struct ExerciseTypeCard: View {
+    /// 运动类型
+    let exerciseType: ExerciseType
+    
+    /// 需要消耗的卡路里
+    let calories: Double
+    
+    /// 选择回调
+    var onSelect: () -> Void
+    
+    /// 预计时间（分钟）
+    private var estimatedTime: Double {
+        exerciseType.estimatedTimeToComplete(calories: calories)
+    }
+    
+    var body: some View {
+        Button(action: onSelect) {
+            HStack {
+                // 左侧图标
+                ZStack {
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(exerciseType.backgroundColor)
+                        .frame(width: 70, height: 70)
+                    
+                    Image(systemName: exerciseType.iconName)
+                        .resizable()
+                        .scaledToFit()
+                        .foregroundColor(.white)
+                        .frame(width: 30, height: 30)
+                }
+                
+                // 中间内容
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(exerciseType.name)
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    
+                    Text(exerciseType.description)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                    
+                    HStack {
+                        Image(systemName: "clock.fill")
+                            .font(.caption)
+                            .foregroundColor(Color(hex: "FE2D55"))
+                        
+                        Text(formatTime(estimatedTime))
+                            .font(.caption)
+                            .foregroundColor(Color(hex: "FE2D55"))
+                            .fontWeight(.semibold)
+                    }
+                }
+                .padding(.leading, 8)
+                
+                Spacer()
+                
+                // 右侧箭头
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.secondary)
+            }
+            .padding()
+            .background(Color.white)
+            .cornerRadius(16)
+            .shadow(color: Color.black.opacity(0.05), radius: 5)
+        }
+    }
+    
+    /// 格式化时间
+    private func formatTime(_ minutes: Double) -> String {
+        if minutes < 1 {
+            return "不到1分钟"
+        } else if minutes < 60 {
+            return "约\(Int(minutes.rounded()))分钟"
+        } else {
+            let hours = Int(minutes / 60)
+            let mins = Int(minutes.truncatingRemainder(dividingBy: 60))
+            
+            if mins == 0 {
+                return "约\(hours)小时"
+            } else {
+                return "约\(hours)小时\(mins)分钟"
+            }
+        }
+    }
+}

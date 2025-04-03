@@ -36,7 +36,7 @@ struct ExerciseHomeView: View {
                 DessertGridView(
                     animationState: animationState,
                     onDragStateChanged: { isDragging in
-                        withAnimation(.easeInOut(duration: 0.3)) {
+                        withAnimation(.standardInterface) {
                             self.isDragging = isDragging
                             // 调用外部回调
                             onDraggingChanged?(isDragging)
@@ -91,6 +91,7 @@ struct ExerciseHomeView: View {
                 }
             }
             .navigationBarHidden(true)
+            .environmentObject(animationState)
         }
     }
 }

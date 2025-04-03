@@ -25,6 +25,9 @@ enum BubbleBackgroundStyle {
 
 /// 可配置的气泡视图
 struct BubbleView: View {
+    /// 动画状态
+    @EnvironmentObject var animationState: TransitionAnimationState
+    
     /// 甜品数据
     let item: DessertItem
     
@@ -96,42 +99,49 @@ struct BubbleView: View {
                     // 获取对应风格的图片名称
                     let imageName = item.getImageName(for: imageStyle)
                     
-                    if UIImage(named: imageName) != nil {
-                        // 如果可以加载到图片，则显示真实图片
-                        Image(imageName)
-                            .resizable()
-                            .scaledToFit()
-                            .padding(bubbleSize * 0.02) // 减少内边距，让图片更大（之前是0.03）
-                            .shadow(color: Color(hex: "7E4A4A").opacity(0.15), radius: 5, x: 2, y: 2)
-                            .background(
-                                GeometryReader { imageGeo in
-                                    Color.clear
-                                        .onAppear {
-                                            // 记录图片区域的相对位置
-                                            let imageFrame = imageGeo.frame(in: .named("bubbleCoordinateSpace"))
-                                            print("【调试-位置】图片区域位置: \(imageFrame)")
-                                        }
-                                }
-                            )
+                    // 仅当甜品不在动画中时显示图片
+                    if animationState.animatingDessertID != item.id {
+                        if UIImage(named: imageName) != nil {
+                            // 如果可以加载到图片，则显示真实图片
+                            Image(imageName)
+                                .resizable()
+                                .scaledToFit()
+                                .padding(bubbleSize * 0.02) // 减少内边距，让图片更大（之前是0.03）
+                                .shadow(color: Color(hex: "7E4A4A").opacity(0.15), radius: 5, x: 2, y: 2)
+                                .background(
+                                    GeometryReader { imageGeo in
+                                        Color.clear
+                                            .onAppear {
+                                                // 记录图片区域的相对位置
+                                                let imageFrame = imageGeo.frame(in: .named("bubbleCoordinateSpace"))
+                                                print("【调试-位置】图片区域位置: \(imageFrame)")
+                                            }
+                                    }
+                                )
+                        } else {
+                            // 如果无法加载图片，显示占位图标和分类图标
+                            Image(systemName: item.category.icon)
+                                .resizable()
+                                .scaledToFit()
+                                .foregroundColor(item.backgroundColor != nil && item.backgroundColor!.brightness > 0.5 ? .black : .white)
+                                .padding(bubbleSize * 0.25)
+                                .overlay(
+                                    Text(item.category.rawValue)
+                                        .font(.system(size: min(10, bubbleSize * 0.1)))
+                                        .foregroundColor(item.backgroundColor != nil && item.backgroundColor!.brightness > 0.5 ? .black : .white)
+                                        .padding(4)
+                                        .background(
+                                            Capsule()
+                                                .fill(Color.black.opacity(0.2))
+                                        )
+                                        .padding(4),
+                                    alignment: .bottomTrailing
+                                )
+                        }
                     } else {
-                        // 如果无法加载图片，显示占位图标和分类图标
-                        Image(systemName: item.category.icon)
-                            .resizable()
-                            .scaledToFit()
-                            .foregroundColor(item.backgroundColor != nil && item.backgroundColor!.brightness > 0.5 ? .black : .white)
-                            .padding(bubbleSize * 0.25)
-                            .overlay(
-                                Text(item.category.rawValue)
-                                    .font(.system(size: min(10, bubbleSize * 0.1)))
-                                    .foregroundColor(item.backgroundColor != nil && item.backgroundColor!.brightness > 0.5 ? .black : .white)
-                                    .padding(4)
-                                    .background(
-                                        Capsule()
-                                            .fill(Color.black.opacity(0.2))
-                                    )
-                                    .padding(4),
-                                alignment: .bottomTrailing
-                            )
+                        // 当甜品在动画中时，显示透明占位，保持布局结构不变
+                        Color.clear
+                            .frame(width: bubbleSize * 0.8, height: bubbleSize * 0.6)
                     }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: bubbleSize * 0.25, style: .continuous))
