@@ -58,7 +58,7 @@ class TransitionAnimationState: ObservableObject {
     /// 开始动画序列
     private func startAnimationSequence() {
         // 开始气泡动画
-        withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
             animationPhase = .bubbleAnimating
             animationProgress = 0.6
             
@@ -66,15 +66,15 @@ class TransitionAnimationState: ObservableObject {
         }
         
         // 延迟后显示面板
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.75)) {
                 self.isShowingExercisePanel = true
                 self.animationPhase = .panelRevealing
                 self.animationProgress = 0.85
             }
             
             // 完成动画
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                     self.animationPhase = .panelVisible
                     self.animationProgress = 1.0
@@ -85,19 +85,35 @@ class TransitionAnimationState: ObservableObject {
     
     /// 关闭面板并返回
     func dismissPanel() {
-        // 反向动画
+        // 反向动画 - 第一阶段，开始关闭面板
         withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
             animationPhase = .panelDismissing
-            animationProgress = 0.3
+            animationProgress = 0.5 // 修改为0.5，确保图片回到中间位置
             isShowingExercisePanel = false
+            
+            print("【调试-返回】动画第一阶段 - 关闭面板")
+            print("【调试-返回】进度值: \(animationProgress)")
+            print("【调试-返回】面板状态: \(animationPhase)")
         }
         
-        // 恢复到初始状态
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                self.animationPhase = .initial
-                self.animationProgress = 0
-                self.selectedDessert = nil
+        // 第二阶段 - 图片返回原始位置
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                self.animationProgress = 0.0 // 回到0，表示返回起始位置
+                
+                print("【调试-返回】动画第二阶段 - 图片返回")
+                print("【调试-返回】进度值: \(self.animationProgress)")
+                print("【调试-返回】原始位置: \(self.bubbleOriginFrame)")
+            }
+            
+            // 第三阶段 - 完全恢复初始状态
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                withAnimation(.easeOut(duration: 0.2)) {
+                    self.animationPhase = .initial
+                    self.selectedDessert = nil
+                    
+                    print("【调试-返回】动画第三阶段 - 恢复初始状态")
+                }
             }
         }
     }

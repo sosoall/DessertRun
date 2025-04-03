@@ -35,7 +35,10 @@ struct DessertToExerciseTransition: View {
         // 起始位置 - 使用bubbleOriginFrame作为初始位置
         let originFrame = animationState.bubbleOriginFrame
         let startX = originFrame.midX
-        let startY = originFrame.midY
+        // 修正垂直位置 - 向上偏移，使动画起点对准图片中心而非整个气泡视图中心
+        // 大约是名称标签高度的一半加上内边距，约25像素
+        let labelHeightCorrection: CGFloat = 50.0
+        let startY = originFrame.midY - labelHeightCorrection 
         let startSize = animationState.bubbleOriginalSize
         
         // 目标位置
@@ -51,8 +54,14 @@ struct DessertToExerciseTransition: View {
         if animationState.animationPhase == .bubbleAnimating {
             print("【调试-详细】动画计算 - 进度: \(progress)")
             print("【调试-详细】原始框架: \(originFrame)")
-            print("【调试-详细】起始位置: (\(startX), \(startY)), 起始大小: \(startSize)")
+            print("【调试-详细】修正后起始位置: (\(startX), \(startY)), 原始中心: (\(originFrame.midX), \(originFrame.midY))")
             print("【调试-详细】当前位置: (\(currentX), \(currentY)), 当前大小: \(currentSize)")
+        }
+        
+        if animationState.animationPhase == .panelDismissing {
+            print("【调试-返回】位置计算 - 进度: \(progress)")
+            print("【调试-返回】目标位置: (\(startX), \(startY)), 当前位置: (\(currentX), \(currentY))")
+            print("【调试-返回】目标大小: \(startSize), 当前大小: \(currentSize)")
         }
         
         return CGRect(
@@ -66,7 +75,7 @@ struct DessertToExerciseTransition: View {
     /// 背景不透明度
     private var backgroundOpacity: Double {
         let progress = animationState.animationProgress
-        return min(1.0, progress * 1.5) // 让背景更快地变暗
+        return min(1.0, progress * 2.0) // 加快背景变暗速度
     }
     
     /// 面板偏移
@@ -77,7 +86,7 @@ struct DessertToExerciseTransition: View {
             return 0 // 完全显示
         } else if phase == .bubbleAnimating {
             // 当气泡正在动画时，面板应该在屏幕外等待
-            return screenSize.height * 0.5 // 增大偏移量，确保完全在屏幕外
+            return screenSize.height * 0.3 // 减小偏移量，使面板更快进入视野
         } else if phase == .panelDismissing {
             return screenSize.height // 消失时的偏移
         } else {
@@ -97,32 +106,27 @@ struct DessertToExerciseTransition: View {
             // 甜品动画气泡
             if let dessert = animationState.selectedDessert, 
                animationState.animationPhase != .initial {
-                // 修改这部分代码，使用实际甜品图片
                 ZStack {
-                    Circle()
-                        .fill(dessert.backgroundColor ?? Color.white)
-                        .frame(width: currentPosition.width, height: currentPosition.height)
-                        .position(x: currentPosition.midX, y: currentPosition.midY)
-                    
                     // 使用实际甜品图片替代图标
                     if UIImage(named: dessert.imageName) != nil {
                         Image(dessert.imageName)
                             .resizable()
                             .scaledToFit()
-                            .frame(width: currentPosition.width * 0.85, height: currentPosition.height * 0.85) // 增大图片占比
+                            .frame(width: currentPosition.width * 0.9, height: currentPosition.height * 0.9)
                             .position(x: currentPosition.midX, y: currentPosition.midY)
+                            .shadow(color: Color.black.opacity(0.25), radius: 10, x: 0, y: 4)
                     } else {
                         // 仅在找不到图片时使用默认图标
                         Image(systemName: "cup.and.saucer.fill")
                             .resizable()
                             .scaledToFit()
                             .foregroundColor(.white)
-                            .padding(currentPosition.width * 0.15) // 减小内边距
-                            .frame(width: currentPosition.width, height: currentPosition.height)
+                            .frame(width: currentPosition.width * 0.8, height: currentPosition.height * 0.8)
+                            .background(Circle().fill(dessert.backgroundColor ?? Color.white))
                             .position(x: currentPosition.midX, y: currentPosition.midY)
+                            .shadow(color: Color.black.opacity(0.25), radius: 10, x: 0, y: 4)
                     }
                 }
-                .shadow(color: Color.black.opacity(0.3), radius: 15, x: 0, y: 5) // 加强阴影效果
                 .zIndex(1) // 确保甜品图片始终在最上层
             }
             
