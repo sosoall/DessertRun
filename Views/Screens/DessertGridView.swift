@@ -55,6 +55,9 @@ struct DessertGridView: View {
                             minSize: createConfig(for: geometry.size).minBubbleSize,
                             onTap: { bubbleFrame in
                                 // 记录选中的甜品和位置信息
+                                print("【调试-详细】传递给动画状态 - 甜品: \(dessert.name)")
+                                print("【调试-详细】框架: \(bubbleFrame), 中心点: (\(bubbleFrame.midX), \(bubbleFrame.midY))")
+                                print("【调试-详细】大小: \(state.size), 到中心距离: \(state.distanceToCenter)")
                                 animationState.selectDessert(dessert, originFrame: bubbleFrame, originalSize: state.size)
                             }
                         )

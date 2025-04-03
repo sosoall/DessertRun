@@ -22,7 +22,7 @@ struct DessertToExerciseTransition: View {
     private var targetFrame: CGRect {
         CGRect(
             x: screenSize.width / 2 - 40, 
-            y: screenSize.height * 0.08,
+            y: screenSize.height * 0.08, // 靠上一些，确保在面板上方
             width: 80, 
             height: 80
         )
@@ -32,9 +32,10 @@ struct DessertToExerciseTransition: View {
     private var currentPosition: CGRect {
         let progress = animationState.animationProgress
         
-        // 起始位置
-        let startX = animationState.bubbleOriginFrame.midX
-        let startY = animationState.bubbleOriginFrame.midY
+        // 起始位置 - 使用bubbleOriginFrame作为初始位置
+        let originFrame = animationState.bubbleOriginFrame
+        let startX = originFrame.midX
+        let startY = originFrame.midY
         let startSize = animationState.bubbleOriginalSize
         
         // 目标位置
@@ -46,6 +47,13 @@ struct DessertToExerciseTransition: View {
         let currentX = startX + (endX - startX) * progress
         let currentY = startY + (endY - startY) * progress
         let currentSize = startSize + (endSize - startSize) * progress
+        
+        if animationState.animationPhase == .bubbleAnimating {
+            print("【调试-详细】动画计算 - 进度: \(progress)")
+            print("【调试-详细】原始框架: \(originFrame)")
+            print("【调试-详细】起始位置: (\(startX), \(startY)), 起始大小: \(startSize)")
+            print("【调试-详细】当前位置: (\(currentX), \(currentY)), 当前大小: \(currentSize)")
+        }
         
         return CGRect(
             x: currentX - currentSize/2,
@@ -68,7 +76,8 @@ struct DessertToExerciseTransition: View {
         if phase == .panelRevealing || phase == .panelVisible {
             return 0 // 完全显示
         } else if phase == .bubbleAnimating {
-            return screenSize.height * 0.3 // 开始动画时的偏移
+            // 当气泡正在动画时，面板应该在屏幕外等待
+            return screenSize.height * 0.5 // 增大偏移量，确保完全在屏幕外
         } else if phase == .panelDismissing {
             return screenSize.height // 消失时的偏移
         } else {
@@ -100,7 +109,7 @@ struct DessertToExerciseTransition: View {
                         Image(dessert.imageName)
                             .resizable()
                             .scaledToFit()
-                            .frame(width: currentPosition.width * 0.8, height: currentPosition.height * 0.8)
+                            .frame(width: currentPosition.width * 0.85, height: currentPosition.height * 0.85) // 增大图片占比
                             .position(x: currentPosition.midX, y: currentPosition.midY)
                     } else {
                         // 仅在找不到图片时使用默认图标
@@ -108,12 +117,12 @@ struct DessertToExerciseTransition: View {
                             .resizable()
                             .scaledToFit()
                             .foregroundColor(.white)
-                            .padding(currentPosition.width * 0.2)
+                            .padding(currentPosition.width * 0.15) // 减小内边距
                             .frame(width: currentPosition.width, height: currentPosition.height)
                             .position(x: currentPosition.midX, y: currentPosition.midY)
                     }
                 }
-                .shadow(color: Color.black.opacity(0.2), radius: 10)
+                .shadow(color: Color.black.opacity(0.3), radius: 15, x: 0, y: 5) // 加强阴影效果
                 .zIndex(1) // 确保甜品图片始终在最上层
             }
             
@@ -133,7 +142,7 @@ struct DessertToExerciseTransition: View {
                         .shadow(color: Color.black.opacity(0.2), radius: 20)
                 )
                 .offset(y: panelOffset)
-                .animation(.spring(response: 0.6, dampingFraction: 0.8), value: panelOffset)
+                .animation(.spring(response: 0.6, dampingFraction: 0.78), value: panelOffset)
             }
             .edgesIgnoringSafeArea(.bottom)
             .zIndex(0) // 确保面板在甜品图片下层

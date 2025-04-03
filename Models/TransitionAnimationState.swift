@@ -44,6 +44,10 @@ class TransitionAnimationState: ObservableObject {
         bubbleOriginalSize = originalSize
         animationPhase = .bubbleSelected
         
+        print("【调试-详细】动画状态已更新 - 甜品: \(dessert.name)")
+        print("【调试-详细】原始位置: \(originFrame), 宽高: \(originFrame.width)x\(originFrame.height)")
+        print("【调试-详细】原始大小: \(originalSize), 中心点: (\(originFrame.midX), \(originFrame.midY))")
+        
         // 更新App状态中的选中甜品
         AppState.shared.selectedDessert = dessert
         
@@ -56,7 +60,9 @@ class TransitionAnimationState: ObservableObject {
         // 开始气泡动画
         withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
             animationPhase = .bubbleAnimating
-            animationProgress = 0.5
+            animationProgress = 0.6
+            
+            print("【调试】动画阶段1 - progress: \(animationProgress), 位置: \(bubbleOriginFrame)")
         }
         
         // 延迟后显示面板
@@ -64,7 +70,7 @@ class TransitionAnimationState: ObservableObject {
             withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
                 self.isShowingExercisePanel = true
                 self.animationPhase = .panelRevealing
-                self.animationProgress = 0.8
+                self.animationProgress = 0.85
             }
             
             // 完成动画
@@ -82,7 +88,7 @@ class TransitionAnimationState: ObservableObject {
         // 反向动画
         withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
             animationPhase = .panelDismissing
-            animationProgress = 0.5
+            animationProgress = 0.3
             isShowingExercisePanel = false
         }
         

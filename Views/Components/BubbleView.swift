@@ -7,6 +7,15 @@
 
 import SwiftUI
 
+// 用于跟踪视图框架的PreferenceKey
+struct ViewFrameKey: PreferenceKey {
+    static var defaultValue: CGRect = .zero
+    
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
+        value = nextValue()
+    }
+}
+
 /// 气泡背景样式
 enum BubbleBackgroundStyle {
     case squircle            // 圆角正方形
@@ -80,82 +89,79 @@ struct BubbleView: View {
     
     var body: some View {
         // 放弃Button，改用VStack和独立的点击手势
-        VStack(spacing: 4) {
-            // 美食图片
-            ZStack {
-                // 获取对应风格的图片名称
-                let imageName = item.getImageName(for: imageStyle)
-                
-                if UIImage(named: imageName) != nil {
-                    // 如果可以加载到图片，则显示真实图片
-                    Image(imageName)
-                        .resizable()
-                        .scaledToFit()
-                        .padding(bubbleSize * 0.02) // 减少内边距，让图片更大（之前是0.03）
-                        .shadow(color: Color(hex: "7E4A4A").opacity(0.15), radius: 5, x: 2, y: 2)
-                } else {
-                    // 如果无法加载图片，显示占位图标和分类图标
-                    Image(systemName: item.category.icon)
-                        .resizable()
-                        .scaledToFit()
-                        .foregroundColor(item.backgroundColor != nil && item.backgroundColor!.brightness > 0.5 ? .black : .white)
-                        .padding(bubbleSize * 0.25)
-                        .overlay(
-                            Text(item.category.rawValue)
-                                .font(.system(size: min(10, bubbleSize * 0.1)))
-                                .foregroundColor(item.backgroundColor != nil && item.backgroundColor!.brightness > 0.5 ? .black : .white)
-                                .padding(4)
-                                .background(
-                                    Capsule()
-                                        .fill(Color.black.opacity(0.2))
-                                )
-                                .padding(4),
-                            alignment: .bottomTrailing
-                        )
-                }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: bubbleSize * 0.25, style: .continuous))
-            
-            // 名称标签
-            if showName {
-                VStack(spacing: 0) {
-                    Text(item.name)
-                        .font(.system(size: min(14, bubbleSize * 0.15)))
-                        .fontWeight(.medium)
-                        .foregroundColor(.black)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.5)
-                }
-                .padding(.vertical, 4)
-                .padding(.horizontal, 8)
-                .background(
-                    Capsule()
-                        .fill(Color.white.opacity(0.5))
-                )
-                // 只在中心区域显示名称，距离中心越远越透明
-                .opacity(calculateNameOpacity())
-            }
-        }
-        .padding(contentPadding)
-        .frame(width: bubbleSize, height: bubbleSize)
-        .background(backgroundView)
-        .opacity(calculateOpacity())
-        .blur(radius: calculateBlurRadius()) // 将模糊应用于整个气泡
-        .contentShape(RoundedRectangle(cornerRadius: bubbleSize * 0.25, style: .continuous))
-        // 使用简单的点击手势，优先级较低
-        .onTapGesture {
-            onTap(viewFrame)
-        }
-        .background(
-            GeometryReader { geo in
-                Color.clear
-                    .onAppear {
-                        // 获取和更新视图框架信息
-                        let frame = geo.frame(in: .global)
-                        self.viewFrame = frame
+        GeometryReader { geometry in
+            VStack(spacing: 4) {
+                // 美食图片
+                ZStack {
+                    // 获取对应风格的图片名称
+                    let imageName = item.getImageName(for: imageStyle)
+                    
+                    if UIImage(named: imageName) != nil {
+                        // 如果可以加载到图片，则显示真实图片
+                        Image(imageName)
+                            .resizable()
+                            .scaledToFit()
+                            .padding(bubbleSize * 0.02) // 减少内边距，让图片更大（之前是0.03）
+                            .shadow(color: Color(hex: "7E4A4A").opacity(0.15), radius: 5, x: 2, y: 2)
+                    } else {
+                        // 如果无法加载图片，显示占位图标和分类图标
+                        Image(systemName: item.category.icon)
+                            .resizable()
+                            .scaledToFit()
+                            .foregroundColor(item.backgroundColor != nil && item.backgroundColor!.brightness > 0.5 ? .black : .white)
+                            .padding(bubbleSize * 0.25)
+                            .overlay(
+                                Text(item.category.rawValue)
+                                    .font(.system(size: min(10, bubbleSize * 0.1)))
+                                    .foregroundColor(item.backgroundColor != nil && item.backgroundColor!.brightness > 0.5 ? .black : .white)
+                                    .padding(4)
+                                    .background(
+                                        Capsule()
+                                            .fill(Color.black.opacity(0.2))
+                                    )
+                                    .padding(4),
+                                alignment: .bottomTrailing
+                            )
                     }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: bubbleSize * 0.25, style: .continuous))
+                
+                // 名称标签
+                if showName {
+                    VStack(spacing: 0) {
+                        Text(item.name)
+                            .font(.system(size: min(14, bubbleSize * 0.15)))
+                            .fontWeight(.medium)
+                            .foregroundColor(.black)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
+                    }
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 8)
+                    .background(
+                        Capsule()
+                            .fill(Color.white.opacity(0.5))
+                    )
+                    // 只在中心区域显示名称，距离中心越远越透明
+                    .opacity(calculateNameOpacity())
+                }
             }
-        )
+            .padding(contentPadding)
+            .frame(width: bubbleSize, height: bubbleSize)
+            .background(backgroundView)
+            .opacity(calculateOpacity())
+            .blur(radius: calculateBlurRadius()) // 将模糊应用于整个气泡
+            .contentShape(RoundedRectangle(cornerRadius: bubbleSize * 0.25, style: .continuous))
+            // 使用简单的点击手势，优先级较低
+            .onTapGesture {
+                // 获取气泡在全局坐标系中的位置
+                let bubbleFrame = geometry.frame(in: .global)
+                print("【调试】气泡[\(item.name)]被点击 - 位置: \(bubbleFrame), 大小: \(bubbleSize)")
+                onTap(bubbleFrame)
+            }
+            .position(x: geometry.size.width/2, y: geometry.size.height/2)
+        }
+        .frame(width: bubbleSize, height: bubbleSize)
     }
     
     /// 计算名称标签的透明度，基于到中心的距离
