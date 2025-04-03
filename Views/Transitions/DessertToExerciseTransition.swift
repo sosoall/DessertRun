@@ -22,7 +22,7 @@ struct DessertToExerciseTransition: View {
     private var targetFrame: CGRect {
         CGRect(
             x: screenSize.width / 2 - 40, 
-            y: screenSize.height * 0.15,
+            y: screenSize.height * 0.08,
             width: 80, 
             height: 80
         )
@@ -88,12 +88,22 @@ struct DessertToExerciseTransition: View {
             // 甜品动画气泡
             if let dessert = animationState.selectedDessert, 
                animationState.animationPhase != .initial {
-                // 动画中的甜品图标
-                Circle()
-                    .fill(dessert.backgroundColor ?? Color.white)
-                    .frame(width: currentPosition.width, height: currentPosition.height)
-                    .position(x: currentPosition.midX, y: currentPosition.midY)
-                    .overlay(
+                // 修改这部分代码，使用实际甜品图片
+                ZStack {
+                    Circle()
+                        .fill(dessert.backgroundColor ?? Color.white)
+                        .frame(width: currentPosition.width, height: currentPosition.height)
+                        .position(x: currentPosition.midX, y: currentPosition.midY)
+                    
+                    // 使用实际甜品图片替代图标
+                    if UIImage(named: dessert.imageName) != nil {
+                        Image(dessert.imageName)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: currentPosition.width * 0.8, height: currentPosition.height * 0.8)
+                            .position(x: currentPosition.midX, y: currentPosition.midY)
+                    } else {
+                        // 仅在找不到图片时使用默认图标
                         Image(systemName: "cup.and.saucer.fill")
                             .resizable()
                             .scaledToFit()
@@ -101,8 +111,10 @@ struct DessertToExerciseTransition: View {
                             .padding(currentPosition.width * 0.2)
                             .frame(width: currentPosition.width, height: currentPosition.height)
                             .position(x: currentPosition.midX, y: currentPosition.midY)
-                    )
-                    .shadow(color: Color.black.opacity(0.2), radius: 10)
+                    }
+                }
+                .shadow(color: Color.black.opacity(0.2), radius: 10)
+                .zIndex(1) // 确保甜品图片始终在最上层
             }
             
             // 运动类型选择面板
@@ -124,6 +136,7 @@ struct DessertToExerciseTransition: View {
                 .animation(.spring(response: 0.6, dampingFraction: 0.8), value: panelOffset)
             }
             .edgesIgnoringSafeArea(.bottom)
+            .zIndex(0) // 确保面板在甜品图片下层
         }
     }
 }
