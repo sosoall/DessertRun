@@ -6,97 +6,150 @@
 //
 
 import SwiftUI
+import UIKit
 
-/// 运动类型选项行视图
+/// 运动类型行组件
 struct ExerciseTypeRow: View {
-    // 运动类型
-    let exerciseType: ExerciseType
-    
-    // 选中的甜品
-    let selectedDessert: DessertItem?
-    
-    // 全局应用状态
+    /// 环境中的应用状态
     @EnvironmentObject var appState: AppState
     
-    // 环境消失
+    /// 环境消失事件
     @Environment(\.dismiss) private var dismiss
     
-    // 导航到运动页面
-    @State private var navigateToWorkout = false
+    /// 运动类型
+    let exerciseType: ExerciseType
     
-    var body: some View {
-        Button(action: {
-            startExercise()
-        }) {
-            HStack(spacing: 15) {
-                // 运动图标
-                Image(systemName: exerciseType.iconName)
-                    .font(.system(size: 24))
-                    .foregroundColor(.white)
-                    .frame(width: 48, height: 48)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(selectedDessert?.backgroundColor ?? Color(hex: "FE2D55"))
-                    )
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    // 运动名称
-                    Text(exerciseType.displayName)
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(.primary)
-                    
-                    // 运动描述
-                    Text(exerciseType.description)
-                        .font(.system(size: 14))
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                }
-                
-                Spacer()
-                
-                // 箭头图标
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.gray)
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
-            .background(Color.white)
-        }
-        .buttonStyle(PlainButtonStyle())
-        // 添加分隔线
-        .overlay(
-            VStack {
-                Spacer()
-                Divider()
-            }
-        )
-        .navigationDestination(isPresented: $navigateToWorkout) {
-            WorkoutView()
-        }
-    }
+    /// 选中的甜品
+    let selectedDessert: DessertItem?
     
-    /// 开始运动会话
+    /// 是否选中
+    @State private var isSelected: Bool = false
+    
+    /// 开始运动
     private func startExercise() {
-        guard let dessert = selectedDessert else { return }
+        guard let selectedDessert = selectedDessert else { return }
+        
+        self.isSelected = true
         
         // 创建新的运动会话
         let workoutSession = WorkoutSession(
-            targetDessert: dessert,
-            exerciseType: exerciseType
+            dessert: selectedDessert,
+            exerciseType: exerciseType,
+            targetCalories: Double(selectedDessert.calories.replacingOccurrences(of: "kcal", with: "")) ?? 0,
+            startTime: Date()
         )
         
         // 更新应用状态
         appState.selectedExerciseType = exerciseType
         appState.activeWorkoutSession = workoutSession
-        
-        // 导航到运动视图
-        navigateToWorkout = true
-        
-        // 进入运动模式，隐藏TabBar
         appState.isInWorkoutMode = true
         
-        // 关闭当前面板
-        dismiss()
+        // 延迟关闭当前视图，确保动画完成
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            dismiss()
+        }
     }
+    
+    var body: some View {
+        Button(action: startExercise) {
+            HStack {
+                // 单选按钮
+                ZStack {
+                    Circle()
+                        .strokeBorder(isSelected ? Color(hex: "FE2D55") : Color(hex: "49454F"), lineWidth: 2)
+                        .frame(width: 20, height: 20)
+                    
+                    if isSelected {
+                        Circle()
+                            .fill(Color(hex: "FE2D55"))
+                            .frame(width: 10, height: 10)
+                    }
+                }
+                .frame(width: 30, height: 48)
+                
+                // 图标
+                ZStack {
+                    Circle()
+                        .fill(Color(hex: "F5F5F5"))
+                        .frame(width: 40, height: 40)
+                    
+                    Image(systemName: exerciseType.iconName)
+                        .font(.system(size: 18))
+                        .foregroundColor(Color.black)
+                }
+                
+                // 文本内容
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(exerciseType.displayName)
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(.black)
+                    
+                    Text(exerciseType.getTimeDescription())
+                        .font(.system(size: 15))
+                        .foregroundColor(Color(hex: "757575"))
+                }
+                .padding(.leading, 10)
+                
+                Spacer()
+                
+                // 箭头
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 16))
+                    .foregroundColor(Color(hex: "757575"))
+            }
+            .padding(.vertical, 14)
+            .padding(.horizontal, 16)
+            .background(
+                Group {
+                    if isSelected {
+                        // 选中状态 - 粉色到金色渐变
+                        RoundedRectangle(cornerRadius: 24)
+                            .fill(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [Color(hex: "FF329A"), Color(hex: "FFD12C")]),
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 24)
+                                    .strokeBorder(
+                                        LinearGradient(
+                                            gradient: Gradient(colors: [Color(hex: "FF329A"), Color(hex: "FF2C3E")]),
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        ),
+                                        lineWidth: 3
+                                    )
+                            )
+                    } else {
+                        RoundedRectangle(cornerRadius: 24)
+                            .fill(Color.white)
+                    }
+                }
+            )
+            .padding(.horizontal, 16)
+            .padding(.vertical, 4)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+extension ExerciseType {
+    /// 获取时间描述
+    func getTimeDescription() -> String {
+        return "约30分钟，2公里。"
+    }
+}
+
+#Preview {
+    VStack {
+        ExerciseTypeRow(
+            exerciseType: ExerciseType.running,
+            selectedDessert: DessertData.getSampleDesserts().first
+        )
+        .environmentObject(AppState.shared)
+    }
+    .background(Color.white)
+    .previewLayout(.sizeThatFits)
 } 

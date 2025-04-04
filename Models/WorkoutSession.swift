@@ -100,6 +100,20 @@ class WorkoutSession: ObservableObject {
         }
     }
     
+    /// 初始化运动会话（带额外参数）
+    /// - Parameters:
+    ///   - dessert: 目标甜品
+    ///   - exerciseType: 运动类型
+    ///   - targetCalories: 目标卡路里
+    ///   - startTime: 开始时间
+    init(dessert: DessertItem, exerciseType: ExerciseType, targetCalories: Double, startTime: Date) {
+        self.targetDessert = dessert
+        self.exerciseType = exerciseType
+        self.targetCalories = targetCalories
+        self.startTime = startTime
+        self.state = .active
+    }
+    
     // MARK: - 会话控制
     
     /// 开始会话

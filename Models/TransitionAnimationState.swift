@@ -21,6 +21,9 @@ class TransitionAnimationState: ObservableObject {
     /// 气泡原始框架位置
     @Published var bubbleOriginFrame: CGRect = .zero
     
+    /// 图片原始框架位置
+    @Published var imageOriginFrame: CGRect? = nil
+    
     /// 气泡原始大小
     @Published var bubbleOriginalSize: CGFloat = 0
     
@@ -52,16 +55,20 @@ class TransitionAnimationState: ObservableObject {
     }
     
     /// 选择甜品并开始动画
-    func selectDessert(_ dessert: DessertItem, originFrame: CGRect, originalSize: CGFloat) {
+    func selectDessert(_ dessert: DessertItem, originFrame: CGRect, originalSize: CGFloat, imageFrame: CGRect? = nil) {
         selectedDessert = dessert
         bubbleOriginFrame = originFrame
         bubbleOriginalSize = originalSize
+        imageOriginFrame = imageFrame // 存储图片框架
         animationPhase = .backgroundDimming
         animatingDessertID = dessert.id // 设置正在动画的甜品ID
         
         print("【调试-详细】动画状态已更新 - 甜品: \(dessert.name)")
         print("【调试-详细】原始位置: \(originFrame), 宽高: \(originFrame.width)x\(originFrame.height)")
         print("【调试-详细】原始大小: \(originalSize), 中心点: (\(originFrame.midX), \(originFrame.midY))")
+        if let imgFrame = imageFrame {
+            print("【调试-详细】图片框架: \(imgFrame), 宽高: \(imgFrame.width)x\(imgFrame.height)")
+        }
         
         // 更新App状态中的选中甜品
         AppState.shared.selectedDessert = dessert

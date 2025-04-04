@@ -45,6 +45,26 @@ struct CustomTabBar: View {
         self.accentColor = accentColor
     }
     
+    // 计算底部安全区域填充
+    private var bottomSafeAreaPadding: CGFloat {
+        return max(0, safeAreaBottom)
+    }
+    
+    // 计算是否需要额外的Home指示器填充
+    private var hasHomeIndicator: Bool {
+        return bottomSafeAreaPadding > 0
+    }
+    
+    // 计算偏移量
+    private var tabBarOffset: CGFloat {
+        if isHidden {
+            // 固定向下偏移量，避免复杂计算可能导致的非法值
+            return 200 // 足够大的值确保完全隐藏
+        } else {
+            return 0
+        }
+    }
+    
     var body: some View {
         VStack(spacing: 0) {
             // 分隔线
@@ -75,27 +95,36 @@ struct CustomTabBar: View {
                 }
             }
             .frame(height: 49)
-            .padding(.bottom, safeAreaBottom > 0 ? 16 : 0) // 添加底部安全距离，仅在有Home指示条的设备上
+            .padding(.bottom, hasHomeIndicator ? 16 : 0) // 添加底部安全距离，仅在有Home指示条的设备上
             .background(Color.white)
             
             // 安全区域填充
             Rectangle()
                 .fill(Color.white)
-                .frame(height: safeAreaBottom)
+                .frame(height: bottomSafeAreaPadding)
                 .edgesIgnoringSafeArea(.bottom)
         }
         .background(Color.white)
-        .offset(y: isHidden ? (49 + safeAreaBottom + (safeAreaBottom > 0 ? 16 : 0) + 30) : 0) // 向下移出屏幕，增加额外30点确保完全隐藏
+        .offset(y: tabBarOffset)
         .animation(.easeInOut(duration: 0.3), value: isHidden)
         // 获取安全区域底部高度
         .background(
             GeometryReader { geometry in
                 Color.clear
-                    .onAppear {
-                        safeAreaBottom = geometry.safeAreaInsets.bottom
-                    }
+                    .preference(key: SafeAreaBottomPreferenceKey.self, value: geometry.safeAreaInsets.bottom)
             }
         )
+        .onPreferenceChange(SafeAreaBottomPreferenceKey.self) { value in
+            safeAreaBottom = max(0, value) // 确保值不为负
+        }
+    }
+}
+
+// 安全区域底部高度首选项键
+struct SafeAreaBottomPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
 
@@ -132,14 +161,25 @@ struct CustomTabViewContainer<Content: View>: View {
         self.accentColor = accentColor
     }
     
+    // 计算内容底部填充
+    private var contentBottomPadding: CGFloat {
+        if appState.shouldHideTabBar {
+            return 0
+        } else {
+            // 使用固定值计算，避免复杂计算可能导致的错误
+            let hasHomeIndicator = safeAreaBottom > 0
+            let homePadding: CGFloat = hasHomeIndicator ? 16 : 0
+            return CGFloat(49) + max(0, safeAreaBottom) + homePadding
+        }
+    }
+    
     var body: some View {
         // 使用ZStack完全覆盖，确保TabBar在底部
         ZStack(alignment: .bottom) {
             // 主内容
             content()
                 // 根据TabBar是否隐藏调整底部padding
-                // 当TabBar显示时，内容底部需要留出TabBar的高度 + 安全区域高度 + 安全距离
-                .padding(.bottom, appState.shouldHideTabBar ? 0 : (49 + safeAreaBottom + (safeAreaBottom > 0 ? 16 : 0)))
+                .padding(.bottom, contentBottomPadding)
             
             // 自定义TabBar
             CustomTabBar(
@@ -153,11 +193,12 @@ struct CustomTabViewContainer<Content: View>: View {
         .background(
             GeometryReader { geometry in
                 Color.clear
-                    .onAppear {
-                        safeAreaBottom = geometry.safeAreaInsets.bottom
-                    }
+                    .preference(key: SafeAreaBottomPreferenceKey.self, value: geometry.safeAreaInsets.bottom)
             }
         )
+        .onPreferenceChange(SafeAreaBottomPreferenceKey.self) { value in
+            safeAreaBottom = max(0, value) // 确保值不为负
+        }
         // 忽略底部安全区域，以便TabBar可以扩展到底部
         .edgesIgnoringSafeArea(.bottom)
     }
