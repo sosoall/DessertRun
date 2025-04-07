@@ -15,206 +15,207 @@ struct DataView: View {
     /// 屏幕尺寸
     let screenSize: CGSize
     
+    /// 主色调
+    private let primaryColor = Color(hex: "FE2D55")
+    private let secondaryColor = Color(hex: "FF9901")
+    
+    /// 呼吸动画控制
+    @State private var breathIn = false
+    
+    /// 跳动动画控制
+    @State private var heartbeat = false
+    
     var body: some View {
-        VStack(spacing: 25) {
-            // 基本信息卡片
-            VStack(spacing: 15) {
-                // 甜品名称和运动类型
-                HStack {
-                    VStack(alignment: .leading) {
-                        Text(workoutSession.targetDessert.name)
-                            .font(.title3)
-                            .fontWeight(.bold)
-                        
-                        Text(workoutSession.exerciseType.name)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    Spacer()
-                    
-                    // 运动状态
-                    Text(workoutStateText)
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(workoutStateColor.opacity(0.2))
-                        .foregroundColor(workoutStateColor)
-                        .cornerRadius(10)
-                }
-                
-                Divider()
-                
-                // 详细数据网格
-                LazyVGrid(columns: [
-                    GridItem(.flexible()),
-                    GridItem(.flexible()),
-                ], spacing: 20) {
-                    // 时间
-                    DataCell(
-                        icon: "clock.fill",
-                        iconColor: .orange,
-                        value: formattedTime,
-                        label: "总时间"
-                    )
-                    
-                    // 卡路里
-                    DataCell(
-                        icon: "flame.fill",
-                        iconColor: .red,
-                        value: "\(Int(workoutSession.burnedCalories))",
-                        label: "卡路里"
-                    )
-                    
-                    // 完成度
-                    DataCell(
-                        icon: "chart.pie.fill",
-                        iconColor: .blue,
-                        value: "\(Int(workoutSession.completionPercentage))%",
-                        label: "完成度"
-                    )
-                    
-                    // 距离/次数
-                    DataCell(
-                        icon: workoutSession.exerciseType.requiresGPS ? "map.fill" : "repeat",
-                        iconColor: .green,
-                        value: distanceOrCount,
-                        label: distanceOrCountLabel
-                    )
-                    
-                    // 平均速度
-                    if workoutSession.exerciseType.requiresGPS {
-                        DataCell(
-                            icon: "speedometer",
-                            iconColor: .purple,
-                            value: String(format: "%.1f", workoutSession.averageSpeed * 3.6), // 转换为km/h
-                            label: "平均速度(km/h)"
-                        )
-                        
-                        // 当前速度
-                        DataCell(
-                            icon: "hare.fill",
-                            iconColor: .pink,
-                            value: String(format: "%.1f", workoutSession.currentSpeed * 3.6), // 转换为km/h
-                            label: "当前速度(km/h)"
-                        )
-                    } else {
-                        // 平均频率 (模拟数据)
-                        DataCell(
-                            icon: "waveform.path.ecg",
-                            iconColor: .purple,
-                            value: String(format: "%.1f", Double.random(in: 15...25)),
-                            label: "频率(次/分)"
-                        )
-                        
-                        // 消耗率
-                        DataCell(
-                            icon: "bolt.fill",
-                            iconColor: .pink,
-                            value: String(format: "%.1f", workoutSession.exerciseType.caloriesPerMinute),
-                            label: "消耗率(卡/分)"
-                        )
-                    }
-                }
-            }
-            .padding()
-            .background(Color.white)
-            .cornerRadius(16)
-            .shadow(color: Color.black.opacity(0.05), radius: 5)
+        ZStack {
+            // 背景
+            Color.white.edgesIgnoringSafeArea(.all)
             
-            // 运动趋势图
-            VStack(alignment: .leading, spacing: 10) {
-                Text("运动趋势")
-                    .font(.headline)
-                    .padding(.leading)
-                
-                // 简单的线形图（占位）
-                ZStack {
-                    // 背景
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color.white)
+            ScrollView {
+                VStack(spacing: 25) {
+                    // 顶部标题
+                    Text("运动数据")
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundColor(.black.opacity(0.8))
+                        .padding(.top, 20)
+                        .padding(.bottom, 10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 15)
                     
-                    // 模拟图表
-                    VStack {
-                        Text("趋势图将在这里显示")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        
-                        // 模拟线条
-                        GeometryReader { geometry in
-                            Path { path in
-                                let width = geometry.size.width
-                                let height = geometry.size.height
-                                
-                                // 开始点
-                                path.move(to: CGPoint(x: 0, y: height * 0.5))
-                                
-                                // 绘制一条波浪线
-                                for i in 0...100 {
-                                    let x = width * CGFloat(i) / 100
-                                    let y = height * (0.5 + 0.3 * sin(Double(i) / 10 + Double(workoutSession.totalElapsedSeconds) / 10))
-                                    path.addLine(to: CGPoint(x: x, y: y))
-                                }
-                            }
-                            .stroke(
-                                LinearGradient(
-                                    gradient: Gradient(colors: [Color(hex: "FE2D55"), Color(hex: "FF9901")]),
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                ),
-                                lineWidth: 3
+                    // 呼吸式动画区域
+                    ZStack {
+                        // 外层光环
+                        Circle()
+                            .fill(
+                                RadialGradient(
+                                    gradient: Gradient(colors: [
+                                        dessertColor.opacity(0.4),
+                                        dessertColor.opacity(0.1),
+                                        .white
+                                    ]),
+                                    center: .center,
+                                    startRadius: 0,
+                                    endRadius: min(screenSize.width, screenSize.height) * 0.4
+                                )
                             )
+                            .frame(width: min(screenSize.width, screenSize.height) * 0.8)
+                            .scaleEffect(breathIn ? 1.05 : 0.95)
+                            .animation(
+                                Animation.easeInOut(duration: 4)
+                                .repeatForever(autoreverses: true),
+                                value: breathIn
+                            )
+                        
+                        // 中层光环
+                        Circle()
+                            .fill(dessertColor.opacity(0.15))
+                            .frame(width: min(screenSize.width, screenSize.height) * 0.6)
+                            .scaleEffect(breathIn ? 1.1 : 0.9)
+                            .animation(
+                                Animation.easeInOut(duration: 4)
+                                .repeatForever(autoreverses: true),
+                                value: breathIn
+                            )
+                        
+                        // 内层圆形
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [
+                                        primaryColor.opacity(0.9),
+                                        secondaryColor.opacity(0.9)
+                                    ]),
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: min(screenSize.width, screenSize.height) * 0.4)
+                            .shadow(color: primaryColor.opacity(0.4), radius: 20, x: 0, y: 0)
+                            .scaleEffect(heartbeat ? 1.05 : 1.0)
+                            .animation(
+                                Animation.spring(dampingFraction: 0.5)
+                                .repeatForever(autoreverses: true)
+                                .speed(1.5),
+                                value: heartbeat
+                            )
+                        
+                        // 甜品信息
+                        VStack(spacing: 8) {
+                            // 甜品名称
+                            Text(workoutSession.targetDessert.name)
+                                .font(.system(size: 22, weight: .bold))
+                                .foregroundColor(.white)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
+                            
+                            // 状态标签
+                            StatusBadge(state: workoutSession.state)
                         }
-                        .frame(height: 120)
-                        .padding()
                     }
+                    .padding(.vertical, 20)
+                    .onAppear {
+                        breathIn = true
+                        heartbeat = true
+                    }
+                    
+                    // 进度指示器
+                    VStack(spacing: 10) {
+                        // 进度文本
+                        HStack {
+                            Text("目标进度")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.gray)
+                            
+                            Spacer()
+                            
+                            Text("\(Int(workoutSession.burnedCalories))/\(Int(workoutSession.targetCalories)) kcal")
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundColor(primaryColor)
+                        }
+                        
+                        // 进度条
+                        ZStack(alignment: .leading) {
+                            // 背景
+                            Capsule()
+                                .fill(Color.gray.opacity(0.1))
+                                .frame(height: 8)
+                            
+                            // 进度
+                            Capsule()
+                                .fill(
+                                    LinearGradient(
+                                        gradient: Gradient(colors: [primaryColor, secondaryColor]),
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .frame(width: max(0, min(screenSize.width - 60, (screenSize.width - 60) * completionPercentage)), height: 8)
+                        }
+                    }
+                    .padding(.horizontal, 25)
+                    
+                    // 核心数据网格
+                    LazyVGrid(columns: [
+                        GridItem(.flexible()),
+                        GridItem(.flexible()),
+                    ], spacing: 15) {
+                        // 时间
+                        CoreDataCard(
+                            icon: "clock.fill",
+                            iconColor: primaryColor,
+                            value: formattedTime,
+                            label: "总时间"
+                        )
+                        
+                        // 卡路里
+                        CoreDataCard(
+                            icon: "flame.fill",
+                            iconColor: secondaryColor,
+                            value: "\(Int(workoutSession.burnedCalories))",
+                            label: "卡路里消耗"
+                        )
+                        
+                        // 距离/次数
+                        CoreDataCard(
+                            icon: workoutSession.exerciseType.requiresGPS ? "map.fill" : "repeat",
+                            iconColor: Color(hex: "4CD964"),
+                            value: distanceOrCount,
+                            label: distanceOrCountLabel
+                        )
+                        
+                        // 完成度
+                        CoreDataCard(
+                            icon: "chart.pie.fill",
+                            iconColor: Color(hex: "5AC8FA"),
+                            value: "\(Int(workoutSession.completionPercentage))%",
+                            label: "完成度"
+                        )
+                    }
+                    .padding(.horizontal, 15)
+                    .padding(.top, 10)
+                    
+                    Spacer(minLength: 50)
                 }
-                .frame(height: 180)
-                .shadow(color: Color.black.opacity(0.05), radius: 5)
-                .padding(.horizontal)
+                .padding(.bottom, 30)
             }
-            
-            Spacer()
         }
-        .padding(.top)
+    }
+    
+    /// 甜品颜色
+    private var dessertColor: Color {
+        return workoutSession.targetDessert.backgroundColor ?? primaryColor
     }
     
     /// 格式化的时间
     private var formattedTime: String {
-        return workoutSession.formattedTotalTime
+        let totalSeconds = workoutSession.totalElapsedSeconds
+        let minutes = totalSeconds / 60
+        let seconds = totalSeconds % 60
+        return String(format: "%02d:%02d", minutes, seconds)
     }
     
-    /// 运动状态文本
-    private var workoutStateText: String {
-        switch workoutSession.state {
-        case .notStarted:
-            return "未开始"
-        case .active:
-            return "进行中"
-        case .paused:
-            return "已暂停"
-        case .completed:
-            return "已完成"
-        case .abandoned:
-            return "已放弃"
-        }
-    }
-    
-    /// 运动状态颜色
-    private var workoutStateColor: Color {
-        switch workoutSession.state {
-        case .notStarted:
-            return .gray
-        case .active:
-            return .green
-        case .paused:
-            return .orange
-        case .completed:
-            return .blue
-        case .abandoned:
-            return .red
-        }
+    /// 完成百分比
+    private var completionPercentage: CGFloat {
+        return CGFloat(workoutSession.completionPercentage / 100.0)
     }
     
     /// 距离或次数显示
@@ -231,33 +232,84 @@ struct DataView: View {
     /// 距离或次数标签
     private var distanceOrCountLabel: String {
         if workoutSession.exerciseType.requiresGPS {
-            return "距离(km)"
+            return "总里程(km)"
         } else {
             return "完成次数"
         }
     }
 }
 
-/// 数据单元格
-struct DataCell: View {
+/// 状态标签
+struct StatusBadge: View {
+    let state: WorkoutState
+    
+    private var stateText: String {
+        switch state {
+        case .notStarted: return "未开始"
+        case .active: return "进行中"
+        case .paused: return "已暂停"
+        case .completed: return "已完成"
+        case .abandoned: return "已放弃"
+        }
+    }
+    
+    private var stateColor: Color {
+        switch state {
+        case .notStarted: return .gray
+        case .active: return Color(hex: "34C759")
+        case .paused: return Color(hex: "FFCC00")
+        case .completed: return Color(hex: "5AC8FA")
+        case .abandoned: return Color(hex: "FF3B30")
+        }
+    }
+    
+    var body: some View {
+        Text(stateText)
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundColor(.white)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(stateColor.opacity(0.3))
+            .cornerRadius(12)
+    }
+}
+
+/// 核心数据卡片
+struct CoreDataCard: View {
     let icon: String
     let iconColor: Color
     let value: String
     let label: String
     
     var body: some View {
-        VStack(spacing: 5) {
-            Image(systemName: icon)
-                .font(.title3)
-                .foregroundColor(iconColor)
+        VStack(spacing: 15) {
+            // 图标
+            ZStack {
+                Circle()
+                    .fill(iconColor.opacity(0.15))
+                    .frame(width: 60, height: 60)
+                
+                Image(systemName: icon)
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundColor(iconColor)
+            }
             
-            Text(value)
-                .font(.title3)
-                .fontWeight(.bold)
-            
-            Text(label)
-                .font(.caption)
-                .foregroundColor(.secondary)
+            VStack(spacing: 5) {
+                Text(value)
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundColor(.black.opacity(0.8))
+                
+                Text(label)
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundColor(.gray)
+            }
         }
+        .padding(15)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 18)
+                .fill(Color.white)
+                .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 2)
+        )
     }
 } 

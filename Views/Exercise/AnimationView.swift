@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import DotLottie
 
 /// 运动动画页面
 struct AnimationView: View {
@@ -15,141 +16,134 @@ struct AnimationView: View {
     /// 屏幕尺寸
     let screenSize: CGSize
     
-    /// 动画状态
-    @State private var animationState = 0
+    /// 主色调
+    private let primaryColor = Color(hex: "FE2D55")
+    private let secondaryColor = Color(hex: "FF9901")
     
     var body: some View {
-        VStack(spacing: 30) {
-            Spacer()
+        ZStack {
+            // 背景
+            Color.white.edgesIgnoringSafeArea(.all)
             
-            // 甜品动画区域
-            ZStack {
-                // 背景圆形
-                Circle()
-                    .fill(dessertColor.opacity(0.2))
-                    .frame(width: min(screenSize.width, screenSize.height) * 0.7)
+            VStack(spacing: 40) {
+                // 顶部标题
+                Text("运动中")
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundColor(.black.opacity(0.8))
+                    .padding(.top, 20)
                 
-                // 甜品图标
-                Image(systemName: "cup.and.saucer.fill")
-                    .resizable()
-                    .scaledToFit()
-                    .foregroundColor(dessertColor)
-                    .frame(width: min(screenSize.width, screenSize.height) * 0.3)
-                    .scaleEffect(1.0 + 0.1 * sin(Double(animationState) / 10))
-                    .shadow(color: dessertColor.opacity(0.5), radius: 10)
-            }
-            .onAppear {
-                // 启动动画
-                withAnimation(.easeInOut(duration: 2).repeatForever(autoreverses: true)) {
-                    animationState = 100
-                }
-            }
-            
-            // 进度条
-            VStack(spacing: 10) {
-                // 标签
-                HStack {
-                    Text("已消耗")
-                        .font(.headline)
-                        .foregroundColor(.secondary)
+                // Lottie动画区域
+                ZStack {
+                    // 外层圆形装饰
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    dessertColor.opacity(0.1),
+                                    .white
+                                ]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: min(screenSize.width, screenSize.height) * 0.8)
                     
-                    Spacer()
-                    
-                    Text("\(Int(workoutSession.burnedCalories)) / \(Int(workoutSession.targetCalories)) 千卡")
-                        .font(.headline)
-                        .foregroundColor(Color(hex: "FE2D55"))
+                    // 使用DotLottie加载动画
+                    DotLottieAnimation(fileName: "BubbleTea", 
+                                      config: AnimationConfig(autoplay: true, loop: true))
+                        .view()
+                        .frame(width: min(screenSize.width, screenSize.height) * 0.6)
+                        .onAppear {
+                            print("🔍 尝试加载动画: BubbleTea")
+                        }
                 }
+                .padding(.vertical, 20)
                 
-                // 进度条
-                GeometryReader { geometry in
+                // 进度指示器
+                VStack(spacing: 20) {
+                    // 进度文本
+                    HStack {
+                        Text("已消耗")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.gray)
+                        
+                        Spacer()
+                        
+                        Text("\(Int(workoutSession.burnedCalories))/\(Int(workoutSession.targetCalories)) kcal")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundColor(primaryColor)
+                    }
+                    .padding(.horizontal, 5)
+                    
+                    // 进度条
                     ZStack(alignment: .leading) {
                         // 背景
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.gray.opacity(0.2))
-                            .frame(height: 16)
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.gray.opacity(0.1))
+                            .frame(height: 24)
                         
                         // 进度
-                        RoundedRectangle(cornerRadius: 8)
+                        RoundedRectangle(cornerRadius: 12)
                             .fill(
                                 LinearGradient(
-                                    gradient: Gradient(colors: [
-                                        Color(hex: "FE2D55"),
-                                        Color(hex: "FF9901")
-                                    ]),
+                                    gradient: Gradient(colors: [primaryColor, secondaryColor]),
                                     startPoint: .leading,
                                     endPoint: .trailing
                                 )
                             )
-                            .frame(width: max(0, min(geometry.size.width, geometry.size.width * completionPercentage)), height: 16)
+                            .frame(width: max(0, min(screenSize.width - 40, (screenSize.width - 40) * completionPercentage)), height: 24)
+                            .animation(.spring(), value: completionPercentage)
+                        
+                        // 百分比标记
+                        if completionPercentage > 0.03 {
+                            Text("\(Int(workoutSession.completionPercentage))%")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(.white)
+                                .padding(.leading, 10)
+                        }
                     }
                 }
-                .frame(height: 16)
-            }
-            .padding(.horizontal)
-            
-            // 基础信息
-            HStack(spacing: 30) {
-                // 时间
-                VStack {
-                    Image(systemName: "clock.fill")
-                        .font(.title2)
-                        .foregroundColor(.orange)
-                    
-                    Text(formattedTime)
-                        .font(.title3)
-                        .fontWeight(.semibold)
-                        .padding(.top, 5)
-                    
-                    Text("时间")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
                 
-                // 卡路里
-                VStack {
-                    Image(systemName: "flame.fill")
-                        .font(.title2)
-                        .foregroundColor(.red)
+                // 运动数据网格
+                HStack(spacing: 0) {
+                    // 时间
+                    InfoCell(
+                        icon: "clock.fill",
+                        value: formattedTime,
+                        label: "时间",
+                        gradient: Gradient(colors: [primaryColor.opacity(0.9), primaryColor.opacity(0.7)])
+                    )
                     
-                    Text("\(Int(workoutSession.burnedCalories))")
-                        .font(.title3)
-                        .fontWeight(.semibold)
-                        .padding(.top, 5)
+                    // 卡路里
+                    InfoCell(
+                        icon: "flame.fill",
+                        value: "\(Int(workoutSession.burnedCalories))",
+                        label: "卡路里",
+                        gradient: Gradient(colors: [secondaryColor.opacity(0.9), secondaryColor.opacity(0.7)])
+                    )
                     
-                    Text("卡路里")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    // 距离/次数
+                    InfoCell(
+                        icon: workoutSession.exerciseType.requiresGPS ? "map.fill" : "repeat",
+                        value: distanceOrCount,
+                        label: distanceOrCountLabel,
+                        gradient: Gradient(colors: [Color(hex: "4CD964").opacity(0.9), Color(hex: "4CD964").opacity(0.7)])
+                    )
                 }
                 .frame(maxWidth: .infinity)
+                .padding(.top, 20)
                 
-                // 距离/次数
-                VStack {
-                    Image(systemName: "figure.walk")
-                        .font(.title2)
-                        .foregroundColor(.green)
-                    
-                    Text(distanceOrCount)
-                        .font(.title3)
-                        .fontWeight(.semibold)
-                        .padding(.top, 5)
-                    
-                    Text(distanceOrCountLabel)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .frame(maxWidth: .infinity)
+                Spacer()
             }
-            .padding(.horizontal)
-            
-            Spacer()
+            .padding()
         }
-        .padding()
     }
     
     /// 甜品颜色
     private var dessertColor: Color {
-        return workoutSession.targetDessert.backgroundColor ?? Color(hex: "FE2D55")
+        return workoutSession.targetDessert.backgroundColor ?? primaryColor
     }
     
     /// 格式化的时间
@@ -183,5 +177,40 @@ struct AnimationView: View {
         } else {
             return "次数"
         }
+    }
+}
+
+/// 信息单元格
+struct InfoCell: View {
+    let icon: String
+    let value: String
+    let label: String
+    let gradient: Gradient
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            // 图标背景
+            ZStack {
+                Circle()
+                    .fill(LinearGradient(gradient: gradient, startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .frame(width: 50, height: 50)
+                    .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 3)
+                
+                Image(systemName: icon)
+                    .font(.system(size: 22, weight: .medium))
+                    .foregroundColor(.white)
+            }
+            
+            Text(value)
+                .font(.system(size: 20, weight: .bold))
+                .foregroundColor(.black.opacity(0.8))
+                .padding(.top, 2)
+            
+            Text(label)
+                .font(.system(size: 14, weight: .regular))
+                .foregroundColor(.gray)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
     }
 } 

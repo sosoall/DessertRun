@@ -69,12 +69,15 @@ struct DessertToExerciseTransition: View {
     
     /// 获取面板偏移量
     private var panelOffset: CGFloat {
-        // 开始时在屏幕外，完全显示时y偏移为0
-        let offscreenOffset = screenSize.height
-        let onscreenOffset: CGFloat = 0
+        // 当面板完全显示时偏移应为0（底部对齐）
+        // 当面板完全隐藏时，偏移应为面板高度（在屏幕外）
+        let panelHeight = screenSize.height * 0.85
+        let hiddenOffset = panelHeight
+        let visibleOffset: CGFloat = 0
         
         // 根据面板位置进度计算当前偏移量
-        return offscreenOffset - (animationState.panelPositionProgress * (offscreenOffset - onscreenOffset))
+        // 从隐藏状态（屏幕外）到显示状态（底部对齐）
+        return hiddenOffset * (1 - animationState.panelPositionProgress)
     }
     
     /// 在两个矩形框架之间插值
@@ -103,41 +106,53 @@ struct DessertToExerciseTransition: View {
     }
     
     var body: some View {
-        ZStack {
-            // 背景遮罩
-            Color.black
-                .opacity(animationState.backgroundDimLevel)
-                .edgesIgnoringSafeArea(.all)
-                .onTapGesture {
-                    // 点击背景区域可关闭面板
-                    animationState.dismissPanel()
+        GeometryReader { geo in
+            ZStack(alignment: .bottom) { // 使用ZStack的底部对齐
+                // 背景遮罩
+                Color.black
+                    .opacity(animationState.backgroundDimLevel)
+                    .edgesIgnoringSafeArea(.all)
+                    .onTapGesture {
+                        // 点击背景区域可关闭面板
+                        animationState.dismissPanel()
+                    }
+                
+                // 运动类型选择面板 - 使用自定义实现
+                panelView
+                    .frame(maxWidth: .infinity)
+                    .frame(height: screenSize.height * 0.85)
+                    .background(
+                        RoundedRectangle(cornerRadius: 20)
+                            .fill(Color.white)
+                            .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: -5)
+                    )
+                    .offset(y: panelOffset) // offset相对于底部对齐位置
+                    .animation(.standardTransition, value: panelOffset)
+                    .zIndex(1)
+                
+                // 甜品图片 - 从气泡移动到顶部中心
+                dessertImageView
+                    .position(x: currentPosition.midX, y: currentPosition.midY)
+                    .zIndex(2) // 确保甜品图片在面板上层
+                
+                // 右上角关闭按钮
+                VStack {
+                    closeButton
+                    Spacer()
                 }
-            
-            // 甜品图片 - 从气泡移动到顶部中心
-            dessertImageView
-                .position(x: currentPosition.midX, y: currentPosition.midY)
-                .zIndex(1) // 确保甜品图片在最上层
-            
-            // 运动类型选择面板
-            panelView
-                .frame(height: screenSize.height * 0.75)
-                .frame(maxWidth: .infinity)
-                .offset(y: panelOffset)
-                .animation(.standardTransition, value: panelOffset) // 使用标准过渡动画
-                .zIndex(0) // 确保面板在甜品图片下层
-            
-            // 右上角关闭按钮
-            closeButton
-                .zIndex(2) // 确保关闭按钮在最上层
-        }
-        .coordinateSpace(name: globalCoordinateSpaceName)
-        .environmentObject(animationState) // 确保所有子视图都能访问animationState
-        .navigationDestination(isPresented: $navigateToWorkout) {
-            WorkoutView()
-                .onAppear {
-                    // 进入运动模式 - 使用AppState而不是animationState
-                    appState.isInWorkoutMode = true
-                }
+                .zIndex(3) // 确保关闭按钮在最上层
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .edgesIgnoringSafeArea(.bottom) // 忽略底部安全区域，避免出现白条
+            .coordinateSpace(name: globalCoordinateSpaceName)
+            .environmentObject(animationState) // 确保所有子视图都能访问animationState
+            .navigationDestination(isPresented: $navigateToWorkout) {
+                WorkoutView()
+                    .onAppear {
+                        // 进入运动模式 - 使用AppState而不是animationState
+                        appState.isInWorkoutMode = true
+                    }
+            }
         }
     }
     
@@ -169,47 +184,38 @@ struct DessertToExerciseTransition: View {
     
     /// 面板视图
     private var panelView: some View {
-        ZStack(alignment: .top) {
-            // 背景层 - 延伸到底部
-            VStack {
-                Spacer()
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.white)
-            .cornerRadius(20, corners: [.topLeft, .topRight])
-            .shadow(color: Color.black.opacity(0.15), radius: 15, x: 0, y: -10)
-            .ignoresSafeArea(.container, edges: .bottom) // 关键点：忽略底部安全区域
+        VStack(spacing: 0) {
+            // 顶部拖动条
+            RoundedRectangle(cornerRadius: 2.5)
+                .fill(Color.gray.opacity(0.5))
+                .frame(width: 60, height: 5)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
             
-            // 内容层
-            VStack(spacing: 0) {
-                // 顶部拖动条
-                RoundedRectangle(cornerRadius: 2.5)
-                    .fill(Color.gray.opacity(0.5))
-                    .frame(width: 60, height: 5)
-                    .padding(.top, 12)
-                    .padding(.bottom, 8)
-                
-                // 标题区域
-                titleView
-                
-                // 请选择运动类型标题
-                Text("请选择运动类型")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(Color(hex: "757575"))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 16)
-                
-                // 分隔线
-                Divider()
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 10)
-                
-                // 面板内容 - 运动类型列表
-                exerciseListView
-            }
-            .padding(.bottom, 30) // 使用固定的底部填充，避免使用废弃的API
+            // 标题区域
+            titleView
+            
+            // 请选择运动类型标题
+            Text("请选择运动类型")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(Color(hex: "757575"))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 16)
+            
+            // 分隔线
+            Divider()
+                .padding(.horizontal, 20)
+                .padding(.bottom, 10)
+            
+            // 面板内容 - 运动类型列表
+            exerciseListView
+                .padding(.bottom, 50) // 确保底部有足够的间距
         }
+        .padding(.top, 20) // 顶部增加一些间距
+        .background(Color.white)
+        // 不需要设置圆角，系统sheet会自动处理
+        // .cornerRadius(20, corners: [.topLeft, .topRight])
     }
     
     /// 标题视图
@@ -318,22 +324,19 @@ struct DessertToExerciseTransition: View {
     
     /// 关闭按钮视图
     private var closeButton: some View {
-        VStack {
-            HStack {
-                Spacer()
-                Button(action: {
-                    animationState.dismissPanel()
-                }) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 24))
-                        .foregroundColor(.black)
-                        .frame(width: 44, height: 44)
-                }
-                .padding(.trailing, 16)
-                .padding(.top, 20)
-                .opacity(animationState.panelPositionProgress)
-            }
+        HStack {
             Spacer()
+            Button(action: {
+                animationState.dismissPanel()
+            }) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 24))
+                    .foregroundColor(.black)
+                    .frame(width: 44, height: 44)
+            }
+            .padding(.trailing, 16)
+            .padding(.top, 20)
+            .opacity(animationState.panelPositionProgress)
         }
     }
     
