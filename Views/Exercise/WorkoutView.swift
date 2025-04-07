@@ -24,6 +24,12 @@ struct WorkoutView: View {
     /// 是否导航到完成页面
     @State private var navigateToComplete = false
     
+    /// 倒计时计数
+    @State private var countdownValue = 3
+    
+    /// 是否显示倒计时
+    @State private var showingCountdown = true
+    
     /// 页面标题
     private var pageTitle: String {
         pageIndex == 0 ? "运动激励" : "运动数据"
@@ -51,77 +57,122 @@ struct WorkoutView: View {
         GeometryReader { geometry in
             ZStack {
                 // 背景色
-                Color(hex: "faf0dd").ignoresSafeArea()
+                Color.white.ignoresSafeArea()
                 
                 // 主要内容
-                TabView(selection: $pageIndex) {
-                    // 页面1：动画激励页
-                    AnimationView(
-                        workoutSession: workoutSession,
-                        screenSize: geometry.size
-                    )
-                    .tag(0)
-                    
-                    // 页面2：数据页
-                    DataView(
-                        workoutSession: workoutSession,
-                        screenSize: geometry.size
-                    )
-                    .tag(1)
-                }
-                .tabViewStyle(.page(indexDisplayMode: .never))
-                
-                // 暂停菜单遮罩
-                if showPauseMenu {
-                    PauseMenuView(
-                        onResume: {
-                            workoutSession.resume()
-                            showPauseMenu = false
-                        },
-                        onStop: {
-                            // 停止运动并跳转到完成页面
-                            workoutSession.complete()
-                            navigateToComplete = true
+                if showingCountdown {
+                    // 倒计时视图
+                    countdownView
+                } else {
+                    // 页面内容
+                    TabView(selection: $pageIndex) {
+                        // 页面1：动画激励页
+                        VStack {
+                            // 添加运动信息栏
+                            HStack {
+                                VStack(alignment: .leading, spacing: 5) {
+                                    Text(workoutSession.exerciseType.name)
+                                        .font(.headline)
+                                        .foregroundColor(.gray)
+                                    
+                                    Text("目标：\(workoutSession.targetDessert.name)")
+                                        .font(.subheadline)
+                                        .foregroundColor(.gray.opacity(0.8))
+                                }
+                                .padding(.leading, 15)
+                                
+                                Spacer()
+                            }
+                            .frame(height: 50)
+                            .padding(.top, 5)
+                            
+                            // 动画视图
+                            AnimationView(
+                                workoutSession: workoutSession,
+                                screenSize: geometry.size
+                            )
                         }
-                    )
-                    .transition(.opacity)
-                }
-                
-                // 底部控制栏
-                VStack {
-                    Spacer()
-                    
-                    // 底部控制区域
-                    ControlBar(
-                        pageIndex: $pageIndex,
-                        onPause: {
-                            workoutSession.pause()
-                            showPauseMenu = true
+                        .tag(0)
+                        
+                        // 页面2：数据页
+                        VStack {
+                            // 添加运动信息栏
+                            HStack {
+                                VStack(alignment: .leading, spacing: 5) {
+                                    Text(workoutSession.exerciseType.name)
+                                        .font(.headline)
+                                        .foregroundColor(.gray)
+                                    
+                                    Text("目标：\(workoutSession.targetDessert.name)")
+                                        .font(.subheadline)
+                                        .foregroundColor(.gray.opacity(0.8))
+                                }
+                                .padding(.leading, 15)
+                                
+                                Spacer()
+                            }
+                            .frame(height: 50)
+                            .padding(.top, 5)
+                            
+                            // 数据视图
+                            DataView(
+                                workoutSession: workoutSession,
+                                screenSize: geometry.size
+                            )
                         }
-                    )
+                        .tag(1)
+                    }
+                    .tabViewStyle(.page(indexDisplayMode: .never))
+                    
+                    // 暂停菜单遮罩
+                    if showPauseMenu {
+                        PauseMenuView(
+                            onResume: {
+                                workoutSession.resume()
+                                showPauseMenu = false
+                            },
+                            onStop: {
+                                // 停止运动并跳转到完成页面
+                                workoutSession.complete()
+                                navigateToComplete = true
+                            }
+                        )
+                        .transition(.opacity)
+                    }
+                    
+                    // 底部控制栏
+                    VStack {
+                        Spacer()
+                        
+                        // 底部控制区域
+                        ControlBar(
+                            pageIndex: $pageIndex,
+                            onPause: {
+                                workoutSession.pause()
+                                showPauseMenu = true
+                            }
+                        )
+                    }
                 }
             }
         }
         .navigationBarTitleDisplayMode(.inline)
-        .navigationTitle(pageTitle)
+        .navigationTitle("运动中")
+        .navigationBarBackButtonHidden(true) // 隐藏返回按钮
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 // 上方页面指示器
-                PageIndicator(currentPage: pageIndex)
+                if !showingCountdown {
+                    PageIndicator(currentPage: pageIndex)
+                }
             }
         }
         .onAppear {
-            // 启动会话
-            workoutSession.start()
-            
-            // 设置为当前活动的运动会话
-            appState.activeWorkoutSession = workoutSession
+            // 开始倒计时
+            startCountdown()
             
             // 确保TabBar隐藏（运动模式）
             appState.isInWorkoutMode = true
-            
-            // 开始定时更新
-            startTimer()
         }
         .navigationDestination(isPresented: $navigateToComplete) {
             WorkoutCompleteView(workoutSession: workoutSession)
@@ -131,6 +182,105 @@ struct WorkoutView: View {
             // WorkoutCompleteView有自己的onDisappear处理，所以这里只处理返回到ExerciseTypeSelectionView的情况
             if !navigateToComplete {
                 appState.isInWorkoutMode = false
+            }
+        }
+    }
+    
+    // 倒计时视图
+    private var countdownView: some View {
+        ZStack {
+            // 渐变背景
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color(hex: "FF2D55"),
+                    Color(hex: "FF9501")
+                ]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+            
+            // 居中内容
+            VStack(spacing: 0) {
+                // 标题
+                Text("准备开始")
+                    .font(.system(size: 36, weight: .bold))
+                    .foregroundColor(.white)
+                    .padding(.bottom, 50)
+                
+                // 倒计时数字与环
+                ZStack {
+                    // 外层光晕
+                    ForEach(0..<4) { i in
+                        Circle()
+                            .fill(Color.white.opacity(0.1 - Double(i) * 0.02))
+                            .frame(width: 280 + CGFloat(i * 40), height: 280 + CGFloat(i * 40))
+                            .scaleEffect(countdownValue == 3 ? 0.8 : 1.0)
+                            .animation(.easeInOut(duration: 0.8), value: countdownValue)
+                    }
+                    
+                    // 脉动光环
+                    Circle()
+                        .stroke(
+                            LinearGradient(
+                                gradient: Gradient(colors: [Color.white.opacity(0.8), Color.white.opacity(0.2)]), 
+                                startPoint: .top, 
+                                endPoint: .bottom
+                            ), 
+                            lineWidth: 6
+                        )
+                        .frame(width: 220, height: 220)
+                        .scaleEffect(countdownValue == 1 ? 1.1 : 1.0)
+                        .animation(.easeInOut(duration: 0.8), value: countdownValue)
+                    
+                    // 内层圆
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                gradient: Gradient(colors: [Color.white.opacity(0.4), Color.white.opacity(0.1)]),
+                                center: .center,
+                                startRadius: 5,
+                                endRadius: 120
+                            )
+                        )
+                        .frame(width: 200, height: 200)
+                    
+                    // 数字
+                    Text("\(countdownValue)")
+                        .font(.system(size: 140, weight: .bold))
+                        .foregroundColor(.white)
+                        .shadow(color: Color.black.opacity(0.2), radius: 2, x: 0, y: 2)
+                        .scaleEffect(countdownValue == 3 ? 1.2 : 1.0)
+                        .scaleEffect(countdownValue == 1 ? 0.8 : 1.0)
+                        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: countdownValue)
+                }
+            }
+        }
+    }
+    
+    // 开始倒计时
+    private func startCountdown() {
+        // 创建计时器，每秒更新倒计时值
+        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
+            if countdownValue > 1 {
+                countdownValue -= 1
+            } else {
+                // 倒计时结束
+                timer.invalidate()
+                
+                // 开始运动
+                withAnimation(.easeInOut(duration: 0.5)) {
+                    showingCountdown = false
+                    
+                    // 启动会话
+                    workoutSession.start()
+                    
+                    // 设置为当前活动的运动会话
+                    appState.activeWorkoutSession = workoutSession
+                    
+                    // 开始定时更新
+                    startTimer()
+                }
             }
         }
     }

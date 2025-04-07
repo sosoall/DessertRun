@@ -34,8 +34,8 @@ extension Color {
         /// 主要背景色 #FFFFFF
         static let background = Color.white
         
-        /// 次要背景色 #FAF0DD
-        static let backgroundSecondary = Color(hex: "FAF0DD")
+        /// 次要背景色 #FFFFFF
+        static let backgroundSecondary = Color.white
         
         /// 主要文本色 #000000
         static let textPrimary = Color.black

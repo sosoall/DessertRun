@@ -12,9 +12,6 @@ struct MainTabView: View {
     // 全局应用状态
     @EnvironmentObject var appState: AppState
     
-    // 当前选中的标签
-    @State private var selectedTab = 0
-    
     // 标签项配置
     private let tabItems = [
         TabItem(title: "运动", icon: "figure.run", selectedIcon: "figure.run.circle.fill"),
@@ -25,11 +22,11 @@ struct MainTabView: View {
     var body: some View {
         // 使用自定义TabBar容器
         CustomTabViewContainer(
-            selectedTab: $selectedTab,
+            selectedTab: $appState.selectedTabIndex,
             tabItems: tabItems
         ) {
             Group {
-                switch selectedTab {
+                switch appState.selectedTabIndex {
                 case 0:
                     // 运动标签
                     NavigationStack {

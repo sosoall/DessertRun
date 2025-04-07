@@ -189,6 +189,7 @@ struct CustomTabViewContainer<Content: View>: View {
                 accentColor: accentColor
             )
         }
+        .background(Color.white)
         // 获取安全区域底部高度
         .background(
             GeometryReader { geometry in
@@ -215,7 +216,7 @@ struct CustomTabViewContainer<Content: View>: View {
         selectedTab: .constant(0),
         tabItems: tabItems
     ) {
-        Color.blue
+        Color.white
             .ignoresSafeArea()
     }
     .environmentObject(AppState.shared)

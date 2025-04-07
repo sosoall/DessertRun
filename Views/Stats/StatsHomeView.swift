@@ -12,9 +12,6 @@ struct StatsHomeView: View {
     // 全局应用状态
     @EnvironmentObject var appState: AppState
     
-    // 当前选中的子页面（0: 运动日历, 1: 甜品券）
-    @State private var selectedSegment = 0
-    
     // 统计管理器
     private let statsManager = WorkoutStatsManager()
     
@@ -34,7 +31,7 @@ struct StatsHomeView: View {
                 .padding(.top, 16)
             
             // 分段控制器
-            Picker("视图选择", selection: $selectedSegment) {
+            Picker("视图选择", selection: $appState.statsSelectedSegment) {
                 Text("运动日历").tag(0)
                 Text("甜品券").tag(1)
             }
@@ -44,7 +41,7 @@ struct StatsHomeView: View {
             .padding(.bottom, 8)
             
             // 根据选中的分段显示不同内容
-            if selectedSegment == 0 {
+            if appState.statsSelectedSegment == 0 {
                 // 运动日历占位视图
                 VStack {
                     Text("运动日历")
@@ -103,24 +100,33 @@ struct StatsHomeView: View {
                     }
                     .padding(.horizontal)
                     
-                    Spacer()
-                    
-                    // 示例券
-                    if let sampleVouchers = DessertVoucherData.getSampleVouchers().first {
-                        voucherCard(voucher: sampleVouchers)
+                    // 甜品券列表
+                    ScrollView {
+                        VStack(spacing: 15) {
+                            // 使用获得的甜品券
+                            ForEach(appState.dessertVouchers, id: \.id) { voucher in
+                                voucherCard(voucher: voucher)
+                            }
+                            
+                            // 如果没有甜品券，显示示例券
+                            if appState.dessertVouchers.isEmpty {
+                                // 示例券
+                                if let sampleVouchers = DessertVoucherData.getSampleVouchers().first {
+                                    voucherCard(voucher: sampleVouchers)
+                                }
+                                
+                                Text("完成更多运动，获得更多甜品券！")
+                                    .foregroundColor(.gray)
+                                    .padding(.top, 30)
+                            }
+                        }
+                        .padding(.top)
                     }
-                    
-                    Spacer()
-                    
-                    Text("这里将显示甜品券列表")
-                        .foregroundColor(.gray)
-                    
-                    Spacer()
                 }
                 .padding()
             }
         }
-        .background(Color(hex: "fae8c8").ignoresSafeArea())
+        .background(Color.white.ignoresSafeArea())
         .navigationBarHidden(true)
         .onAppear {
             // 加载当前月份的记录
@@ -190,8 +196,8 @@ struct StatsHomeView: View {
                     .fill(voucher.dessert.backgroundColor ?? Color.gray)
                     .frame(width: 60, height: 60)
                     .overlay(
-                        Text(String(voucher.dessert.name.prefix(1)))
-                            .font(.title)
+                        Image(systemName: "cup.and.saucer.fill")
+                            .font(.system(size: 28))
                             .foregroundColor(.white)
                     )
                     .padding(.trailing, 8)

@@ -65,7 +65,7 @@ struct WorkoutCompleteView: View {
             }
             .padding(.vertical, 20)
         }
-        .background(Color(hex: "faf0dd").ignoresSafeArea())
+        .background(Color.white.ignoresSafeArea())
         .navigationBarBackButtonHidden(true)
         .navigationTitle("运动完成")
         .onAppear {
@@ -311,7 +311,11 @@ struct WorkoutCompleteView: View {
             
             // 查看记录按钮
             Button(action: {
-                navigateToRecords = true
+                // 切换到统计页的甜品券部分并结束当前工作流
+                appState.isInWorkoutMode = false
+                appState.selectedTabIndex = 1 // 切换到统计标签
+                appState.statsSelectedSegment = 1 // 切换到甜品券分段
+                dismiss() // 结束当前运动流程，返回到根视图
             }) {
                 HStack {
                     Image(systemName: "list.bullet")
@@ -492,7 +496,7 @@ struct VoucherDetailView: View {
                 }
                 .padding()
             }
-            .background(Color(hex: "faf0dd").ignoresSafeArea())
+            .background(Color.white.ignoresSafeArea())
             .navigationTitle("甜品券详情")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

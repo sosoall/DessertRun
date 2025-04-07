@@ -34,6 +34,14 @@ class AppState: ObservableObject {
         avatarName: "person.circle.fill"
     )
     
+    // MARK: - 导航状态
+    
+    /// 当前选中的主标签索引（0：运动，1：统计，2：我的）
+    @Published var selectedTabIndex = 0
+    
+    /// 统计页面当前选中的分段（0：运动日历，1：甜品券）
+    @Published var statsSelectedSegment = 0
+    
     // MARK: - 运动相关状态
     
     /// 当前选中的甜品

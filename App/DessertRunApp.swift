@@ -16,6 +16,7 @@ struct DessertRunApp: App {
         WindowGroup {
             MainTabView()
                 .environmentObject(appState)
+                .background(Color.white)
         }
     }
 }
