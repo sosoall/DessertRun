@@ -23,6 +23,7 @@ struct DataView: View {
     @State private var isAnimating = false
     @State private var isBreathing = false
     @State private var pulseScale = 1.0
+    @State private var pauseOpacity = 0.0  // 用于暂停状态的淡入效果
     
     // 根据完成百分比确定要显示的粒子数量
     private var particleCount: Int {
@@ -40,45 +41,62 @@ struct DataView: View {
                 
                 // 进度环动画区域
                 ZStack {
-                    // 粒子效果
-                    ForEach(0..<particleCount, id: \.self) { i in
-                        Circle()
-                            .fill(
-                                [primaryColor, secondaryColor, Color.orange, Color.yellow].randomElement()!.opacity(0.7)
-                            )
-                            .frame(width: CGFloat.random(in: 5...12), height: CGFloat.random(in: 5...12))
-                            .offset(
-                                x: CGFloat.random(in: -80...80),
-                                y: CGFloat.random(in: -80...80)
-                            )
-                            .scaleEffect(isAnimating ? 1.0 : 0.5)
-                            .opacity(isAnimating ? 0.8 : 0.0)
-                            .animation(
-                                Animation.spring(response: 0.5, dampingFraction: 0.5)
-                                    .repeatForever(autoreverses: true)
-                                    .speed(Double.random(in: 0.1...0.5))
-                                    .delay(Double.random(in: 0...2)),
-                                value: isAnimating
-                            )
+                    // 粒子效果 - 仅在活动状态显示
+                    if workoutSession.state == .active {
+                        ForEach(0..<particleCount, id: \.self) { i in
+                            Circle()
+                                .fill(
+                                    [primaryColor, secondaryColor, Color.orange, Color.yellow].randomElement()!.opacity(0.7)
+                                )
+                                .frame(width: CGFloat.random(in: 5...12), height: CGFloat.random(in: 5...12))
+                                .offset(
+                                    x: CGFloat.random(in: -80...80),
+                                    y: CGFloat.random(in: -80...80)
+                                )
+                                .scaleEffect(isAnimating ? 1.0 : 0.5)
+                                .opacity(isAnimating ? 0.8 : 0.0)
+                                .animation(
+                                    Animation.spring(response: 0.5, dampingFraction: 0.5)
+                                        .repeatForever(autoreverses: true)
+                                        .speed(Double.random(in: 0.1...0.5))
+                                        .delay(Double.random(in: 0...2)),
+                                    value: isAnimating
+                                )
+                        }
                     }
                     
-                    // 外围呼吸效果环
-                    Circle()
-                        .stroke(
-                            LinearGradient(
-                                gradient: Gradient(colors: [primaryColor.opacity(0.2), secondaryColor.opacity(0.2)]),
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 6
-                        )
-                        .frame(width: min(screenSize.width, screenSize.height) * 0.6)
-                        .scaleEffect(isBreathing && workoutSession.state == .active ? 1.08 : 0.98)
-                        .animation(
-                            Animation.easeInOut(duration: 3)
-                                .repeatForever(autoreverses: true),
-                            value: isBreathing && workoutSession.state == .active
-                        )
+                    // 外围呼吸效果环 - 仅在活动状态显示和动画
+                    if workoutSession.state == .active {
+                        Circle()
+                            .stroke(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [primaryColor.opacity(0.2), secondaryColor.opacity(0.2)]),
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 6
+                            )
+                            .frame(width: min(screenSize.width, screenSize.height) * 0.6)
+                            .scaleEffect(isBreathing ? 1.08 : 0.98)
+                            .animation(
+                                Animation.easeInOut(duration: 3)
+                                    .repeatForever(autoreverses: true),
+                                value: isBreathing
+                            )
+                    } else {
+                        // 暂停状态下显示固定大小的环
+                        Circle()
+                            .stroke(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [primaryColor.opacity(0.2), secondaryColor.opacity(0.2)]),
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 6
+                            )
+                            .frame(width: min(screenSize.width, screenSize.height) * 0.6)
+                            .scaleEffect(0.98)
+                    }
                     
                     // 完整环形背景
                     Circle()
@@ -111,51 +129,59 @@ struct DataView: View {
                                 .font(.system(size: 36))
                                 .foregroundColor(.white)
                         }
-                    }
-                    
-                    // 动态脉冲效果
-                    ForEach(0..<3) { i in
-                        Circle()
-                            .stroke(
-                                primaryColor.opacity(0.3 - Double(i) * 0.1),
-                                lineWidth: 2 - CGFloat(i) * 0.5
-                            )
-                            .scaleEffect(pulseScale + Double(i) * 0.05)
-                            .opacity(isAnimating && workoutSession.state == .active ? 0.6 - Double(i) * 0.2 : 0)
-                            .animation(
-                                Animation.easeInOut(duration: 1.2 + Double(i) * 0.3)
-                                    .repeatForever(autoreverses: false)
-                                    .delay(Double(i) * 0.4),
-                                value: pulseScale
-                            )
-                    }
-                    .frame(width: min(screenSize.width, screenSize.height) * 0.55)
-                    
-                    // 中心显示进度百分比 - 确保不换行
-                    HStack(spacing: 0) {
-                        Text("\(Int(workoutSession.completionPercentage))")
-                            .font(.system(size: 44, weight: .bold))
-                            .foregroundColor(primaryColor)
-                            .scaleEffect(isBreathing ? 1.05 : 1.0)
-                            .animation(
-                                Animation.easeInOut(duration: 2)
-                                    .repeatForever(autoreverses: true),
-                                value: isBreathing
-                            )
-                            .fixedSize(horizontal: true, vertical: false) // 防止换行
+                        .opacity(pauseOpacity)
+                        .onAppear {
+                            withAnimation(.easeIn(duration: 0.3)) {
+                                pauseOpacity = 1.0
+                            }
+                        }
+                    } else {
+                        // 中心显示进度百分比 - 仅在非暂停状态下显示
+                        HStack(spacing: 0) {
+                            Text("\(Int(workoutSession.completionPercentage))")
+                                .font(.system(size: 44, weight: .bold))
+                                .foregroundColor(primaryColor)
+                                .scaleEffect(isBreathing && workoutSession.state == .active ? 1.05 : 1.0)
+                                .animation(
+                                    workoutSession.state == .active ? 
+                                    Animation.easeInOut(duration: 2).repeatForever(autoreverses: true) : .none,
+                                    value: isBreathing
+                                )
+                                .fixedSize(horizontal: true, vertical: false) // 防止换行
+                            
+                            Text("%")
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundColor(primaryColor)
+                                .offset(y: -8)
+                                .fixedSize(horizontal: true, vertical: false) // 防止换行
+                        }
                         
-                        Text("%")
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundColor(primaryColor)
-                            .offset(y: -8)
+                        Text("\(Int(workoutSession.burnedCalories))/\(Int(workoutSession.targetCalories)) 卡")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.gray)
+                            .padding(.top, 45) // 调整位置，使其在百分比下方
                             .fixedSize(horizontal: true, vertical: false) // 防止换行
                     }
                     
-                    Text("\(Int(workoutSession.burnedCalories))/\(Int(workoutSession.targetCalories)) 卡")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.gray)
-                        .padding(.top, 45) // 调整位置，使其在百分比下方
-                        .fixedSize(horizontal: true, vertical: false) // 防止换行
+                    // 动态脉冲效果 - 仅在活动状态显示
+                    if workoutSession.state == .active {
+                        ForEach(0..<3) { i in
+                            Circle()
+                                .stroke(
+                                    primaryColor.opacity(0.3 - Double(i) * 0.1),
+                                    lineWidth: 2 - CGFloat(i) * 0.5
+                                )
+                                .scaleEffect(pulseScale + Double(i) * 0.05)
+                                .opacity(isAnimating ? 0.6 - Double(i) * 0.2 : 0)
+                                .animation(
+                                    Animation.easeInOut(duration: 1.2 + Double(i) * 0.3)
+                                        .repeatForever(autoreverses: false)
+                                        .delay(Double(i) * 0.4),
+                                    value: pulseScale
+                                )
+                        }
+                        .frame(width: min(screenSize.width, screenSize.height) * 0.55)
+                    }
                 }
                 .frame(height: screenSize.height * 0.3)
                 .padding(.bottom, 10)

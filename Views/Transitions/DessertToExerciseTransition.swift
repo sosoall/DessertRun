@@ -73,7 +73,7 @@ struct DessertToExerciseTransition: View {
         // 当面板完全隐藏时，偏移应为面板高度（在屏幕外）
         let panelHeight = screenSize.height * 0.85
         let hiddenOffset = panelHeight
-        let visibleOffset: CGFloat = 0
+        // 可见状态的偏移量为0（底部对齐）
         
         // 根据面板位置进度计算当前偏移量
         // 从隐藏状态（屏幕外）到显示状态（底部对齐）

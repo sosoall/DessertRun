@@ -51,9 +51,8 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     
     /// 设置屏幕方向锁定的辅助方法
     static func lockOrientation(_ orientation: UIInterfaceOrientationMask) {
-        if let delegate = UIApplication.shared.delegate as? AppDelegate {
-            AppDelegate.orientationLock = orientation
-        }
+        // 直接设置方向锁定
+        AppDelegate.orientationLock = orientation
         
         // 强制当前屏幕为竖屏 - iOS 16兼容方式
         // 设置首选方向

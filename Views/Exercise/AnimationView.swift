@@ -21,6 +21,7 @@ struct AnimationView: View {
     @State private var isPulsing = false
     @State private var countdown = 3
     @State private var showCountdown = false
+    @State private var pauseOpacity = 0.0  // 用于暂停状态的淡入效果
     
     /// 主色调
     private let primaryColor = Color(hex: "FE2D55")
@@ -49,34 +50,49 @@ struct AnimationView: View {
                             startCountdown()
                         }
                 } else if workoutSession.state == .paused {
-                    // 暂停状态 - 显示奶茶叉腰图片和对话框
-                    VStack(spacing: 20) {
-                        // 奶茶叉腰形象
-                        Image("BubbleTeaAkimbo") // 使用奶茶叉腰图片资源
+                    // 暂停状态 - 显示奶茶静态图片和对话框
+                    ZStack(alignment: .center) {
+                        // 奶茶叉腰静态图片 - 稍微往左偏移
+                        Image("BubbleTeaAkimbo")
                             .resizable()
                             .scaledToFit()
-                            .frame(width: min(screenSize.width, screenSize.height) * 0.6)
+                            .frame(width: min(screenSize.width, screenSize.height) * 1.2)  // 增大图片尺寸
+                            .offset(x: -20)  // 向左偏移
                         
-                        // 对话框
+                        // 对话框气泡 - 放在右上方，覆盖在静态图上
                         ZStack {
-                            // 对话气泡
-                            Image(systemName: "bubble.left.fill")
-                                .resizable()
-                                .scaledToFit()
-                                .foregroundColor(Color.white)
-                                .frame(width: 200, height: 80)
-                                .shadow(color: Color.black.opacity(0.1), radius: 5)
+                            RoundedRectangle(cornerRadius: 20)
+                                .fill(Color(hex: "FBF5F5"))
+                                .frame(width: 200, height: 60)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 20)
+                                        .stroke(Color(hex: "D9D9D9"), lineWidth: 1)
+                                )
+                                .shadow(color: Color.black.opacity(0.05), radius: 3)
                             
                             Text("快来一起运动呀")
-                                .font(.system(size: 16, weight: .bold))
-                                .foregroundColor(primaryColor)
-                                .offset(y: -5)
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundColor(.black)
                         }
-                        .offset(x: 30, y: -20)
-                        .scaleEffect(isAnimating ? 1.05 : 0.95)
+                        .offset(x: 60, y: -150)  // 右上方位置
+                        .scaleEffect(isAnimating ? 1.03 : 0.97)
                         .animation(Animation.easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: isAnimating)
                     }
                     .frame(maxHeight: .infinity, alignment: .center)
+                    .opacity(pauseOpacity)  // 使用淡入效果
+                    .onAppear {
+                        // 淡入动画
+                        withAnimation(.easeInOut(duration: 0.5)) {
+                            pauseOpacity = 1.0
+                        }
+                    }
+                    
+                    // 热量消耗百分比文字
+                    Text("\(Int(workoutSession.completionPercentage))%热量被消耗")
+                        .font(.system(size: 32, weight: .semibold))
+                        .foregroundColor(Color(hex: "757575"))
+                        .padding(.top, 10)
+                        .opacity(pauseOpacity)  // 使用淡入效果
                 } else {
                     // 动画和百分比分离布局
                     VStack(spacing: 10) {

@@ -115,22 +115,6 @@ struct WorkoutView: View {
                     }
                     .edgesIgnoringSafeArea(.top)
                     
-                    // 暂停菜单遮罩
-                    if showPauseMenu {
-                        PauseMenuView(
-                            onResume: {
-                                workoutSession.resume()
-                                showPauseMenu = false
-                            },
-                            onStop: {
-                                // 停止运动并跳转到完成页面
-                                workoutSession.complete()
-                                navigateToComplete = true
-                            }
-                        )
-                        .transition(.move(edge: .bottom))
-                    }
-                    
                     // 底部控制栏 - 仅在非暂停状态下显示
                     if !showPauseMenu {
                         VStack {
@@ -140,11 +124,36 @@ struct WorkoutView: View {
                             ControlBar(
                                 pageIndex: $pageIndex,
                                 onPause: {
+                                    // 暂停运动会话
                                     workoutSession.pause()
-                                    showPauseMenu = true
+                                    
+                                    // 显示暂停菜单
+                                    withAnimation(.easeInOut) {
+                                        showPauseMenu = true
+                                    }
                                 }
                             )
                         }
+                    } else {
+                        // 暂停菜单
+                        PauseMenuView(
+                            onResume: {
+                                // 恢复运动会话
+                                workoutSession.resume()
+                                
+                                // 隐藏暂停菜单
+                                withAnimation(.easeInOut) {
+                                    showPauseMenu = false
+                                }
+                            },
+                            onStop: {
+                                // 停止运动并跳转到完成页面
+                                workoutSession.complete()
+                                
+                                // 导航到完成页面
+                                navigateToComplete = true
+                            }
+                        )
                     }
                 }
             }
@@ -163,6 +172,9 @@ struct WorkoutView: View {
             
             // 确保TabBar隐藏（运动模式）
             appState.isInWorkoutMode = true
+            
+            // 修复设备方向相关错误
+            configureOrientation()
         }
         .navigationDestination(isPresented: $navigateToComplete) {
             WorkoutCompleteView(workoutSession: workoutSession)
@@ -172,6 +184,20 @@ struct WorkoutView: View {
             // WorkoutCompleteView有自己的onDisappear处理，所以这里只处理返回到ExerciseTypeSelectionView的情况
             if !navigateToComplete {
                 appState.isInWorkoutMode = false
+            }
+        }
+    }
+    
+    // 修复设备方向相关错误
+    private func configureOrientation() {
+        // 使用 UIWindowScene API 而不是直接设置 UIDevice.orientation
+        // 这将防止 "BUG IN CLIENT OF UIKIT: Setting UIDevice.orientation is not supported" 错误
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+            // 使用推荐的 API
+            let geometryPreferences = UIWindowScene.GeometryPreferences.iOS(interfaceOrientations: .portrait)
+            windowScene.requestGeometryUpdate(geometryPreferences) { error in
+                // 直接处理错误，因为error已经是非可选类型
+                print("方向更新错误: \(error.localizedDescription)")
             }
         }
     }

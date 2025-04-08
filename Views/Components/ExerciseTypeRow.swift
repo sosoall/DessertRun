@@ -151,5 +151,4 @@ extension ExerciseType {
         .environmentObject(AppState.shared)
     }
     .background(Color.white)
-    .previewLayout(.sizeThatFits)
 } 
