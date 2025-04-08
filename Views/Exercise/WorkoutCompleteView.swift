@@ -21,6 +21,9 @@ struct WorkoutCompleteView: View {
     /// 动画完成标记
     @State private var animationComplete = false
     
+    /// 内容显示标记
+    @State private var showContent = false
+    
     /// 生成的甜品券
     @State private var dessertVoucher: DessertRun.DessertVoucher?
     
@@ -40,89 +43,124 @@ struct WorkoutCompleteView: View {
     /// 奶茶跳动动画控制
     @State private var bubbleTeaJumping = false
     @State private var bubbleTeaRotation = 0.0
+    @State private var bubbleTeaVisible = true
+    @State private var bubbleTeaOffset: CGFloat = 0
     
     var body: some View {
         ZStack {
             // 背景
             Color.white.ignoresSafeArea()
             
-            // 内容 - 减少顶部边距
+            // 内容
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 20) {
-                    // 彩带动画 - 减少高度
+                    // 彩带动画
                     if showConfetti {
                         ConfettiView()
                             .ignoresSafeArea()
                             .frame(height: 150)
                     }
                     
-                    // 顶部标题和祝贺信息
-                    if animationComplete {
-                        // 奶茶跳跃动画
-                        ZStack {
-                            Circle()
-                                .fill(
-                                    RadialGradient(
-                                        gradient: Gradient(colors: [Color(hex: "FF9500").opacity(0.2), .clear]),
-                                        center: .center,
-                                        startRadius: 10,
-                                        endRadius: 80
+                    if !animationComplete {
+                        // 加载阶段 - 居中显示加载动画
+                        Spacer(minLength: 50)
+                        
+                        completionAnimation
+                            .frame(height: 300)
+                            .transition(.opacity)
+                        
+                        Spacer(minLength: 50)
+                    } else {
+                        // 加载完成阶段 - 奶茶杯和内容同步动画
+                        if bubbleTeaVisible {
+                            ZStack {
+                                // 背景光晕效果
+                                Circle()
+                                    .fill(
+                                        RadialGradient(
+                                            gradient: Gradient(colors: [Color(hex: "FF9500").opacity(0.2), .clear]),
+                                            center: .center,
+                                            startRadius: 10,
+                                            endRadius: 80
+                                        )
                                     )
-                                )
-                                .frame(width: 120, height: 30)
-                                .offset(y: 60)
-                                .opacity(bubbleTeaJumping ? 0.7 : 0.3)
-                            
-                            Image("BubbleTea") // 使用用户提供的奶茶图像
-                                .resizable()
-                                .scaledToFit()
-                                .frame(height: 120)
-                                .offset(y: bubbleTeaJumping ? -20 : 0)
-                                .rotationEffect(.degrees(bubbleTeaRotation))
-                                .animation(
-                                    Animation
-                                        .interpolatingSpring(stiffness: 180, damping: 8)
-                                        .repeatForever(autoreverses: true),
-                                    value: bubbleTeaJumping
-                                )
-                        }
-                        .onAppear {
-                            // 启动跳跃动画
-                            withAnimation(Animation.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
-                                bubbleTeaJumping = true
+                                    .frame(width: 120, height: 30)
+                                    .offset(y: 60)
+                                    .opacity(bubbleTeaJumping ? 0.7 : 0.3)
+                                
+                                // 奶茶杯图片
+                                Image("BubbleTea")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(height: 120)
+                                    .offset(y: bubbleTeaJumping ? -20 : 0)
+                                    .offset(y: bubbleTeaOffset)
+                                    .rotationEffect(.degrees(bubbleTeaRotation))
+                                    .opacity(1.0 - min(1.0, max(0, -bubbleTeaOffset/300))) // 根据偏移计算透明度
+                                    .blur(radius: -bubbleTeaOffset/30) // 添加模糊效果增强消失的平滑感
+                                    .animation(
+                                        Animation
+                                            .interpolatingSpring(stiffness: 180, damping: 8)
+                                            .repeatForever(autoreverses: true),
+                                        value: bubbleTeaJumping
+                                    )
                             }
-                            
-                            // 创建小幅度随机旋转
-                            Timer.scheduledTimer(withTimeInterval: 1.2, repeats: true) { _ in
-                                withAnimation(.spring()) {
-                                    bubbleTeaRotation = Double.random(in: -5...5)
+                            .onAppear {
+                                // 启动跳跃动画
+                                withAnimation(Animation.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
+                                    bubbleTeaJumping = true
+                                }
+                                
+                                // 创建小幅度随机旋转
+                                Timer.scheduledTimer(withTimeInterval: 1.2, repeats: true) { timer in
+                                    withAnimation(.spring()) {
+                                        bubbleTeaRotation = Double.random(in: -5...5)
+                                    }
+                                }
+                                
+                                // 优化：缩短动画时间，在2秒后同时进行奶茶杯消失和内容显示
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                    // 使用自定义动画曲线，使奶茶杯消失更加平滑
+                                    withAnimation(.easeOut(duration: 1.2)) {
+                                        bubbleTeaOffset = -350  // 奶茶杯向上移出屏幕，增大偏移量
+                                        showContent = true      // 同时显示内容
+                                        
+                                        // 动画结束后完全隐藏奶茶杯
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                                            bubbleTeaVisible = false
+                                        }
+                                    }
                                 }
                             }
                         }
                         
-                        congratulationsHeader
-                    }
-                    
-                    // 甜品券区域
-                    if animationComplete, let voucher = dessertVoucher {
-                        voucherCard(voucher: voucher)
-                            .padding(.horizontal)
-                            .onTapGesture {
-                                showVoucherDetails = true
+                        // 祝贺标题和内容区域，只在showContent为true时显示
+                        if showContent {
+                            // 添加顶部安全区域，避开灵动岛
+                            Color.clear.frame(height: 50)
+                            
+                            congratulationsHeader
+                                .transition(.opacity)
+                                .padding(.top, 20) // 增加顶部边距
+                            
+                            // 甜品券区域
+                            if let voucher = dessertVoucher {
+                                voucherCard(voucher: voucher)
+                                    .padding(.horizontal)
+                                    .onTapGesture {
+                                        showVoucherDetails = true
+                                    }
+                                    .transition(.move(edge: .bottom).combined(with: .opacity))
                             }
-                    } else {
-                        // 完成动画
-                        completionAnimation
-                    }
-                    
-                    // 运动数据摘要
-                    if animationComplete {
-                        workoutSummary
-                    }
-                    
-                    // 按钮区域
-                    if animationComplete {
-                        buttonsSection
+                            
+                            // 运动数据摘要
+                            workoutSummary
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                            
+                            // 按钮区域
+                            buttonsSection
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
                     }
                 }
                 .padding(.vertical, 10)
@@ -145,7 +183,7 @@ struct WorkoutCompleteView: View {
             }
         }
         .onAppear {
-            // 模拟动画执行时间，2秒后显示结果
+            // 优化：缩短动画执行时间，2秒后切换到完成状态
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                 withAnimation(.spring(response: 0.6, dampingFraction: 0.6)) {
                     animationComplete = true
@@ -212,38 +250,71 @@ struct WorkoutCompleteView: View {
     /// 完成动画
     private var completionAnimation: some View {
         VStack {
-            // 加载动画
+            // 加载动画 - 更现代的设计
             ZStack {
+                // 背景圆环
                 Circle()
-                    .stroke(Color.gray.opacity(0.2), lineWidth: 15)
-                    .frame(width: 200, height: 200)
-                
-                Circle()
-                    .trim(from: 0, to: 0.7)
                     .stroke(
                         LinearGradient(
-                            gradient: Gradient(colors: [Color(hex: "FE2D55"), Color(hex: "FF9901")]),
+                            gradient: Gradient(colors: [Color.gray.opacity(0.1), Color.gray.opacity(0.2)]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 8
+                    )
+                    .frame(width: 180, height: 180)
+                
+                // 前景进度环
+                Circle()
+                    .trim(from: 0, to: 0.8)
+                    .stroke(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                Color(hex: "FE2D55"),
+                                Color(hex: "FF9901"),
+                                Color(hex: "FE2D55")
+                            ]),
                             startPoint: .leading,
                             endPoint: .trailing
                         ),
-                        style: StrokeStyle(lineWidth: 15, lineCap: .round)
+                        style: StrokeStyle(lineWidth: 8, lineCap: .round)
                     )
-                    .frame(width: 200, height: 200)
+                    .frame(width: 180, height: 180)
                     .rotationEffect(Angle(degrees: 270))
                     .rotationEffect(Angle(degrees: Double.random(in: 0...360)))
                     .animation(.linear(duration: 1).repeatForever(autoreverses: false), value: UUID())
+                    .shadow(color: Color(hex: "FE2D55").opacity(0.3), radius: 10, x: 0, y: 0)
                 
-                Image(systemName: "checkmark.circle.fill")
-                    .resizable()
-                    .frame(width: 80, height: 80)
-                    .foregroundColor(Color(hex: "FE2D55"))
-                    .scaleEffect(0.9 + 0.1 * sin(Date().timeIntervalSince1970))
-                    .animation(.easeInOut(duration: 1).repeatForever(), value: UUID())
+                // 中心图标
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    Color(hex: "FE2D55").opacity(0.9),
+                                    Color(hex: "FF9901").opacity(0.9)
+                                ]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 100, height: 100)
+                        .shadow(color: Color(hex: "FE2D55").opacity(0.3), radius: 8, x: 0, y: 0)
+                    
+                    Image(systemName: "checkmark")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 40, height: 40)
+                        .foregroundColor(.white)
+                        .scaleEffect(0.9 + 0.1 * sin(Date().timeIntervalSince1970 * 2))
+                        .animation(.easeInOut(duration: 0.5).repeatForever(), value: UUID())
+                }
             }
             
             Text("准备甜品券...")
                 .font(.title3)
-                .foregroundColor(.secondary)
+                .fontWeight(.medium)
+                .foregroundColor(Color(hex: "61462C"))
                 .padding(.top, 20)
         }
         .frame(height: 300)
@@ -374,7 +445,7 @@ struct WorkoutCompleteView: View {
     /// 底部按钮区域
     private var buttonsSection: some View {
         VStack(spacing: 15) {
-            // 分享按钮（主按钮）
+            // 分享按钮
             Button(action: {
                 // 分享功能实现
             }) {
@@ -393,15 +464,16 @@ struct WorkoutCompleteView: View {
             }
             .padding(.horizontal)
             
-            // 放入券包按钮
+            // 完成运动按钮
             Button(action: {
-                showVoucherDetails = true
+                // 返回到运动主页
+                dismiss()
             }) {
                 HStack {
-                    Image(systemName: "ticket")
+                    Image(systemName: "checkmark.circle")
                         .font(.headline)
                     
-                    Text("放入券包")
+                    Text("完成运动")
                         .font(.headline)
                 }
                 .foregroundColor(Color(hex: "FE2D55"))
@@ -411,28 +483,6 @@ struct WorkoutCompleteView: View {
                 .overlay(
                     RoundedRectangle(cornerRadius: 10)
                         .stroke(Color(hex: "FE2D55"), lineWidth: 1)
-                )
-            }
-            .padding(.horizontal)
-            
-            // 继续运动按钮
-            Button(action: {
-                dismiss()
-            }) {
-                HStack {
-                    Image(systemName: "figure.run")
-                        .font(.headline)
-                    
-                    Text("继续运动")
-                        .font(.headline)
-                }
-                .foregroundColor(Color.gray)
-                .padding()
-                .frame(maxWidth: .infinity)
-                .background(Color.white)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
                 )
             }
             .padding(.horizontal)
@@ -859,25 +909,28 @@ struct ConfettiView: View {
     @State private var confettis: [Confetti] = []
     
     var body: some View {
-        ZStack {
-            // 彩带层
-            ForEach(confettis) { confetti in
-                ConfettiPiece(confetti: confetti)
+        GeometryReader { geo in
+            ZStack {
+                // 彩带层
+                ForEach(confettis) { confetti in
+                    ConfettiPiece(confetti: confetti, screenHeight: geo.size.height)
+                }
             }
-        }
-        .onAppear {
-            // 初始化50个彩带
-            confettis = (0..<50).map { _ in
-                Confetti(
-                    position: CGPoint(
-                        x: CGFloat.random(in: 0...UIScreen.main.bounds.width),
-                        y: CGFloat.random(in: -100...10)
-                    ),
-                    size: CGFloat.random(in: 5...12),
-                    color: colors.randomElement() ?? .red,
-                    rotation: Double.random(in: 0...360),
-                    shape: Int.random(in: 0...2)
-                )
+            .onAppear {
+                // 初始化60个彩带，增加数量提升视觉效果
+                confettis = (0..<60).map { _ in
+                    Confetti(
+                        position: CGPoint(
+                            x: CGFloat.random(in: 0...geo.size.width),
+                            y: CGFloat.random(in: -80...0)
+                        ),
+                        size: CGFloat.random(in: 5...12),
+                        color: colors.randomElement() ?? .red,
+                        rotation: Double.random(in: 0...360),
+                        shape: Int.random(in: 0...2),
+                        speed: Double.random(in: 1.0...3.0) // 添加不同的速度
+                    )
+                }
             }
         }
     }
@@ -891,12 +944,14 @@ struct Confetti: Identifiable {
     let color: Color
     var rotation: Double
     let shape: Int // 0: 圆形, 1: 方形, 2: 长条
+    let speed: Double // 控制下落速度
 }
 
 // 彩带片段
 struct ConfettiPiece: View {
     @State var confetti: Confetti
     @State private var animationOffset: CGFloat = 0
+    let screenHeight: CGFloat
     
     var body: some View {
         Group {
@@ -919,12 +974,12 @@ struct ConfettiPiece: View {
         )
         .rotationEffect(.degrees(confetti.rotation))
         .onAppear {
-            // 设置动画
+            // 设置动画 - 使用更自然的动画
             withAnimation(
-                Animation.linear(duration: Double.random(in: 2...5))
+                Animation.easeIn(duration: Double.random(in: 1.5...4) / confetti.speed)
                     .repeatForever(autoreverses: false)
             ) {
-                animationOffset = UIScreen.main.bounds.height + 100
+                animationOffset = screenHeight + 100
                 confetti.rotation += Double.random(in: 180...360)
             }
         }

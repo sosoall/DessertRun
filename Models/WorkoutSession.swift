@@ -184,4 +184,41 @@ class WorkoutSession: ObservableObject {
             averageSpeed = distanceInMeters / Double(activeElapsedSeconds)
         }
     }
+    
+    // MARK: - 简化视图调用的方法
+    
+    /// 暂停运动 - 视图层调用简化包装
+    func pauseWorkout() {
+        pause()
+    }
+    
+    /// 恢复运动 - 视图层调用简化包装
+    func resumeWorkout() {
+        resume()
+    }
+    
+    /// 完成运动 - 视图层调用简化包装
+    func completeWorkout() {
+        complete()
+    }
+    
+    /// 开始运动 - 视图层调用简化包装
+    func startWorkout() {
+        start()
+    }
+    
+    /// 更新运动数据 - 视图层调用简化包装
+    func updateWorkoutData() {
+        updateTimeAndCalories()
+    }
+    
+    /// 判断运动是否处于活动状态
+    var isActive: Bool {
+        return state == .active
+    }
+    
+    /// 判断运动是否已完成
+    var isCompleted: Bool {
+        return state == .completed
+    }
 } 

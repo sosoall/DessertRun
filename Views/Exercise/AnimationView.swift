@@ -22,6 +22,7 @@ struct AnimationView: View {
     @State private var countdown = 3
     @State private var showCountdown = false
     @State private var pauseOpacity = 0.0  // 用于暂停状态的淡入效果
+    @State private var activeOffset = CGSize.zero // 用于控制运动状态移出屏幕
     
     /// 主色调
     private let primaryColor = Color(hex: "FE2D55")
@@ -125,6 +126,20 @@ struct AnimationView: View {
                         )
                     }
                     .frame(maxHeight: .infinity, alignment: .center)
+                    .offset(activeOffset)
+                    .onChange(of: workoutSession.state) { _ in
+                        if workoutSession.state == .paused {
+                            // 当切换到暂停状态时，将动画向右移出屏幕
+                            withAnimation(.easeInOut(duration: 0.5)) {
+                                activeOffset = CGSize(width: screenSize.width, height: 0)
+                            }
+                        } else {
+                            // 当恢复运动时，将动画移回原位
+                            withAnimation(.easeInOut(duration: 0.5)) {
+                                activeOffset = .zero
+                            }
+                        }
+                    }
                 }
                 
                 // 底部安全区域，为暂停按钮留出空间

@@ -298,15 +298,10 @@ struct DessertToExerciseTransition: View {
     
     /// 运动详情视图
     private func exerciseDetailView(for exerciseType: ExerciseType) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 8) {
             Text(exerciseType.name)
                 .font(.headline)
                 .foregroundColor(.primary)
-            
-            Text(exerciseType.description)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .lineLimit(2)
             
             HStack {
                 Image(systemName: "clock.fill")

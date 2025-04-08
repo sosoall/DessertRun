@@ -69,9 +69,10 @@ struct WorkoutView: View {
                         VStack(spacing: 4) {
                             // 修改标题部分，使用HStack放在同一行
                             HStack(spacing: 8) {
-                                Text("运动中")
-                                    .font(.system(size: 20, weight: .bold))
-                                    .foregroundColor(.black)
+                                Text(showPauseMenu ? "已暂停" : "\(workoutSession.targetDessert.name)")
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(Color(hex: "61462C"))
                                 
                                 Text("(\(workoutSession.exerciseType.name) · \(workoutSession.targetDessert.name))")
                                     .font(.system(size: 14, weight: .medium))
@@ -125,7 +126,7 @@ struct WorkoutView: View {
                                 pageIndex: $pageIndex,
                                 onPause: {
                                     // 暂停运动会话
-                                    workoutSession.pause()
+                                    workoutSession.pauseWorkout()
                                     
                                     // 显示暂停菜单
                                     withAnimation(.easeInOut) {
@@ -137,23 +138,16 @@ struct WorkoutView: View {
                     } else {
                         // 暂停菜单
                         PauseMenuView(
-                            onResume: {
-                                // 恢复运动会话
-                                workoutSession.resume()
-                                
-                                // 隐藏暂停菜单
-                                withAnimation(.easeInOut) {
-                                    showPauseMenu = false
-                                }
-                            },
-                            onStop: {
-                                // 停止运动并跳转到完成页面
-                                workoutSession.complete()
-                                
+                            workoutSession: workoutSession,
+                            showPauseMenu: $showPauseMenu,
+                            onComplete: {
                                 // 导航到完成页面
                                 navigateToComplete = true
                             }
                         )
+                        .environmentObject(appState)
+                        .transition(.opacity)
+                        .zIndex(100)
                     }
                 }
             }
@@ -231,7 +225,7 @@ struct WorkoutView: View {
                         Circle()
                             .fill(Color.white.opacity(0.1 - Double(i) * 0.02))
                             .frame(width: 280 + CGFloat(i * 40), height: 280 + CGFloat(i * 40))
-                            .scaleEffect(countdownValue == 3 ? 0.8 : 1.0)
+                            .scaleEffect(countdownValue == 3 ? 1.0 : 1.2)
                             .animation(.easeInOut(duration: 0.8), value: countdownValue)
                     }
                     
@@ -246,7 +240,7 @@ struct WorkoutView: View {
                             lineWidth: 6
                         )
                         .frame(width: 220, height: 220)
-                        .scaleEffect(countdownValue == 1 ? 1.1 : 1.0)
+                        .scaleEffect(countdownValue == 1 ? 1.2 : 1.0)
                         .animation(.easeInOut(duration: 0.8), value: countdownValue)
                     
                     // 内层圆
@@ -266,8 +260,8 @@ struct WorkoutView: View {
                         .font(.system(size: 140, weight: .bold))
                         .foregroundColor(.white)
                         .shadow(color: Color.black.opacity(0.2), radius: 2, x: 0, y: 2)
-                        .scaleEffect(countdownValue == 3 ? 1.2 : 1.0)
-                        .scaleEffect(countdownValue == 1 ? 0.8 : 1.0)
+                        .scaleEffect(0.8)
+                        .scaleEffect(countdownValue == 3 ? 1.1 : (countdownValue == 2 ? 1.2 : 1.3))
                         .animation(.spring(response: 0.3, dampingFraction: 0.6), value: countdownValue)
                 }
             }
@@ -278,24 +272,26 @@ struct WorkoutView: View {
     private func startCountdown() {
         // 创建计时器，每秒更新倒计时值
         Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
-            if countdownValue > 1 {
-                countdownValue -= 1
-            } else {
-                // 倒计时结束
-                timer.invalidate()
-                
-                // 开始运动
-                withAnimation(.easeInOut(duration: 0.5)) {
-                    showingCountdown = false
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                if countdownValue > 1 {
+                    countdownValue -= 1
+                } else {
+                    // 倒计时结束
+                    timer.invalidate()
                     
-                    // 启动会话
-                    workoutSession.start()
-                    
-                    // 设置为当前活动的运动会话
-                    appState.activeWorkoutSession = workoutSession
-                    
-                    // 开始定时更新
-                    startTimer()
+                    // 开始运动
+                    withAnimation(.easeInOut(duration: 0.5)) {
+                        showingCountdown = false
+                        
+                        // 启动会话
+                        workoutSession.startWorkout()
+                        
+                        // 设置为当前活动的运动会话
+                        appState.activeWorkoutSession = workoutSession
+                        
+                        // 开始定时更新
+                        startTimer()
+                    }
                 }
             }
         }
@@ -305,9 +301,9 @@ struct WorkoutView: View {
     private func startTimer() {
         // 创建1秒间隔的定时器，模拟数据更新
         Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
-            if workoutSession.state == .active {
+            if workoutSession.isActive {
                 // 更新时间和卡路里
-                workoutSession.updateTimeAndCalories()
+                workoutSession.updateWorkoutData()
                 
                 // 模拟距离增加 (如果是GPS类型运动)
                 if workoutSession.exerciseType.requiresGPS {
@@ -319,7 +315,7 @@ struct WorkoutView: View {
                 
                 // 检查是否完成，如果卡路里达到目标，自动完成
                 if workoutSession.burnedCalories >= workoutSession.targetCalories {
-                    workoutSession.complete()
+                    workoutSession.completeWorkout()
                     navigateToComplete = true
                     timer.invalidate()
                 }
