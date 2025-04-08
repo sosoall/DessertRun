@@ -54,106 +54,44 @@ struct WorkoutView: View {
     }
     
     var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                // 背景色
-                Color.white.ignoresSafeArea()
-                
-                // 主要内容
-                if showingCountdown {
-                    // 倒计时视图
-                    countdownView
-                } else {
-                    VStack(spacing: 0) {
-                        // 标题和页面指示器 - 贴近顶部
-                        VStack(spacing: 4) {
-                            Text("运动中")
-                                .font(.system(size: 20, weight: .bold))
-                                .foregroundColor(.black)
-                                .padding(.top, 0) // 顶部边距设为0，直接贴到系统栏下
-                            
-                            // 页面指示器
-                            PageIndicator(currentPage: pageIndex)
-                        }
-                        .padding(.top, 5) // 顶部留一点空间
-                        .padding(.bottom, 5)
-                        
-                        // 运动信息栏 - 单行布局节省空间
-                        HStack(spacing: 10) {
-                            Text(workoutSession.exerciseType.name)
-                                .font(.system(size: 18, weight: .bold))
-                                .foregroundColor(.gray)
-                            
-                            Text("·")
-                                .foregroundColor(.gray.opacity(0.6))
-                            
-                            Text("目标：\(workoutSession.targetDessert.name)")
-                                .font(.system(size: 16))
-                                .foregroundColor(.gray.opacity(0.8))
-                        }
-                        .padding(.horizontal)
-                        .padding(.bottom, 2)
-                        
-                        // 页面内容
-                        TabView(selection: $pageIndex) {
-                            // 页面1：动画激励页
-                            AnimationView(
-                                workoutSession: workoutSession,
-                                screenSize: geometry.size
-                            )
-                            .tag(0)
-                            
-                            // 页面2：数据页
-                            DataView(
-                                workoutSession: workoutSession,
-                                screenSize: geometry.size
-                            )
-                            .tag(1)
-                        }
-                        .tabViewStyle(.page(indexDisplayMode: .never))
-                        // 避免GPU后台渲染错误
-                        .onDisappear {
-                            // 在视图消失时释放资源
-                            if pageIndex == 0 {
-                                // 让主线程处理，避免后台GPU工作
-                                DispatchQueue.main.async {
-                                    // 空操作或简单重置
-                                }
-                            }
-                        }
-                    }
-                    .edgesIgnoringSafeArea(.top)
+        ZStack {
+            // 背景
+            Color.white.ignoresSafeArea()
+            
+            // 主内容
+            VStack(spacing: 0) {
+                // 顶部安全区域留白
+                Spacer()
+                    .frame(height: 60)
                     
-                    // 暂停菜单遮罩
-                    if showPauseMenu {
-                        PauseMenuView(
-                            onResume: {
-                                workoutSession.resume()
-                                showPauseMenu = false
-                            },
-                            onStop: {
-                                // 停止运动并跳转到完成页面
-                                workoutSession.complete()
-                                navigateToComplete = true
+                // 内容视图（动画/数据视图）
+                if !isPaused {
+                    if showDataView {
+                        DataView(workoutSession: workoutSession)
+                            .environmentObject(workoutSession)
+                            .transition(.opacity)
+                    } else {
+                        AnimationView(workoutSession: workoutSession)
+                            .environmentObject(workoutSession)
+                            .transition(.opacity)
+                    }
+                }
+                
+                Spacer()
+                
+                // 底部控制区
+                if !showPauseMenu {
+                    VStack {
+                        Spacer()
+                        
+                        // 底部控制区域
+                        ControlBar(
+                            pageIndex: $pageIndex,
+                            onPause: {
+                                workoutSession.pause()
+                                showPauseMenu = true
                             }
                         )
-                        .transition(.move(edge: .bottom))
-                    }
-                    
-                    // 底部控制栏 - 仅在非暂停状态下显示
-                    if !showPauseMenu {
-                        VStack {
-                            Spacer()
-                            
-                            // 底部控制区域
-                            ControlBar(
-                                pageIndex: $pageIndex,
-                                onPause: {
-                                    workoutSession.pause()
-                                    showPauseMenu = true
-                                }
-                            )
-                        }
                     }
                 }
             }
