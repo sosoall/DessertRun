@@ -47,13 +47,13 @@ struct WorkoutCompleteView: View {
             Color.white.ignoresSafeArea()
             
             // 内容 - 减少顶部边距
-            ScrollView {
+            ScrollView(showsIndicators: false) {
                 VStack(spacing: 20) {
                     // 彩带动画 - 减少高度
                     if showConfetti {
                         ConfettiView()
                             .ignoresSafeArea()
-                            .frame(height: 120)
+                            .frame(height: 150)
                     }
                     
                     // 顶部标题和祝贺信息
@@ -127,8 +127,17 @@ struct WorkoutCompleteView: View {
                 }
                 .padding(.vertical, 10)
             }
+            .background(Color.white)
+            .edgesIgnoringSafeArea(.top)
+            // iOS 17兼容的方式 - 使用scrollBounceBehavior
+            .scrollBounceBehavior(.basedOnSize)
+            // 添加一个额外的background视图作为防护
+            .background(
+                Color.white.edgesIgnoringSafeArea(.all)
+            )
         }
         .navigationBarBackButtonHidden(true)
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             // 隐藏NavigationBar标题
             ToolbarItem(placement: .principal) {

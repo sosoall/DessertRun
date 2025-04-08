@@ -33,6 +33,9 @@ struct AnimationView: View {
             
             // 主要内容
             VStack(spacing: 0) {
+                // 增加顶部安全区域边距
+                Spacer(minLength: 40)
+                
                 // 倒计时动画（仅在需要时显示）
                 if showCountdown {
                     Text("\(countdown)")

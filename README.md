@@ -29,6 +29,7 @@ DessertRun是一款为运动初学者准备的创新健康应用，核心理念�
 
 ### 前端技术栈
 - **UI框架**：SwiftUI（支持现代UI设计和复杂动画）
+- **iOS要求**：iOS 17.0+ (项目使用了iOS 17的新特性，如scrollBounceBehavior)
 - **状态管理**：Combine + @Published属性
 - **页面导航**：TabView（底部标签栏）+ NavigationStack/NavigationView（页面跳转）
 - **本地缓存**：CoreData（作为云端数据的本地缓存）

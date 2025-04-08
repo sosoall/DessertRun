@@ -34,7 +34,10 @@ struct DataView: View {
             // 背景 - 确保是纯白色
             Color.white.edgesIgnoringSafeArea(.all)
             
-            VStack(spacing: 20) {
+            VStack(spacing: 15) {
+                // 增加顶部安全区域边距
+                Spacer(minLength: 40)
+                
                 // 进度环动画区域
                 ZStack {
                     // 粒子效果
@@ -43,10 +46,10 @@ struct DataView: View {
                             .fill(
                                 [primaryColor, secondaryColor, Color.orange, Color.yellow].randomElement()!.opacity(0.7)
                             )
-                            .frame(width: CGFloat.random(in: 8...20), height: CGFloat.random(in: 8...20))
+                            .frame(width: CGFloat.random(in: 5...12), height: CGFloat.random(in: 5...12))
                             .offset(
-                                x: CGFloat.random(in: -120...120),
-                                y: CGFloat.random(in: -120...120)
+                                x: CGFloat.random(in: -80...80),
+                                y: CGFloat.random(in: -80...80)
                             )
                             .scaleEffect(isAnimating ? 1.0 : 0.5)
                             .opacity(isAnimating ? 0.8 : 0.0)
@@ -67,9 +70,9 @@ struct DataView: View {
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             ),
-                            lineWidth: 8
+                            lineWidth: 6
                         )
-                        .frame(width: min(screenSize.width, screenSize.height) * 0.65)
+                        .frame(width: min(screenSize.width, screenSize.height) * 0.6)
                         .scaleEffect(isBreathing && workoutSession.state == .active ? 1.08 : 0.98)
                         .animation(
                             Animation.easeInOut(duration: 3)
@@ -79,8 +82,8 @@ struct DataView: View {
                     
                     // 完整环形背景
                     Circle()
-                        .stroke(Color.gray.opacity(0.1), lineWidth: 15)
-                        .frame(width: min(screenSize.width, screenSize.height) * 0.6)
+                        .stroke(Color.gray.opacity(0.1), lineWidth: 12)
+                        .frame(width: min(screenSize.width, screenSize.height) * 0.55)
                     
                     // 进度环
                     Circle()
@@ -91,9 +94,9 @@ struct DataView: View {
                                 startPoint: .leading,
                                 endPoint: .trailing
                             ),
-                            style: StrokeStyle(lineWidth: 15, lineCap: .round)
+                            style: StrokeStyle(lineWidth: 12, lineCap: .round)
                         )
-                        .frame(width: min(screenSize.width, screenSize.height) * 0.6)
+                        .frame(width: min(screenSize.width, screenSize.height) * 0.55)
                         .rotationEffect(Angle(degrees: -90))
                         .animation(workoutSession.state == .active ? .easeInOut(duration: 1.0) : .none, value: workoutSession.completionPercentage)
                     
@@ -115,7 +118,7 @@ struct DataView: View {
                         Circle()
                             .stroke(
                                 primaryColor.opacity(0.3 - Double(i) * 0.1),
-                                lineWidth: 3 - CGFloat(i)
+                                lineWidth: 2 - CGFloat(i) * 0.5
                             )
                             .scaleEffect(pulseScale + Double(i) * 0.05)
                             .opacity(isAnimating && workoutSession.state == .active ? 0.6 - Double(i) * 0.2 : 0)
@@ -126,12 +129,12 @@ struct DataView: View {
                                 value: pulseScale
                             )
                     }
-                    .frame(width: min(screenSize.width, screenSize.height) * 0.6)
+                    .frame(width: min(screenSize.width, screenSize.height) * 0.55)
                     
-                    // 中心显示进度百分比 - 更大更明显
-                    VStack(spacing: 4) {
+                    // 中心显示进度百分比 - 确保不换行
+                    HStack(spacing: 0) {
                         Text("\(Int(workoutSession.completionPercentage))")
-                            .font(.system(size: 56, weight: .bold))
+                            .font(.system(size: 44, weight: .bold))
                             .foregroundColor(primaryColor)
                             .scaleEffect(isBreathing ? 1.05 : 1.0)
                             .animation(
@@ -139,20 +142,23 @@ struct DataView: View {
                                     .repeatForever(autoreverses: true),
                                 value: isBreathing
                             )
+                            .fixedSize(horizontal: true, vertical: false) // 防止换行
                         
                         Text("%")
-                            .font(.system(size: 24, weight: .bold))
+                            .font(.system(size: 18, weight: .bold))
                             .foregroundColor(primaryColor)
-                            .offset(x: 5, y: -10)
-                        
-                        Text("\(Int(workoutSession.burnedCalories))/\(Int(workoutSession.targetCalories)) 卡")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(.gray)
-                            .padding(.top, 5)
+                            .offset(y: -8)
+                            .fixedSize(horizontal: true, vertical: false) // 防止换行
                     }
+                    
+                    Text("\(Int(workoutSession.burnedCalories))/\(Int(workoutSession.targetCalories)) 卡")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.gray)
+                        .padding(.top, 45) // 调整位置，使其在百分比下方
+                        .fixedSize(horizontal: true, vertical: false) // 防止换行
                 }
-                .frame(height: screenSize.height * 0.35)
-                .padding(.bottom, 20)
+                .frame(height: screenSize.height * 0.3)
+                .padding(.bottom, 10)
                 .onAppear {
                     isAnimating = true
                     isBreathing = true
@@ -167,7 +173,7 @@ struct DataView: View {
                 LazyVGrid(columns: [
                     GridItem(.flexible()),
                     GridItem(.flexible()),
-                ], spacing: 15) {
+                ], spacing: 12) {
                     // 时间
                     CoreDataCard(
                         icon: "clock.fill",
@@ -210,9 +216,9 @@ struct DataView: View {
                 
                 // 为暂停按钮留出安全区域
                 Spacer()
-                    .frame(height: 100)
+                    .frame(height: 90)
             }
-            .padding()
+            .padding(.horizontal)
         }
     }
     
@@ -259,12 +265,12 @@ struct CoreDataCard: View {
     let isAnimating: Bool
     
     var body: some View {
-        VStack(spacing: 15) {
+        VStack(spacing: 8) {
             // 图标
             ZStack {
                 Circle()
                     .fill(iconColor.opacity(0.15))
-                    .frame(width: 60, height: 60)
+                    .frame(width: 45, height: 45)
                     .overlay(
                         Circle()
                             .stroke(iconColor.opacity(0.3), lineWidth: 2)
@@ -278,7 +284,7 @@ struct CoreDataCard: View {
                     )
                 
                 Image(systemName: icon)
-                    .font(.system(size: 24, weight: .semibold))
+                    .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(iconColor)
                     .scaleEffect(isAnimating ? 1.1 : 1.0)
                     .animation(
@@ -288,22 +294,22 @@ struct CoreDataCard: View {
                     )
             }
             
-            VStack(spacing: 5) {
+            VStack(spacing: 2) {
                 Text(value)
-                    .font(.system(size: 22, weight: .bold))
+                    .font(.system(size: 18, weight: .bold))
                     .foregroundColor(.black.opacity(0.8))
                 
                 Text(label)
-                    .font(.system(size: 14, weight: .regular))
+                    .font(.system(size: 11, weight: .regular))
                     .foregroundColor(.gray)
             }
         }
-        .padding(15)
+        .padding(10)
         .frame(maxWidth: .infinity)
         .background(
-            RoundedRectangle(cornerRadius: 18)
+            RoundedRectangle(cornerRadius: 16)
                 .fill(Color.white)
-                .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 2)
+                .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
         )
     }
 } 
