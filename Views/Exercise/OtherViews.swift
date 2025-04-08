@@ -64,53 +64,93 @@ struct PauseMenuView: View {
     /// 停止回调
     var onStop: () -> Void
     
+    /// 长按状态控制
+    @State private var longPressProgress: CGFloat = 0.0
+    @State private var isLongPressing = false
+    
+    /// 长按所需时间（秒）
+    private let longPressDuration: Double = 1.5
+    
     var body: some View {
-        ZStack {
-            // 半透明背景
-            Color.black.opacity(0.7)
-                .ignoresSafeArea()
+        VStack {
+            Spacer()
             
-            // 菜单内容
-            VStack(spacing: 30) {
-                Text("运动已暂停")
-                    .font(.title)
-                    .fontWeight(.bold)
+            // 底部按钮容器
+            VStack(spacing: 15) {
+                // 继续按钮
+                Button(action: onResume) {
+                    HStack {
+                        Image(systemName: "play.fill")
+                            .font(.headline)
+                        
+                        Text("继续运动")
+                            .font(.headline)
+                    }
                     .foregroundColor(.white)
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(Color(hex: "34C759"))
+                    .cornerRadius(16)
+                }
                 
-                VStack(spacing: 20) {
-                    // 继续按钮
-                    Button(action: onResume) {
-                        HStack {
-                            Image(systemName: "play.fill")
-                                .font(.headline)
-                            
-                            Text("继续运动")
-                                .font(.headline)
-                        }
-                        .foregroundColor(.white)
-                        .padding()
-                        .frame(width: 200)
-                        .background(Color(hex: "34C759"))
-                        .cornerRadius(10)
+                // 停止按钮 - 长按触发
+                ZStack {
+                    // 背景进度
+                    GeometryReader { geo in
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color.gray.opacity(0.2))
+                            .overlay(
+                                HStack {
+                                    Rectangle()
+                                        .fill(Color(hex: "FE2D55"))
+                                        .frame(width: geo.size.width * longPressProgress)
+                                    
+                                    Spacer(minLength: 0)
+                                }
+                                .clipShape(RoundedRectangle(cornerRadius: 16))
+                            )
                     }
                     
-                    // 停止按钮
-                    Button(action: onStop) {
-                        HStack {
-                            Image(systemName: "stop.fill")
-                                .font(.headline)
-                            
-                            Text("结束运动")
-                                .font(.headline)
-                        }
-                        .foregroundColor(.white)
-                        .padding()
-                        .frame(width: 200)
-                        .background(Color(hex: "FE2D55"))
-                        .cornerRadius(10)
+                    // 按钮文字
+                    HStack {
+                        Image(systemName: "stop.fill")
+                            .font(.headline)
+                        
+                        Text(isLongPressing ? "继续按住以结束运动..." : "长按结束运动")
+                            .font(.headline)
                     }
+                    .foregroundColor(.white)
+                    .padding()
+                    .frame(maxWidth: .infinity)
                 }
+                .frame(height: 50)
+                .contentShape(Rectangle())
+                .onLongPressGesture(minimumDuration: longPressDuration, perform: {
+                    // 长按完成
+                    onStop()
+                }, onPressingChanged: { isPressing in
+                    isLongPressing = isPressing
+                    
+                    if isPressing {
+                        // 开始长按，启动进度动画
+                        withAnimation(.linear(duration: longPressDuration)) {
+                            longPressProgress = 1.0
+                        }
+                    } else if longPressProgress < 1.0 {
+                        // 中断长按，重置进度
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            longPressProgress = 0.0
+                        }
+                    }
+                })
             }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 30)
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(Color.black.opacity(0.8))
+                    .ignoresSafeArea(edges: .bottom)
+            )
         }
     }
 } 

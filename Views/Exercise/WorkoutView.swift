@@ -64,65 +64,65 @@ struct WorkoutView: View {
                     // 倒计时视图
                     countdownView
                 } else {
-                    // 页面内容
-                    TabView(selection: $pageIndex) {
-                        // 页面1：动画激励页
-                        VStack {
-                            // 添加运动信息栏
-                            HStack {
-                                VStack(alignment: .leading, spacing: 5) {
-                                    Text(workoutSession.exerciseType.name)
-                                        .font(.headline)
-                                        .foregroundColor(.gray)
-                                    
-                                    Text("目标：\(workoutSession.targetDessert.name)")
-                                        .font(.subheadline)
-                                        .foregroundColor(.gray.opacity(0.8))
-                                }
-                                .padding(.leading, 15)
-                                
-                                Spacer()
-                            }
-                            .frame(height: 50)
-                            .padding(.top, 5)
+                    VStack(spacing: 0) {
+                        // 标题和页面指示器 - 贴近顶部
+                        VStack(spacing: 4) {
+                            Text("运动中")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(.black)
+                                .padding(.top, 0) // 顶部边距设为0，直接贴到系统栏下
                             
-                            // 动画视图
+                            // 页面指示器
+                            PageIndicator(currentPage: pageIndex)
+                        }
+                        .padding(.top, 5) // 顶部留一点空间
+                        .padding(.bottom, 5)
+                        
+                        // 运动信息栏 - 单行布局节省空间
+                        HStack(spacing: 10) {
+                            Text(workoutSession.exerciseType.name)
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundColor(.gray)
+                            
+                            Text("·")
+                                .foregroundColor(.gray.opacity(0.6))
+                            
+                            Text("目标：\(workoutSession.targetDessert.name)")
+                                .font(.system(size: 16))
+                                .foregroundColor(.gray.opacity(0.8))
+                        }
+                        .padding(.horizontal)
+                        .padding(.bottom, 2)
+                        
+                        // 页面内容
+                        TabView(selection: $pageIndex) {
+                            // 页面1：动画激励页
                             AnimationView(
                                 workoutSession: workoutSession,
                                 screenSize: geometry.size
                             )
-                        }
-                        .tag(0)
-                        
-                        // 页面2：数据页
-                        VStack {
-                            // 添加运动信息栏
-                            HStack {
-                                VStack(alignment: .leading, spacing: 5) {
-                                    Text(workoutSession.exerciseType.name)
-                                        .font(.headline)
-                                        .foregroundColor(.gray)
-                                    
-                                    Text("目标：\(workoutSession.targetDessert.name)")
-                                        .font(.subheadline)
-                                        .foregroundColor(.gray.opacity(0.8))
-                                }
-                                .padding(.leading, 15)
-                                
-                                Spacer()
-                            }
-                            .frame(height: 50)
-                            .padding(.top, 5)
+                            .tag(0)
                             
-                            // 数据视图
+                            // 页面2：数据页
                             DataView(
                                 workoutSession: workoutSession,
                                 screenSize: geometry.size
                             )
+                            .tag(1)
                         }
-                        .tag(1)
+                        .tabViewStyle(.page(indexDisplayMode: .never))
+                        // 避免GPU后台渲染错误
+                        .onDisappear {
+                            // 在视图消失时释放资源
+                            if pageIndex == 0 {
+                                // 让主线程处理，避免后台GPU工作
+                                DispatchQueue.main.async {
+                                    // 空操作或简单重置
+                                }
+                            }
+                        }
                     }
-                    .tabViewStyle(.page(indexDisplayMode: .never))
+                    .edgesIgnoringSafeArea(.top)
                     
                     // 暂停菜单遮罩
                     if showPauseMenu {
@@ -137,34 +137,33 @@ struct WorkoutView: View {
                                 navigateToComplete = true
                             }
                         )
-                        .transition(.opacity)
+                        .transition(.move(edge: .bottom))
                     }
                     
-                    // 底部控制栏
-                    VStack {
-                        Spacer()
-                        
-                        // 底部控制区域
-                        ControlBar(
-                            pageIndex: $pageIndex,
-                            onPause: {
-                                workoutSession.pause()
-                                showPauseMenu = true
-                            }
-                        )
+                    // 底部控制栏 - 仅在非暂停状态下显示
+                    if !showPauseMenu {
+                        VStack {
+                            Spacer()
+                            
+                            // 底部控制区域
+                            ControlBar(
+                                pageIndex: $pageIndex,
+                                onPause: {
+                                    workoutSession.pause()
+                                    showPauseMenu = true
+                                }
+                            )
+                        }
                     }
                 }
             }
         }
         .navigationBarTitleDisplayMode(.inline)
-        .navigationTitle("运动中")
         .navigationBarBackButtonHidden(true) // 隐藏返回按钮
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                // 上方页面指示器
-                if !showingCountdown {
-                    PageIndicator(currentPage: pageIndex)
-                }
+            // 移除顶部工具栏中的页面指示器
+            ToolbarItem(placement: .principal) {
+                Text("")
             }
         }
         .onAppear {

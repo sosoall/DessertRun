@@ -21,17 +21,62 @@ struct DataView: View {
     
     /// 动画控制
     @State private var isAnimating = false
+    @State private var isBreathing = false
+    @State private var pulseScale = 1.0
+    
+    // 根据完成百分比确定要显示的粒子数量
+    private var particleCount: Int {
+        return Int(workoutSession.completionPercentage / 3) + 5 // 至少5个粒子
+    }
     
     var body: some View {
         ZStack {
             // 背景 - 确保是纯白色
             Color.white.edgesIgnoringSafeArea(.all)
             
-            VStack(spacing: 30) {
-                Spacer(minLength: 20)
-                
+            VStack(spacing: 20) {
                 // 进度环动画区域
                 ZStack {
+                    // 粒子效果
+                    ForEach(0..<particleCount, id: \.self) { i in
+                        Circle()
+                            .fill(
+                                [primaryColor, secondaryColor, Color.orange, Color.yellow].randomElement()!.opacity(0.7)
+                            )
+                            .frame(width: CGFloat.random(in: 8...20), height: CGFloat.random(in: 8...20))
+                            .offset(
+                                x: CGFloat.random(in: -120...120),
+                                y: CGFloat.random(in: -120...120)
+                            )
+                            .scaleEffect(isAnimating ? 1.0 : 0.5)
+                            .opacity(isAnimating ? 0.8 : 0.0)
+                            .animation(
+                                Animation.spring(response: 0.5, dampingFraction: 0.5)
+                                    .repeatForever(autoreverses: true)
+                                    .speed(Double.random(in: 0.1...0.5))
+                                    .delay(Double.random(in: 0...2)),
+                                value: isAnimating
+                            )
+                    }
+                    
+                    // 外围呼吸效果环
+                    Circle()
+                        .stroke(
+                            LinearGradient(
+                                gradient: Gradient(colors: [primaryColor.opacity(0.2), secondaryColor.opacity(0.2)]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 8
+                        )
+                        .frame(width: min(screenSize.width, screenSize.height) * 0.65)
+                        .scaleEffect(isBreathing && workoutSession.state == .active ? 1.08 : 0.98)
+                        .animation(
+                            Animation.easeInOut(duration: 3)
+                                .repeatForever(autoreverses: true),
+                            value: isBreathing && workoutSession.state == .active
+                        )
+                    
                     // 完整环形背景
                     Circle()
                         .stroke(Color.gray.opacity(0.1), lineWidth: 15)
@@ -50,39 +95,72 @@ struct DataView: View {
                         )
                         .frame(width: min(screenSize.width, screenSize.height) * 0.6)
                         .rotationEffect(Angle(degrees: -90))
-                        .animation(.easeInOut(duration: 1.0), value: workoutSession.completionPercentage)
+                        .animation(workoutSession.state == .active ? .easeInOut(duration: 1.0) : .none, value: workoutSession.completionPercentage)
                     
-                    // 脉冲效果
-                    Circle()
-                        .fill(Color.clear)
-                        .frame(width: min(screenSize.width, screenSize.height) * 0.6)
-                        .overlay(
+                    // 暂停状态标识 - 仅在暂停时显示
+                    if workoutSession.state == .paused {
+                        ZStack {
                             Circle()
-                                .stroke(primaryColor.opacity(0.3), lineWidth: 3)
-                                .scaleEffect(isAnimating ? 1.1 : 0.9)
-                                .opacity(isAnimating ? 0.2 : 0.5)
-                        )
-                        .animation(
-                            Animation.easeInOut(duration: 1.2)
-                                .repeatForever(autoreverses: true),
-                            value: isAnimating
-                        )
+                                .fill(Color.black.opacity(0.3))
+                                .frame(width: 80, height: 80)
+                            
+                            Image(systemName: "pause.fill")
+                                .font(.system(size: 36))
+                                .foregroundColor(.white)
+                        }
+                    }
                     
-                    // 中心显示进度百分比
-                    VStack(spacing: 8) {
-                        Text("\(Int(workoutSession.completionPercentage))%")
-                            .font(.system(size: 40, weight: .bold))
+                    // 动态脉冲效果
+                    ForEach(0..<3) { i in
+                        Circle()
+                            .stroke(
+                                primaryColor.opacity(0.3 - Double(i) * 0.1),
+                                lineWidth: 3 - CGFloat(i)
+                            )
+                            .scaleEffect(pulseScale + Double(i) * 0.05)
+                            .opacity(isAnimating && workoutSession.state == .active ? 0.6 - Double(i) * 0.2 : 0)
+                            .animation(
+                                Animation.easeInOut(duration: 1.2 + Double(i) * 0.3)
+                                    .repeatForever(autoreverses: false)
+                                    .delay(Double(i) * 0.4),
+                                value: pulseScale
+                            )
+                    }
+                    .frame(width: min(screenSize.width, screenSize.height) * 0.6)
+                    
+                    // 中心显示进度百分比 - 更大更明显
+                    VStack(spacing: 4) {
+                        Text("\(Int(workoutSession.completionPercentage))")
+                            .font(.system(size: 56, weight: .bold))
                             .foregroundColor(primaryColor)
+                            .scaleEffect(isBreathing ? 1.05 : 1.0)
+                            .animation(
+                                Animation.easeInOut(duration: 2)
+                                    .repeatForever(autoreverses: true),
+                                value: isBreathing
+                            )
+                        
+                        Text("%")
+                            .font(.system(size: 24, weight: .bold))
+                            .foregroundColor(primaryColor)
+                            .offset(x: 5, y: -10)
                         
                         Text("\(Int(workoutSession.burnedCalories))/\(Int(workoutSession.targetCalories)) 卡")
                             .font(.system(size: 16, weight: .medium))
                             .foregroundColor(.gray)
+                            .padding(.top, 5)
                     }
                 }
                 .frame(height: screenSize.height * 0.35)
                 .padding(.bottom, 20)
                 .onAppear {
                     isAnimating = true
+                    isBreathing = true
+                    
+                    // 为脉冲动画设置连续变化
+                    withAnimation(Animation.easeInOut(duration: 2).repeatForever(autoreverses: true)) {
+                        pulseScale = 1.15
+                    }
                 }
                 
                 // 核心数据卡片
@@ -95,7 +173,8 @@ struct DataView: View {
                         icon: "clock.fill",
                         iconColor: primaryColor,
                         value: formattedTime,
-                        label: "总时间"
+                        label: "总时间",
+                        isAnimating: isAnimating
                     )
                     
                     // 卡路里
@@ -103,7 +182,8 @@ struct DataView: View {
                         icon: "flame.fill",
                         iconColor: secondaryColor,
                         value: "\(Int(workoutSession.burnedCalories))",
-                        label: "卡路里消耗"
+                        label: "卡路里消耗",
+                        isAnimating: isAnimating
                     )
                     
                     // 距离/次数
@@ -111,7 +191,8 @@ struct DataView: View {
                         icon: workoutSession.exerciseType.requiresGPS ? "map.fill" : "repeat",
                         iconColor: Color(hex: "4CD964"),
                         value: distanceOrCount,
-                        label: distanceOrCountLabel
+                        label: distanceOrCountLabel,
+                        isAnimating: isAnimating
                     )
                     
                     // 目标
@@ -119,7 +200,8 @@ struct DataView: View {
                         icon: "flag.fill",
                         iconColor: Color(hex: "5AC8FA"),
                         value: "\(Int(workoutSession.targetCalories))",
-                        label: "目标卡路里"
+                        label: "目标卡路里",
+                        isAnimating: isAnimating
                     )
                 }
                 .padding(.horizontal, 15)
@@ -174,6 +256,7 @@ struct CoreDataCard: View {
     let iconColor: Color
     let value: String
     let label: String
+    let isAnimating: Bool
     
     var body: some View {
         VStack(spacing: 15) {
@@ -182,10 +265,27 @@ struct CoreDataCard: View {
                 Circle()
                     .fill(iconColor.opacity(0.15))
                     .frame(width: 60, height: 60)
+                    .overlay(
+                        Circle()
+                            .stroke(iconColor.opacity(0.3), lineWidth: 2)
+                            .scaleEffect(isAnimating ? 1.2 : 1.0)
+                            .opacity(isAnimating ? 0.4 : 0.0)
+                            .animation(
+                                Animation.easeInOut(duration: 1.5)
+                                    .repeatForever(autoreverses: true),
+                                value: isAnimating
+                            )
+                    )
                 
                 Image(systemName: icon)
                     .font(.system(size: 24, weight: .semibold))
                     .foregroundColor(iconColor)
+                    .scaleEffect(isAnimating ? 1.1 : 1.0)
+                    .animation(
+                        Animation.easeInOut(duration: 1.2)
+                            .repeatForever(autoreverses: true),
+                        value: isAnimating
+                    )
             }
             
             VStack(spacing: 5) {
