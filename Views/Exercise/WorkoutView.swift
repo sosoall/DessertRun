@@ -84,7 +84,7 @@ struct WorkoutView: View {
                                     .font(.system(size: 14, weight: .medium))
                                     .foregroundColor(.gray.opacity(0.8))
                             }
-                            .padding(.top, 60) // 增加顶部边距，给灵动岛留空间
+                            .padding(.top, 40) // 增加顶部边距，给灵动岛留空间
                             
                             // 页面指示器
                             PageIndicator(currentPage: pageIndex)
@@ -176,14 +176,19 @@ struct WorkoutView: View {
             // 修复设备方向相关错误
             configureOrientation()
         }
-        .navigationDestination(isPresented: $navigateToComplete) {
-            WorkoutCompleteView(workoutSession: workoutSession)
-                .onAppear {
-                    print("【调试】WorkoutCompleteView.onAppear 从WorkoutView")
-                    print("【调试】WorkoutSession状态: \(workoutSession.state)")
-                    print("【调试】isInWorkoutMode: \(appState.isInWorkoutMode)")
-                }
-        }
+        // 使用新的NavigationStack推荐的方式
+        .background(
+            NavigationLink(isActive: $navigateToComplete) {
+                WorkoutCompleteView(workoutSession: workoutSession)
+                    .onAppear {
+                        print("【调试】WorkoutCompleteView.onAppear 从WorkoutView")
+                        print("【调试】WorkoutSession状态: \(workoutSession.state)")
+                        print("【调试】isInWorkoutMode: \(appState.isInWorkoutMode)")
+                    }
+            } label: {
+                EmptyView()
+            }
+        )
         .onDisappear {
             // 确保退出运动视图时清理状态
             print("【调试】WorkoutView.onDisappear")

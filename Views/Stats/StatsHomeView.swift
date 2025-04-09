@@ -21,6 +21,9 @@ struct StatsHomeView: View {
     // 当前日期
     @State private var currentDate = Date()
     
+    // 添加选择的美食券状态
+    @State private var selectedVoucher: DessertRun.DessertVoucher?
+    
     var body: some View {
         VStack(spacing: 0) {
             // 页面标题
@@ -33,7 +36,7 @@ struct StatsHomeView: View {
             // 分段控制器
             Picker("视图选择", selection: $appState.statsSelectedSegment) {
                 Text("运动日历").tag(0)
-                Text("甜品券").tag(1)
+                Text("美食券").tag(1)
             }
             .pickerStyle(SegmentedPickerStyle())
             .padding(.horizontal, 16)
@@ -60,9 +63,9 @@ struct StatsHomeView: View {
                 }
                 .padding()
             } else {
-                // 甜品券列表占位视图
+                // 美食券列表占位视图
                 VStack {
-                    Text("我的甜品券")
+                    Text("我的美食券")
                         .font(.title2)
                         .padding(.bottom, 16)
                     
@@ -100,22 +103,22 @@ struct StatsHomeView: View {
                     }
                     .padding(.horizontal)
                     
-                    // 甜品券列表
+                    // 美食券列表
                     ScrollView {
                         VStack(spacing: 15) {
-                            // 使用获得的甜品券
+                            // 使用获得的美食券
                             ForEach(appState.dessertVouchers, id: \.id) { voucher in
-                                voucherCard(voucher: voucher)
+                                foodVoucherCard(voucher: voucher)
                             }
                             
-                            // 如果没有甜品券，显示示例券
+                            // 如果没有美食券，显示示例券
                             if appState.dessertVouchers.isEmpty {
                                 // 示例券
                                 if let sampleVouchers = DessertVoucherData.getSampleVouchers().first {
-                                    voucherCard(voucher: sampleVouchers)
+                                    foodVoucherCard(voucher: sampleVouchers)
                                 }
                                 
-                                Text("完成更多运动，获得更多甜品券！")
+                                Text("完成更多运动，获得更多美食券！")
                                     .foregroundColor(.gray)
                                     .padding(.top, 30)
                             }
@@ -124,6 +127,9 @@ struct StatsHomeView: View {
                     }
                 }
                 .padding()
+                .sheet(item: $selectedVoucher) { voucher in
+                    VoucherDetailView(voucher: voucher)
+                }
             }
         }
         .background(Color.white.ignoresSafeArea())
@@ -168,12 +174,12 @@ struct StatsHomeView: View {
                 
                 Spacer()
                 
-                // 甜品券
+                // 美食券
                 VStack(alignment: .leading) {
                     Text("\(stats.vouchersEarned)")
                         .font(.title3)
                         .bold()
-                    Text("获得甜品券")
+                    Text("获得美食券")
                         .font(.caption)
                         .foregroundColor(.gray)
                 }
@@ -187,71 +193,97 @@ struct StatsHomeView: View {
         .padding(.horizontal)
     }
     
-    // 甜品券卡片
-    func voucherCard(voucher: DessertRun.DessertVoucher) -> some View {
-        VStack(alignment: .leading) {
-            HStack {
-                // 甜品图片（使用占位图）
+    // 美食券卡片 - 精简版
+    func foodVoucherCard(voucher: DessertRun.DessertVoucher) -> some View {
+        HStack {
+            // 左侧：美食图片
+            ZStack {
                 Circle()
-                    .fill(voucher.dessert.backgroundColor ?? Color.gray)
+                    .fill(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                Color(hex: "FF5E62").opacity(0.8),
+                                Color(hex: "FF9966").opacity(0.9)
+                            ]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
                     .frame(width: 60, height: 60)
-                    .overlay(
+                
+                // 美食图片
+                ZStack {
+                    // 尝试加载美食图片，如果失败则显示系统图标
+                    if !voucher.dessert.imageName.isEmpty {
+                        Image(voucher.dessert.imageName)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 40, height: 40)
+                    } else {
                         Image(systemName: "cup.and.saucer.fill")
                             .font(.system(size: 28))
                             .foregroundColor(.white)
-                    )
-                    .padding(.trailing, 8)
-                
-                // 券信息
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(voucher.dessert.name)
-                        .font(.headline)
-                    
-                    HStack {
-                        Text(voucher.status.rawValue)
-                            .font(.caption)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(statusColor(for: voucher.status))
-                            .foregroundColor(.white)
-                            .cornerRadius(12)
-                        
-                        if voucher.isPartial {
-                            Text("\(Int(voucher.completionPercentage))%完成")
-                                .font(.caption)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color.orange)
-                                .foregroundColor(.white)
-                                .cornerRadius(12)
-                        }
                     }
                     
-                    Text("有效期至: \(formattedDate(voucher.expiryDate))")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                }
-                
-                Spacer()
-                
-                // 使用按钮
-                if voucher.status == .active {
-                    Button(action: {
-                        // 券使用逻辑
-                    }) {
-                        Text("使用")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(Color(hex: "FE2D55"))
-                            .foregroundColor(.white)
-                            .cornerRadius(16)
+                    // 如果是部分完成，添加遮罩效果
+                    if voucher.isPartial {
+                        Circle()
+                            .trim(from: 0, to: 1 - voucher.completionPercentage / 100)
+                            .rotation(.degrees(-90))
+                            .stroke(Color.black.opacity(0.5), lineWidth: 40)
+                            .frame(width: 40, height: 40)
                     }
                 }
             }
-            .padding()
+            
+            // 中间：美食名称和状态
+            VStack(alignment: .leading, spacing: 4) {
+                Text(voucher.dessert.name)
+                    .font(.headline)
+                
+                HStack(spacing: 8) {
+                    if voucher.isPartial {
+                        Text("\(Int(voucher.completionPercentage))%")
+                            .font(.caption)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color(hex: "FF5E62"))
+                            .cornerRadius(4)
+                    }
+                    
+                    Text(voucher.status.rawValue)
+                        .font(.caption)
+                        .foregroundColor(statusColor(for: voucher.status))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(statusColor(for: voucher.status).opacity(0.2))
+                        .cornerRadius(4)
+                    
+                    Text("有效期:\(formattedDate(voucher.expiryDate))")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            Spacer()
+            
+            // 右侧：查看按钮
+            Button(action: {
+                selectedVoucher = voucher
+            }) {
+                Text("查看")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color(hex: "FF5E62"))
+                    .cornerRadius(12)
+            }
         }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 16)
         .background(Color.white)
         .cornerRadius(16)
         .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
@@ -273,16 +305,16 @@ struct StatsHomeView: View {
         case .active:
             return Color.green
         case .used:
-            return Color.blue
-        case .expired:
             return Color.gray
+        case .expired:
+            return Color.red
         }
     }
     
     // 格式化日期
     private func formattedDate(_ date: Date) -> String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.dateFormat = "MM-dd"
         return formatter.string(from: date)
     }
 }

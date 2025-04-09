@@ -8,19 +8,19 @@
 import Foundation
 import SwiftUI
 
-/// 甜品券状态
+/// 美食券状态
 enum VoucherStatus: String, Codable {
     case active = "有效"   // 有效
     case used = "已使用"   // 已使用
     case expired = "已过期" // 已过期
 }
 
-/// 甜品券
+/// 美食券
 struct DessertVoucher: Identifiable, Codable {
     /// 唯一标识
     let id: UUID
     
-    /// 相关甜品
+    /// 相关美食
     let dessert: DessertItem
     
     /// 获得日期
@@ -85,9 +85,9 @@ struct DessertVoucher: Identifiable, Codable {
     }
 }
 
-/// 甜品券样例数据
+/// 美食券样例数据
 struct DessertVoucherData {
-    /// 获取示例甜品券
+    /// 获取示例美食券
     static func getSampleVouchers() -> [DessertVoucher] {
         let desserts = DessertData.getSampleDesserts()
         

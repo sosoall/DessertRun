@@ -111,14 +111,18 @@ class AppState: ObservableObject {
             // 更新运动模式状态
             self.isInWorkoutMode = false
             
+            // 清除所有运动相关状态
+            self.selectedDessert = nil
+            self.selectedExerciseType = nil
+            
             // 切换到统计标签页
             self.selectedTabIndex = 1
             
             // 标记需要重置导航
             self.shouldResetNavigation = true
             
-            // 重置其他状态数据
-            self.resetWorkoutStateWithoutNotifying()
+            print("【调试】状态已完全重置：selectedDessert=nil, selectedExerciseType=nil, isInWorkoutMode=false")
+            print("【调试】已切换到统计页面(index=1)，并触发导航重置")
             
             // 延迟清除导航重置标志
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in

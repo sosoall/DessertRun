@@ -94,16 +94,13 @@ struct CustomTabBar: View {
                     }
                 }
             }
-            .frame(height: 49)
-            .padding(.bottom, hasHomeIndicator ? 16 : 0) // 添加底部安全距离，仅在有Home指示条的设备上
+            .frame(height: 49) // 恢复原来的高度
+            .padding(.bottom, 12) // 减少固定底部间距
             .background(Color.white)
             
-            // 安全区域填充
-            Rectangle()
-                .fill(Color.white)
-                .frame(height: bottomSafeAreaPadding)
-                .edgesIgnoringSafeArea(.bottom)
+            // 不再使用单独的Rectangle填充安全区域，直接给整个TabBar添加底部安全区域填充
         }
+        .padding(.bottom, safeAreaBottom + 5) // 减少额外填充
         .background(Color.white)
         .offset(y: tabBarOffset)
         .animation(.easeInOut(duration: 0.3), value: isHidden)
@@ -166,10 +163,8 @@ struct CustomTabViewContainer<Content: View>: View {
         if appState.shouldHideTabBar {
             return 0
         } else {
-            // 使用固定值计算，避免复杂计算可能导致的错误
-            let hasHomeIndicator = safeAreaBottom > 0
-            let homePadding: CGFloat = hasHomeIndicator ? 16 : 0
-            return CGFloat(49) + max(0, safeAreaBottom) + homePadding
+            // 减少内容区域底部间距
+            return 62 + safeAreaBottom // 固定值：TabBar高度 + 安全区域
         }
     }
     

@@ -24,13 +24,20 @@ struct WorkoutCompleteView: View {
     /// 内容显示标记
     @State private var showContent = false
     
-    /// 生成的甜品券
+    /// 生成的美食券
     @State private var dessertVoucher: DessertRun.DessertVoucher?
     
-    /// 展示甜品券详情
+    /// 展示美食券详情
     @State private var showVoucherDetails = false
     
-    /// 返回选择甜品界面
+    /// 美食券动画状态
+    @State private var voucherScale: CGFloat = 0.6
+    @State private var voucherOpacity: Double = 0
+    
+    /// 滚动偏移量监控
+    @State private var scrollOffset: CGFloat = 0
+    
+    /// 返回选择美食界面
     @Environment(\.dismiss) private var dismiss
     
     /// 显示运动记录页面
@@ -46,6 +53,12 @@ struct WorkoutCompleteView: View {
     @State private var bubbleTeaVisible = true
     @State private var bubbleTeaOffset: CGFloat = 0
     
+    /// 添加状态变量，用于控制核销状态
+    @State private var voucherRedeemed = false
+    @State private var tearProgress: CGFloat = 0
+    @State private var showRedeemAlert = false
+    @State private var tornBottomPart = false
+    
     var body: some View {
         ZStack {
             // 背景
@@ -53,6 +66,15 @@ struct WorkoutCompleteView: View {
             
             // 内容
             ScrollView(showsIndicators: false) {
+                // 跟踪滚动偏移量
+                GeometryReader { geometry in
+                    Color.clear.preference(
+                        key: ScrollOffsetPreferenceKey.self,
+                        value: geometry.frame(in: .named("scrollView")).minY
+                    )
+                }
+                .frame(height: 0)
+                
                 VStack(spacing: 20) {
                     // 彩带动画
                     if showConfetti {
@@ -143,29 +165,49 @@ struct WorkoutCompleteView: View {
                                 .transition(.opacity)
                                 .padding(.top, 20) // 增加顶部边距
                             
-                            // 甜品券区域
+                            // 美食券区域
                             if let voucher = dessertVoucher {
-                                voucherCard(voucher: voucher)
-                                    .padding(.horizontal)
-                                    .onTapGesture {
-                                        showVoucherDetails = true
-                                    }
-                                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                                // 美食券容器
+                                VStack(spacing: 0) {
+                                    // 美食券本体
+                                    FoodVoucherView(voucher: voucher)
+                                        .scaleEffect(voucherScale)
+                                        .opacity(voucherOpacity)
+                                        .onAppear {
+                                            // 添加展开动效
+                                            withAnimation(.spring(response: 0.6, dampingFraction: 0.7)) {
+                                                voucherScale = 1.0
+                                                voucherOpacity = 1.0
+                                            }
+                                        }
+                                        .onTapGesture {
+                                            showVoucherDetails = true
+                                        }
+                                }
+                                .padding(.horizontal, 16)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
                             }
                             
                             // 运动数据摘要
                             workoutSummary
                                 .transition(.move(edge: .bottom).combined(with: .opacity))
+                                .padding(.top, 20)
                             
                             // 按钮区域
                             buttonsSection
                                 .transition(.move(edge: .bottom).combined(with: .opacity))
+                                .padding(.top, 20)
                         }
                     }
                 }
                 .padding(.vertical, 10)
             }
+            .coordinateSpace(name: "scrollView")
             .background(Color.white)
+            .safeAreaInset(edge: .top) { Color.clear.frame(height: 40) }
+            .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
+                scrollOffset = value
+            }
             .edgesIgnoringSafeArea(.top)
             // iOS 17兼容的方式 - 使用scrollBounceBehavior
             .scrollBounceBehavior(.basedOnSize)
@@ -187,12 +229,16 @@ struct WorkoutCompleteView: View {
             print("【调试】WorkoutSession状态: \(workoutSession.state), ID: \(workoutSession.id)")
             print("【调试】AppState: isInWorkoutMode=\(appState.isInWorkoutMode), 标签页=\(appState.selectedTabIndex)")
             
+            // 初始化美食券动画状态
+            voucherScale = 0.6
+            voucherOpacity = 0
+            
             // 优化：缩短动画执行时间，2秒后切换到完成状态
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                 withAnimation(.spring(response: 0.6, dampingFraction: 0.6)) {
                     animationComplete = true
                     
-                    // 生成甜品券
+                    // 生成美食券
                     generateDessertVoucher()
                 }
             }
@@ -214,7 +260,7 @@ struct WorkoutCompleteView: View {
             print("【调试】WorkoutCompleteView.onDisappear完成 - 状态由finishWorkout()管理")
         }
         .sheet(isPresented: $showVoucherDetails) {
-            // 甜品券详情页
+            // 美食券详情页
             if let voucher = dessertVoucher {
                 VoucherDetailView(voucher: voucher)
             }
@@ -237,18 +283,18 @@ struct WorkoutCompleteView: View {
                 .foregroundColor(Color(hex: "61462C"))
                 .multilineTextAlignment(.center)
             
-            Text("你已成功消耗\(Int(workoutSession.burnedCalories))卡路里")
+            Text("运动奖励到账")
                 .font(.headline)
                 .foregroundColor(Color(hex: "61462C").opacity(0.8))
                 .multilineTextAlignment(.center)
             
             if workoutSession.completionPercentage >= 100 {
-                Text("获得了完整的甜品券!")
+                Text("美食券已为你准备好")
                     .font(.headline)
                     .foregroundColor(Color(hex: "FE2D55"))
                     .padding(.top, 5)
             } else {
-                Text("获得了\(Int(workoutSession.completionPercentage))%的甜品券!")
+                Text("获得\(Int(workoutSession.completionPercentage))%运动进度")
                     .font(.headline)
                     .foregroundColor(Color(hex: "FE2D55"))
                     .padding(.top, 5)
@@ -492,6 +538,9 @@ struct WorkoutCompleteView: View {
             
             // 完成运动按钮
             Button(action: {
+                // 简化状态管理流程，使用单一方法重置所有状态
+                print("【调试】WorkoutCompleteView - 点击完成按钮")
+                
                 // 先确保运动会话标记为已完成
                 if !workoutSession.isCompleted {
                     workoutSession.completeWorkout()
@@ -500,13 +549,10 @@ struct WorkoutCompleteView: View {
                 // 先关闭当前视图
                 dismiss()
                 
-                // 缓冲回到甜品选择页面前，先做一个延迟
+                // 使用单一的回调，在关闭视图后执行状态重置
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    // 使用优化后的单一方法重置所有状态
+                    // 使用统一方法重置所有状态，包括导航和运动数据
                     appState.finishWorkout()
-                    
-                    // 切换到统计tab
-                    appState.selectedTabIndex = 1 // 假设1是统计tab的索引
                 }
             }) {
                 HStack {
@@ -551,9 +597,9 @@ struct WorkoutCompleteView: View {
         .frame(maxWidth: .infinity)
     }
     
-    /// 生成甜品券
+    /// 生成美食券
     private func generateDessertVoucher() {
-        // 生成甜品券 - 使用正确的参数
+        // 生成美食券 - 使用正确的参数
         dessertVoucher = DessertVoucher(
             dessert: workoutSession.targetDessert,
             completionPercentage: min(workoutSession.completionPercentage, 100),
@@ -561,107 +607,220 @@ struct WorkoutCompleteView: View {
         )
     }
     
-    /// 甜品券卡片
-    private func voucherCard(voucher: DessertRun.DessertVoucher) -> some View {
-        ZStack {
-            // 卡片背景
-            RoundedRectangle(cornerRadius: 20)
-                .fill(
-                    LinearGradient(
-                        gradient: Gradient(colors: [
-                            Color(hex: "FE2D55").opacity(0.8),
-                            Color(hex: "FF9901").opacity(0.9)
-                        ]),
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .frame(height: 200)
-                .shadow(color: Color.black.opacity(0.2), radius: 15)
-            
-            // 虚线边框
-            RoundedRectangle(cornerRadius: 18)
-                .stroke(style: StrokeStyle(lineWidth: 2, dash: [6, 3]))
-                .foregroundColor(.white.opacity(0.7))
-                .padding(4)
-            
-            // 内容
-            HStack {
-                // 左侧:甜品信息
-                VStack(alignment: .leading) {
-                    Text("甜品券")
-                        .font(.title3)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                    
-                    Text(voucher.dessert.name)
-                        .font(.title)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                        .padding(.bottom, 4)
-                    
-                    if voucher.isPartial {
-                        Text("部分完成: \(Int(voucher.completionPercentage))%")
-                            .font(.subheadline)
-                            .foregroundColor(.white)
-                            .padding(.vertical, 4)
-                            .padding(.horizontal, 8)
-                            .background(Color.white.opacity(0.3))
-                            .cornerRadius(10)
-                    } else {
-                        Text("完整甜品券")
-                            .font(.subheadline)
-                            .foregroundColor(.white)
-                            .padding(.vertical, 4)
-                            .padding(.horizontal, 8)
-                            .background(Color.white.opacity(0.3))
-                            .cornerRadius(10)
-                    }
-                    
-                    Spacer()
-                    
-                    // 有效期
-                    Text("有效期至: \(formattedDate(voucher.expiryDate))")
-                        .font(.caption)
-                        .foregroundColor(.white.opacity(0.9))
-                }
-                .padding()
-                
-                Spacer()
-                
-                // 右侧:甜品图片
+    /// 美食券视图
+    private func FoodVoucherView(voucher: DessertRun.DessertVoucher) -> some View {
+        ZStack(alignment: .top) {
+            // 主券（始终存在）
+            VStack(spacing: 0) {
                 ZStack {
-                    Circle()
-                        .fill(Color.white.opacity(0.4))
-                        .frame(width: 100, height: 100)
+                    // 背景带撕券效果
+                    TearableVoucherBackground(isRedeemed: $voucherRedeemed, tearProgress: $tearProgress)
                     
-                    Image(systemName: "cup.and.saucer.fill")
-                        .resizable()
-                        .scaledToFit()
-                        .foregroundColor(.white)
-                        .frame(width: 60, height: 60)
+                    // 主券内容
+                    VStack(spacing: 5) {
+                        // 顶部标题和有效期
+                        HStack {
+                            // 星级显示 - 基于完成百分比
+                            HStack(spacing: 4) {
+                                let starCount = Int(ceil(voucher.completionPercentage / 20)) // 每20%一颗星
+                                ForEach(0..<5) { index in
+                                    Image(systemName: index < starCount ? "star.fill" : "star")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.white)
+                                }
+                            }
+                            
+                            Spacer()
+                            
+                            // 有效期
+                            Text("有效期至: \(formatDate(voucher.expiryDate))")
+                                .font(.system(size: 12))
+                                .foregroundColor(.white)
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 20)
+                        
+                        // 甜品图片和名称
+                        HStack(alignment: .center) {
+                            // 甜品图片
+                            if !voucher.dessert.imageName.isEmpty {
+                                Image(voucher.dessert.imageName)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 80, height: 80)
+                                    .clipShape(Circle())
+                                    .overlay(
+                                        Circle()
+                                            .stroke(Color.white.opacity(0.5), lineWidth: 2)
+                                    )
+                                    .padding(.leading, 20)
+                            } else {
+                                // 默认图标
+                                Image(systemName: "cup.and.saucer.fill")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 60, height: 60)
+                                    .padding(.leading, 20)
+                                    .foregroundColor(.white)
+                            }
+                            
+                            Spacer()
+                            
+                            // 甜品名称和描述
+                            VStack(alignment: .trailing, spacing: 5) {
+                                Text(voucher.dessert.name)
+                                    .font(.system(size: 24, weight: .bold))
+                                    .foregroundColor(.white)
+                                
+                                Text("\(voucher.dessert.calories) 卡")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(.white.opacity(0.8))
+                            }
+                            .padding(.trailing, 20)
+                        }
+                        .padding(.vertical, 10)
+                        
+                        // 完成度显示
+                        if voucher.completionPercentage < 100 {
+                            Text("完成度: \(Int(voucher.completionPercentage))%")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.white)
+                                .padding(.vertical, 5)
+                        }
+                        
+                        // 装饰元素 - 小圆点
+                        HStack {
+                            // 左侧装饰小圆点
+                            VStack(spacing: 15) {
+                                ForEach(0..<3) { _ in
+                                    Circle()
+                                        .fill(Color.white.opacity(0.2))
+                                        .frame(width: 5, height: 5)
+                                }
+                            }
+                            .padding(.leading, 10)
+                            
+                            Spacer()
+                            
+                            // 右侧装饰小圆点
+                            VStack(spacing: 15) {
+                                ForEach(0..<3) { _ in
+                                    Circle()
+                                        .fill(Color.white.opacity(0.2))
+                                        .frame(width: 5, height: 5)
+                                }
+                            }
+                            .padding(.trailing, 10)
+                        }
+                        
+                        // 使用细则
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("使用细则：")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.white)
+                                .padding(.top, 5)
+                            
+                            Text("(1) 本奶茶券为\(voucher.dessert.name)运动所得，请注意，只能享用\(Int(voucher.completionPercentage))%杯奶茶，不可贪杯哦～～")
+                                .font(.system(size: 10))
+                                .foregroundColor(.white.opacity(0.9))
+                                .lineLimit(2)
+                            
+                            Text("(2) 本券可兑换一杯珍珠奶茶，当然了也可以加些波霸、芝士之类的。")
+                                .font(.system(size: 10))
+                                .foregroundColor(.white.opacity(0.9))
+                                .lineLimit(2)
+                            
+                            Text("(3) 有效期\(voucher.remainingDays)天，运动不易，请及时兑换。")
+                                .font(.system(size: 10))
+                                .foregroundColor(.white.opacity(0.9))
+                                .lineLimit(1)
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 5)
+                        
+                        Spacer()
+                    }
+                    .frame(height: 220)
+                    
+                    // 白色遮罩 - 根据完成百分比遮盖部分券面
+                    if voucher.completionPercentage < 100 {
+                        GeometryReader { geo in
+                            Rectangle()
+                                .fill(Color.white.opacity(0.5))
+                                .frame(width: geo.size.width, height: geo.size.height * (1 - voucher.completionPercentage / 100))
+                                .allowsHitTesting(false)
+                        }
+                        .frame(height: 220)
+                        .allowsHitTesting(false)
+                    }
                 }
-                .padding(.trailing, 20)
+                
+                // 虚线分隔线
+                HStack(spacing: 0) {
+                    ForEach(0..<15) { _ in
+                        Rectangle()
+                            .fill(Color.white)
+                            .frame(width: 4, height: 1) // 更细的虚线
+                            .padding(.horizontal, 3)
+                    }
+                }
+                .padding(.vertical, 10)
+                .background(Color.clear)
+                
+                // 只有在未撕下状态或撕下过程中才显示空白
+                if tearProgress < 1.0 {
+                    // 底部间隙
+                    Spacer()
+                        .frame(height: 35)
+                }
+            }
+            .frame(width: 300, height: 320)
+            
+            // 副券（撕下的部分）- 仅当未被撕下或正在撕下时显示
+            if tearProgress < 1.0 {
+                TornVoucherPartView(
+                    voucher: voucher,
+                    redeemed: voucherRedeemed,
+                    tearProgress: tearProgress,
+                    showRedeemAlert: $showRedeemAlert
+                )
+                .offset(y: 265 + (tearProgress * 50)) // 随着撕下过程下移，但不要太远
+                .opacity(1.0 - (tearProgress * 0.5)) // 随着撕下过程稍微变透明
             }
             
-            // 水印
-            Text("DessertRun")
-                .font(.system(size: 60, weight: .bold, design: .rounded))
-                .foregroundColor(.white.opacity(0.1))
-                .rotationEffect(Angle(degrees: -20))
-                .offset(y: 20)
+            // 如果副券已撕下，显示黑白效果的撕下部分
+            if tornBottomPart {
+                TornBottomPartView(voucher: voucher)
+                    .offset(y: 265 + 30) // 调整位置，仍然可见，只是稍微下移
+                    .rotationEffect(.degrees(8)) // 轻微旋转
+            }
+        }
+        .alert("确认核销", isPresented: $showRedeemAlert) {
+            Button("取消", role: .cancel) { }
+            Button("确认", role: .destructive) {
+                // 开始撕券动画
+                withAnimation(.easeInOut(duration: 0.5)) {
+                    tearProgress = 1.0
+                    tornBottomPart = true // 显示撕下的部分
+                }
+                
+                // 标记为已使用
+                voucherRedeemed = true
+            }
+        } message: {
+            Text("确定要核销这张美食券吗？核销后无法恢复。")
         }
     }
     
-    /// 格式化日期
-    private func formattedDate(_ date: Date) -> String {
+    // 日期格式化辅助方法
+    private func formatDate(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter.string(from: date)
     }
 }
 
-/// 甜品券详情页
+/// 美食券详情页
 struct VoucherDetailView: View {
     let voucher: DessertRun.DessertVoucher
     
@@ -683,7 +842,7 @@ struct VoucherDetailView: View {
                 .padding()
             }
             .background(Color.white.ignoresSafeArea())
-            .navigationTitle("甜品券详情")
+            .navigationTitle("美食券详情")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -699,7 +858,7 @@ struct VoucherDetailView: View {
     /// 券详情卡片
     private var voucherDetailCard: some View {
         VStack(spacing: 15) {
-            // 甜品图片
+            // 美食图片
             ZStack {
                 Circle()
                     .fill(voucher.dessert.backgroundColor ?? Color.gray)
@@ -713,7 +872,7 @@ struct VoucherDetailView: View {
             }
             .padding(.top)
             
-            // 甜品名称
+            // 美食名称
             Text(voucher.dessert.name)
                 .font(.title)
                 .fontWeight(.bold)
@@ -816,15 +975,15 @@ struct VoucherDetailView: View {
                 .fontWeight(.bold)
             
             VStack(alignment: .leading, spacing: 10) {
-                instructionRow(number: "1", text: "到店出示此甜品券")
+                instructionRow(number: "1", text: "到店出示此美食券")
                 instructionRow(number: "2", text: "店员扫描二维码或输入券码核销")
-                instructionRow(number: "3", text: "立即享用美味甜品")
+                instructionRow(number: "3", text: "立即享用美味美食")
                 if voucher.isPartial {
-                    instructionRow(number: "4", text: "部分券仅可兑换\(Int(voucher.completionPercentage))%的甜品份量")
+                    instructionRow(number: "4", text: "部分券仅可兑换\(Int(voucher.completionPercentage))%的美食份量")
                 }
             }
             
-            Text("注意：甜品券有效期为30天，过期后将无法使用")
+            Text("注意：美食券有效期为30天，过期后将无法使用")
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .padding(.top, 5)
@@ -858,7 +1017,7 @@ struct VoucherDetailView: View {
             Button(action: {}) {
                 HStack {
                     Image(systemName: "square.and.arrow.up")
-                    Text("分享甜品券")
+                    Text("分享美食券")
                 }
                 .font(.headline)
                 .foregroundColor(Color(hex: "61462C"))
@@ -1023,6 +1182,269 @@ struct ConfettiPiece: View {
                 confetti.rotation += Double.random(in: 180...360)
             }
         }
+    }
+}
+
+// 滚动偏移量首选项键
+struct ScrollOffsetPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+// 新的美食券背景，带锯齿边缘和撕下效果
+struct TearableVoucherBackground: View {
+    @Binding var isRedeemed: Bool
+    @Binding var tearProgress: CGFloat
+    
+    var body: some View {
+        ZStack {
+            // 主券部分（含圆角背景和撕下效果）
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color(hex: "FF416C"),
+                    Color(hex: "FF4B2B")
+                ]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .clipShape(TearableVoucherShape(tearProgress: tearProgress))
+        }
+    }
+}
+
+// 可撕式美食券形状
+struct TearableVoucherShape: Shape {
+    var tearProgress: CGFloat = 0.0
+    var animatableData: CGFloat {
+        get { tearProgress }
+        set { tearProgress = newValue }
+    }
+    
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        
+        // 基础矩形，带圆角
+        let cornerRadius: CGFloat = 16
+        
+        // 分割点，表示撕裂线的位置
+        let tearPoint: CGFloat = rect.height * 0.7
+        
+        // 绘制上半部分（始终完整）
+        path.addRoundedRect(
+            in: CGRect(x: 0, y: 0, width: rect.width, height: tearPoint),
+            cornerSize: CGSize(width: cornerRadius, height: cornerRadius),
+            corners: [.topLeft, .topRight]
+        )
+        
+        // 如果未撕下，绘制下半部分
+        if tearProgress < 1.0 {
+            // 根据撕裂进度计算下半部分的位置
+            let bottomHeight = rect.height - tearPoint
+            let visibleHeight = bottomHeight * (1.0 - tearProgress)
+            
+            var bottomPath = Path()
+            bottomPath.addRoundedRect(
+                in: CGRect(x: 0, y: tearPoint, width: rect.width, height: visibleHeight),
+                cornerSize: CGSize(width: cornerRadius, height: cornerRadius),
+                corners: [.bottomLeft, .bottomRight]
+            )
+            
+            // 如果正在撕裂，添加锯齿效果
+            if tearProgress > 0 {
+                // 锯齿线
+                var jaggedPath = Path()
+                let segmentWidth = rect.width / 20
+                var currentX: CGFloat = 0
+                
+                jaggedPath.move(to: CGPoint(x: 0, y: tearPoint))
+                
+                while currentX < rect.width {
+                    let randomOffset = CGFloat.random(in: -2...2) * tearProgress
+                    let nextX = min(currentX + segmentWidth, rect.width)
+                    
+                    jaggedPath.addQuadCurve(
+                        to: CGPoint(x: nextX, y: tearPoint + randomOffset),
+                        control: CGPoint(x: currentX + segmentWidth/2, y: tearPoint + randomOffset * 2)
+                    )
+                    
+                    currentX = nextX
+                }
+                
+                // 完成锯齿路径
+                jaggedPath.addLine(to: CGPoint(x: rect.width, y: tearPoint + visibleHeight))
+                jaggedPath.addLine(to: CGPoint(x: 0, y: tearPoint + visibleHeight))
+                jaggedPath.closeSubpath()
+                
+                // 使用锯齿路径替代平滑边缘
+                path.addPath(jaggedPath)
+            } else {
+                // 无锯齿效果，使用平滑边缘
+                path.addPath(bottomPath)
+            }
+        }
+        
+        return path
+    }
+}
+
+// 路径扩展，用于添加部分圆角
+extension Path {
+    mutating func addRoundedRect(in rect: CGRect, cornerSize: CGSize, corners: UIRectCorner) {
+        let path = UIBezierPath(
+            roundedRect: rect,
+            byRoundingCorners: corners,
+            cornerRadii: cornerSize
+        )
+        self.addPath(Path(path.cgPath))
+    }
+}
+
+// 被撕下副券的视图（可点击核销）
+struct TornVoucherPartView: View {
+    var voucher: DessertVoucher
+    var redeemed: Bool
+    var tearProgress: CGFloat
+    @Binding var showRedeemAlert: Bool
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // 核销按钮和有效期
+            HStack {
+                // 剩余天数
+                let daysRemaining = voucher.remainingDays
+                Text("剩余 \(daysRemaining) 天")
+                    .font(.system(size: 12))
+                    .foregroundColor(.white)
+                    .padding(.leading, 20)
+                
+                Spacer()
+                
+                // 核销按钮
+                Button(action: {
+                    showRedeemAlert = true
+                }) {
+                    Text("立即核销")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.vertical, 5)
+                        .padding(.horizontal, 12)
+                        .background(Color.white.opacity(0.3))
+                        .cornerRadius(16)
+                }
+                .padding(.trailing, 20)
+                .disabled(redeemed) // 已核销时禁用
+            }
+            .padding(.vertical, 10)
+        }
+        .frame(width: 300, height: 60)
+        .background(
+            // 红色渐变背景
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color(hex: "FF416C"),
+                    Color(hex: "FF4B2B")
+                ]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+        )
+    }
+}
+
+// 被撕下的副券黑白效果
+struct TornBottomPartView: View {
+    var voucher: DessertVoucher
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // 核销按钮和有效期
+            HStack {
+                // 剩余天数
+                let daysRemaining = voucher.remainingDays
+                Text("剩余 \(daysRemaining) 天")
+                    .font(.system(size: 12))
+                    .foregroundColor(.white)
+                    .padding(.leading, 20)
+                
+                Spacer()
+                
+                // 已核销标记
+                Text("已核销")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white)
+                    .padding(.vertical, 5)
+                    .padding(.horizontal, 12)
+                    .background(Color.white.opacity(0.3))
+                    .cornerRadius(16)
+                    .padding(.trailing, 20)
+            }
+            .padding(.vertical, 10)
+        }
+        .frame(width: 300, height: 60)
+        .background(
+            // 红色渐变背景
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color(hex: "FF416C"),
+                    Color(hex: "FF4B2B")
+                ]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .clipShape(TornBottomShape())
+        )
+        .colorMultiply(.gray) // 应用黑白效果
+        .shadow(color: Color.black.opacity(0.2), radius: 5, x: 0, y: 3)
+    }
+}
+
+// 撕下部分的形状（带锯齿边缘）
+struct TornBottomShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        
+        // 锯齿边缘在顶部
+        let segmentWidth = rect.width / 20
+        var currentX: CGFloat = 0
+        var topPoints: [CGPoint] = []
+        
+        // 生成锯齿顶部点
+        while currentX < rect.width {
+            let randomOffset = CGFloat.random(in: -2...2)
+            let nextX = min(currentX + segmentWidth, rect.width)
+            
+            topPoints.append(CGPoint(x: nextX, y: randomOffset))
+            currentX = nextX
+        }
+        
+        // 起始点
+        path.move(to: CGPoint(x: 0, y: 0))
+        
+        // 绘制顶部锯齿边缘
+        for (index, point) in topPoints.enumerated() {
+            if index == 0 { continue }
+            
+            let previousPoint = topPoints[index - 1]
+            let controlPoint = CGPoint(
+                x: (previousPoint.x + point.x) / 2,
+                y: CGFloat.random(in: -3...3)
+            )
+            
+            path.addQuadCurve(
+                to: point,
+                control: controlPoint
+            )
+        }
+        
+        // 完成矩形其余部分
+        path.addLine(to: CGPoint(x: rect.width, y: rect.height))
+        path.addLine(to: CGPoint(x: 0, y: rect.height))
+        path.closeSubpath()
+        
+        return path
     }
 }
 
