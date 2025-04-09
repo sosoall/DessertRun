@@ -183,6 +183,10 @@ struct WorkoutCompleteView: View {
             }
         }
         .onAppear {
+            print("【调试】WorkoutCompleteView.onAppear - 初始化完成页面")
+            print("【调试】WorkoutSession状态: \(workoutSession.state), ID: \(workoutSession.id)")
+            print("【调试】AppState: isInWorkoutMode=\(appState.isInWorkoutMode), 标签页=\(appState.selectedTabIndex)")
+            
             // 优化：缩短动画执行时间，2秒后切换到完成状态
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                 withAnimation(.spring(response: 0.6, dampingFraction: 0.6)) {
@@ -201,8 +205,13 @@ struct WorkoutCompleteView: View {
             }
         }
         .onDisappear {
-            // 退出运动模式，恢复TabBar显示
-            appState.isInWorkoutMode = false
+            print("【调试】WorkoutCompleteView.onDisappear")
+            print("【调试】WorkoutSession状态: \(workoutSession.state), isCompleted: \(workoutSession.isCompleted)")
+            print("【调试】AppState: isInWorkoutMode=\(appState.isInWorkoutMode), 标签页=\(appState.selectedTabIndex)")
+            
+            // 不再设置isInWorkoutMode，完全由finishWorkout()管理
+            // 避免与finishWorkout()中的状态设置冲突
+            print("【调试】WorkoutCompleteView.onDisappear完成 - 状态由finishWorkout()管理")
         }
         .sheet(isPresented: $showVoucherDetails) {
             // 甜品券详情页
@@ -466,8 +475,28 @@ struct WorkoutCompleteView: View {
             
             // 完成运动按钮
             Button(action: {
-                // 返回到运动主页
+                print("【调试】WorkoutCompleteView - 点击完成运动按钮")
+                print("【调试】当前WorkoutSession状态: \(workoutSession.state), isCompleted: \(workoutSession.isCompleted)")
+                print("【调试】isInWorkoutMode: \(appState.isInWorkoutMode)")
+                
+                // 先确保运动会话标记为已完成
+                if !workoutSession.isCompleted {
+                    print("【调试】WorkoutSession还未标记为已完成，正在标记...")
+                    workoutSession.completeWorkout()
+                }
+                
+                // 先关闭当前视图
                 dismiss()
+                
+                // 缓冲回到甜品选择页面前，先做一个延迟
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    print("【调试】开始重置应用状态...")
+                    
+                    // 使用优化后的单一方法重置所有状态
+                    appState.finishWorkout()
+                    
+                    print("【调试】应用状态重置流程已启动")
+                }
             }) {
                 HStack {
                     Image(systemName: "checkmark.circle")
@@ -486,6 +515,35 @@ struct WorkoutCompleteView: View {
                 )
             }
             .padding(.horizontal)
+            
+            // 紧急状态重置按钮（仅开发测试使用）
+            Button(action: {
+                print("【调试】紧急重置按钮点击")
+                
+                // 调用AppState强制重置方法
+                appState.forceResetAllStates()
+                
+                // 关闭当前视图
+                dismiss()
+            }) {
+                HStack {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.caption)
+                    
+                    Text("紧急重置")
+                        .font(.caption)
+                }
+                .foregroundColor(.red)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 12)
+                .background(Color.white)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.red, lineWidth: 1)
+                )
+            }
+            .padding(.horizontal)
+            .padding(.top, -10)
         }
     }
     

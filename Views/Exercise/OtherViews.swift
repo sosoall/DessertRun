@@ -283,13 +283,27 @@ struct PauseMenuView: View {
                 title: Text(confirmationTitle),
                 message: Text(confirmationMessage),
                 primaryButton: .destructive(Text("确认")) {
+                    print("【调试】PauseMenuView - 确认停止运动")
+                    print("【调试】当前WorkoutSession状态: \(workoutSession.state), isCompleted: \(workoutSession.isCompleted)")
+                    
                     // 确认停止运动，完成运动会话并回调
                     workoutSession.completeWorkout()
                     showPauseMenu = false
                     
                     // 使用回调通知WorkoutView跳转到完成页面
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        onComplete?()
+                        print("【调试】PauseMenuView - 开始重置状态")
+                        
+                        // 如果有回调，执行回调（用于导航到完成页面）
+                        if let complete = onComplete {
+                            print("【调试】PauseMenuView - 执行回调")
+                            complete()
+                        } else {
+                            print("【调试】PauseMenuView - 无回调可执行")
+                            
+                            // 如果没有回调，直接调用应用状态重置
+                            appState.finishWorkout()
+                        }
                     }
                 },
                 secondaryButton: .cancel(Text("取消")) {

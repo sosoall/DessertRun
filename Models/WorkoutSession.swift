@@ -10,11 +10,9 @@ import Combine
 
 /// 运动状态枚举
 enum WorkoutState {
-    case notStarted    // 未开始
-    case active        // 进行中
-    case paused        // 已暂停
-    case completed     // 已完成
-    case abandoned     // 已放弃
+    case inactive   // 不活跃状态(包含未开始和已完成)
+    case active     // 进行中
+    case paused     // 已暂停
 }
 
 /// 运动会话
@@ -34,7 +32,10 @@ class WorkoutSession: ObservableObject {
     let targetCalories: Double
     
     /// 当前状态
-    @Published var state: WorkoutState = .notStarted
+    @Published var state: WorkoutState = .inactive
+    
+    /// 是否已完成
+    @Published var isCompleted: Bool = false
     
     // MARK: - 运动数据
     
@@ -118,7 +119,7 @@ class WorkoutSession: ObservableObject {
     
     /// 开始会话
     func start() {
-        guard state == .notStarted else { return }
+        guard state == .inactive else { return }
         
         startTime = Date()
         state = .active
@@ -145,8 +146,48 @@ class WorkoutSession: ObservableObject {
     }
     
     /// 完成会话
+    func completeWorkout() {
+        print("【调试】WorkoutSession.completeWorkout() 被调用")
+        print("【调试】当前状态: \(state), 燃烧卡路里: \(burnedCalories)/\(targetCalories)")
+        
+        // 设置状态为不活跃并标记为已完成
+        state = .inactive
+        isCompleted = true
+        
+        // 停止计时器
+        timer?.invalidate()
+        timer = nil
+        
+        // 调用complete方法生成甜品券
+        complete()
+        
+        print("【调试】WorkoutSession完成状态: state=\(state), isCompleted=\(isCompleted)")
+    }
+    
+    /// 重置会话
+    func resetWorkout() {
+        print("【调试】WorkoutSession.resetWorkout() 被调用")
+        
+        // 重置状态为不活跃
+        state = .inactive
+        isCompleted = false
+        
+        // 停止计时器
+        timer?.invalidate()
+        timer = nil
+        
+        // 重置数据
+        burnedCalories = 0
+        totalElapsedSeconds = 0
+        distanceInMeters = 0
+        currentSpeed = 0
+        
+        print("【调试】WorkoutSession已重置")
+    }
+    
+    /// 完成会话并生成甜品券
     func complete() {
-        state = .completed
+        print("【调试】WorkoutSession.complete() 被调用")
         
         // 创建甜品券，使用完全限定类型名称解决歧义
         let voucher = DessertRun.DessertVoucher(
@@ -154,15 +195,17 @@ class WorkoutSession: ObservableObject {
             completionPercentage: completionPercentage,
             workoutSessionId: id
         )
-        AppState.shared.dessertVouchers.append(voucher)
+        
+        // 如果没有已存在的相同ID的券，才添加新的
+        if !AppState.shared.dessertVouchers.contains(where: { $0.workoutSessionId == id }) {
+            print("【调试】添加新的甜品券: \(voucher.dessert.name), \(Int(voucher.completionPercentage))%完成")
+            AppState.shared.dessertVouchers.append(voucher)
+        } else {
+            print("【调试】甜品券已存在，跳过添加")
+        }
     }
     
-    /// 放弃会话
-    func abandon() {
-        state = .abandoned
-    }
-    
-    // MARK: - 数据更新
+    /// 数据更新
     
     /// 更新时间和卡路里
     func updateTimeAndCalories() {
@@ -197,11 +240,6 @@ class WorkoutSession: ObservableObject {
         resume()
     }
     
-    /// 完成运动 - 视图层调用简化包装
-    func completeWorkout() {
-        complete()
-    }
-    
     /// 开始运动 - 视图层调用简化包装
     func startWorkout() {
         start()
@@ -215,10 +253,5 @@ class WorkoutSession: ObservableObject {
     /// 判断运动是否处于活动状态
     var isActive: Bool {
         return state == .active
-    }
-    
-    /// 判断运动是否已完成
-    var isCompleted: Bool {
-        return state == .completed
     }
 } 

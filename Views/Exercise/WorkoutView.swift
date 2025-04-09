@@ -30,6 +30,12 @@ struct WorkoutView: View {
     /// 是否显示倒计时
     @State private var showingCountdown = true
     
+    /// 定时器引用 - 用于后续停止
+    @State private var workoutTimer: Timer?
+    
+    /// 倒计时计时器引用
+    @State private var countdownTimer: Timer?
+    
     /// 页面标题
     private var pageTitle: String {
         pageIndex == 0 ? "运动激励" : "运动数据"
@@ -172,12 +178,44 @@ struct WorkoutView: View {
         }
         .navigationDestination(isPresented: $navigateToComplete) {
             WorkoutCompleteView(workoutSession: workoutSession)
+                .onAppear {
+                    print("【调试】WorkoutCompleteView.onAppear 从WorkoutView")
+                    print("【调试】WorkoutSession状态: \(workoutSession.state)")
+                    print("【调试】isInWorkoutMode: \(appState.isInWorkoutMode)")
+                }
         }
         .onDisappear {
-            // 当用户点击返回按钮离开运动页面时恢复TabBar显示
-            // WorkoutCompleteView有自己的onDisappear处理，所以这里只处理返回到ExerciseTypeSelectionView的情况
+            // 确保退出运动视图时清理状态
+            print("【调试】WorkoutView.onDisappear")
+            print("【调试】navigateToComplete: \(navigateToComplete)")
+            print("【调试】WorkoutSession状态: \(workoutSession.state), isCompleted: \(workoutSession.isCompleted)")
+            
+            // 强制停止所有定时器，避免泄漏
+            workoutTimer?.invalidate()
+            workoutTimer = nil
+            countdownTimer?.invalidate()
+            countdownTimer = nil
+            print("【调试】WorkoutView - 强制清理所有定时器")
+            
             if !navigateToComplete {
+                // 如果不是导航到完成页面，则恢复UI状态
+                print("【调试】手动返回，重置UI状态")
                 appState.isInWorkoutMode = false
+                
+                // 如果用户直接点击返回按钮，清理所有相关状态
+                if !workoutSession.isCompleted {
+                    print("【调试】运动未完成，执行状态清理")
+                    DispatchQueue.main.async {
+                        // 使用统一的状态重置方法
+                        appState.finishWorkout()
+                        
+                        print("【调试】状态清理完成")
+                    }
+                } else {
+                    print("【调试】运动已完成，跳过状态清理")
+                }
+            } else {
+                print("【调试】正在导航到完成页面，跳过状态清理")
             }
         }
     }
@@ -270,27 +308,33 @@ struct WorkoutView: View {
     
     // 开始倒计时
     private func startCountdown() {
+        // 确保先停止任何可能存在的定时器
+        countdownTimer?.invalidate()
+        countdownTimer = nil
+        
         // 创建计时器，每秒更新倒计时值
-        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
+        countdownTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
+            // 直接使用self，不需要weak引用，因为struct不存在引用循环问题
             withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                if countdownValue > 1 {
-                    countdownValue -= 1
+                if self.countdownValue > 1 {
+                    self.countdownValue -= 1
                 } else {
                     // 倒计时结束
                     timer.invalidate()
+                    self.countdownTimer = nil
                     
                     // 开始运动
                     withAnimation(.easeInOut(duration: 0.5)) {
-                        showingCountdown = false
+                        self.showingCountdown = false
                         
                         // 启动会话
-                        workoutSession.startWorkout()
+                        self.workoutSession.startWorkout()
                         
                         // 设置为当前活动的运动会话
-                        appState.activeWorkoutSession = workoutSession
+                        self.appState.activeWorkoutSession = self.workoutSession
                         
                         // 开始定时更新
-                        startTimer()
+                        self.startTimer()
                     }
                 }
             }
@@ -299,26 +343,51 @@ struct WorkoutView: View {
     
     // 启动定时器模拟数据更新
     private func startTimer() {
+        print("【调试】WorkoutView.startTimer() - 开始模拟数据更新")
+        
+        // 确保先停止任何可能存在的定时器
+        workoutTimer?.invalidate()
+        workoutTimer = nil
+        
         // 创建1秒间隔的定时器，模拟数据更新
-        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
-            if workoutSession.isActive {
+        workoutTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
+            if self.workoutSession.isActive {
                 // 更新时间和卡路里
-                workoutSession.updateWorkoutData()
+                self.workoutSession.updateWorkoutData()
                 
                 // 模拟距离增加 (如果是GPS类型运动)
-                if workoutSession.exerciseType.requiresGPS {
+                if self.workoutSession.exerciseType.requiresGPS {
                     // 每秒增加1-3米
                     let speedMetersPerSecond = Double.random(in: 1...3)
-                    workoutSession.distanceInMeters += speedMetersPerSecond
-                    workoutSession.currentSpeed = speedMetersPerSecond
+                    self.workoutSession.distanceInMeters += speedMetersPerSecond
+                    self.workoutSession.currentSpeed = speedMetersPerSecond
                 }
                 
                 // 检查是否完成，如果卡路里达到目标，自动完成
-                if workoutSession.burnedCalories >= workoutSession.targetCalories {
-                    workoutSession.completeWorkout()
-                    navigateToComplete = true
+                if self.workoutSession.burnedCalories >= self.workoutSession.targetCalories {
+                    print("【调试】已达到目标卡路里，自动完成运动")
+                    print("【调试】卡路里: \(self.workoutSession.burnedCalories)/\(self.workoutSession.targetCalories)")
+                    
+                    self.workoutSession.completeWorkout()
+                    
+                    // 使用主线程导航到完成页面
+                    DispatchQueue.main.async {
+                        print("【调试】准备导航到完成页面")
+                        self.navigateToComplete = true
+                    }
+                    
                     timer.invalidate()
+                    self.workoutTimer = nil
+                    print("【调试】定时器已停止")
                 }
+            } else if self.workoutSession.state == .paused {
+                // 当暂停时不更新数据，但保持定时器运行
+                print("【调试】运动已暂停，跳过数据更新")
+            } else if self.workoutSession.state == .inactive {
+                // 如果运动已处于不活跃状态，停止定时器
+                print("【调试】运动已结束(状态:inactive, isCompleted=\(self.workoutSession.isCompleted))，停止定时器")
+                timer.invalidate()
+                self.workoutTimer = nil
             }
         }
     }
