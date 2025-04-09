@@ -15,9 +15,6 @@ struct DessertGridView: View {
     /// 动画状态管理
     @ObservedObject var animationState: TransitionAnimationState
     
-    /// 是否显示引导
-    @State private var showGuides = false
-    
     /// 环境中的应用状态
     @EnvironmentObject var appState: AppState
     
@@ -90,23 +87,13 @@ struct DessertGridView: View {
                 .id(forceLayoutUpdate) // 使用id强制刷新布局
                 .padding(.top, 100) // 为顶部标题留出空间
                 
-                // 底部控制按钮
+                // 底部空间，保持布局平衡
                 VStack {
                     Spacer()
                     
-                    // 底部控制按钮
-                    HStack {
-                        Button(action: { showGuides.toggle() }) {
-                            Image(systemName: showGuides ? "eye.slash.fill" : "eye.fill")
-                                .font(.title3)
-                                .foregroundColor(Color(hex: "212121"))
-                                .padding()
-                                .background(Color.white.opacity(0.8))
-                                .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
-                                .shadow(color: Color(hex: "7E4A4A").opacity(0.25), radius: 10, x: 5, y: 5)
-                        }
-                    }
-                    .padding(.bottom, 80) // 为底部导航栏留出空间
+                    // 为底部导航栏预留空间
+                    Color.clear
+                        .frame(height: 80)
                 }
             }
             .coordinateSpace(name: globalCoordinateSpaceName)
@@ -124,8 +111,6 @@ struct DessertGridView: View {
     /// - Parameter size: 屏幕尺寸
     /// - Returns: 布局配置
     private func createConfig(for size: CGSize) -> BubbleLayoutConfiguration {
-        var config = BubbleLayoutConfiguration.forScreenSize(size)
-        config.showGuides = showGuides
-        return config
+        return BubbleLayoutConfiguration.forScreenSize(size)
     }
 } 

@@ -144,34 +144,45 @@ struct PauseMenuView: View {
                 
                 HStack(spacing: 80) {
                     // 继续按钮
-                    Button {
-                        withAnimation(.spring()) {
-                            resumeButtonScale = 0.9
-                        }
+                    VStack(spacing: 8) {
+                        // 按钮提示文本
+                        Text("继续运动")
+                            .font(.caption)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.black.opacity(0.5))
+                            .cornerRadius(4)
                         
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        Button {
                             withAnimation(.spring()) {
-                                resumeButtonScale = 1.0
-                                // 恢复运动会话
-                                workoutSession.resumeWorkout()
-                                showPauseMenu = false
+                                resumeButtonScale = 0.9
                             }
-                        }
-                    } label: {
-                        ZStack {
-                            Circle()
-                                .fill(Color.green)
-                                .frame(width: buttonSize, height: buttonSize)
-                                .shadow(color: Color.black.opacity(0.3), radius: 10, x: 0, y: 5)
                             
-                            Image(systemName: "play.fill")
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 30, height: 30)
-                                .foregroundColor(.white)
-                                .offset(x: 3) // 调整使其视觉居中
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                withAnimation(.spring()) {
+                                    resumeButtonScale = 1.0
+                                    // 恢复运动会话
+                                    workoutSession.resumeWorkout()
+                                    showPauseMenu = false
+                                }
+                            }
+                        } label: {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.green)
+                                    .frame(width: buttonSize, height: buttonSize)
+                                    .shadow(color: Color.black.opacity(0.3), radius: 10, x: 0, y: 5)
+                                
+                                Image(systemName: "play.fill")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 30, height: 30)
+                                    .foregroundColor(.white)
+                                    .offset(x: 3) // 调整使其视觉居中
+                            }
+                            .scaleEffect(resumeButtonScale)
                         }
-                        .scaleEffect(resumeButtonScale)
                     }
                     
                     // 停止按钮 - 带长按手势
@@ -213,7 +224,8 @@ struct PauseMenuView: View {
                                 .frame(width: 30, height: 30)
                                 .foregroundColor(.white)
                         }
-                        .gesture(
+                        // 使用一个单一的手势系统，先处理长按，再处理拖动
+                        .simultaneousGesture(
                             LongPressGesture(minimumDuration: longPressDuration)
                                 .onEnded { _ in
                                     // 长按完成后复位并触发确认对话框
@@ -237,41 +249,44 @@ struct PauseMenuView: View {
                                         self.showConfirmation = true
                                     }
                                 }
-                                .simultaneously(with: 
-                                    DragGesture(minimumDistance: 0)
-                                        .onChanged { _ in
-                                            // 开始长按
-                                            if !isButtonPressed {
-                                                isButtonPressed = true
-                                                stopButtonScale = 0.9
-                                                
-                                                // 创建定时器更新进度
-                                                self.longPressTimer?.invalidate()
-                                                self.longPressProgress = 0
-                                                
-                                                self.longPressTimer = Timer.scheduledTimer(withTimeInterval: 0.02, repeats: true) { timer in
-                                                    withAnimation(.linear(duration: 0.02)) {
-                                                        if self.longPressProgress < 1.0 {
-                                                            self.longPressProgress += 0.02 / longPressDuration  // 1.5秒填满进度
-                                                        } else {
-                                                            timer.invalidate()
-                                                        }
-                                                    }
+                        )
+                        .simultaneousGesture(
+                            DragGesture(minimumDistance: 0)
+                                .onChanged { _ in
+                                    // 仅在尚未按下时处理
+                                    if !isButtonPressed {
+                                        isButtonPressed = true
+                                        stopButtonScale = 0.9
+                                        
+                                        // 创建定时器更新进度
+                                        self.longPressTimer?.invalidate()
+                                        self.longPressProgress = 0
+                                        
+                                        self.longPressTimer = Timer.scheduledTimer(withTimeInterval: 0.02, repeats: true) { timer in
+                                            withAnimation(.linear(duration: 0.02)) {
+                                                if self.longPressProgress < 1.0 {
+                                                    self.longPressProgress += 0.02 / longPressDuration  // 1.5秒填满进度
+                                                } else {
+                                                    timer.invalidate()
                                                 }
                                             }
                                         }
-                                        .onEnded { _ in
-                                            // 结束长按但未完成
-                                            self.longPressTimer?.invalidate()
-                                            self.longPressTimer = nil
-                                            
-                                            withAnimation(.spring()) {
-                                                self.longPressProgress = 0
-                                                self.isButtonPressed = false
-                                                stopButtonScale = 1.0
-                                            }
+                                    }
+                                }
+                                .onEnded { _ in
+                                    // 仅在手势结束但未完成长按时处理
+                                    // 长按手势的onEnded会处理完成的情况
+                                    if isButtonPressed && longPressProgress < 1.0 {
+                                        self.longPressTimer?.invalidate()
+                                        self.longPressTimer = nil
+                                        
+                                        withAnimation(.spring()) {
+                                            self.longPressProgress = 0
+                                            self.isButtonPressed = false
+                                            stopButtonScale = 1.0
                                         }
-                                )
+                                    }
+                                }
                         )
                     }
                 }

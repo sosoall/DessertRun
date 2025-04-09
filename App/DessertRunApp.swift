@@ -51,27 +51,18 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     
     /// 设置屏幕方向锁定的辅助方法
     static func lockOrientation(_ orientation: UIInterfaceOrientationMask) {
-        // 直接设置方向锁定
+        // 设置支持的方向
         AppDelegate.orientationLock = orientation
         
-        // 强制当前屏幕为竖屏 - iOS 16兼容方式
-        // 设置首选方向
-        UIDevice.current.setValue(UIInterfaceOrientation.portrait.rawValue, forKey: "orientation")
-        
-        // 使用场景API更新方向
-        if #available(iOS 16.0, *) {
-            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
-                windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
-                
-                if let window = windowScene.windows.first {
-                    window.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
-                }
+        // 尝试使用现代API更新屏幕方向
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+            // 使用现代API请求几何更新
+            windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
+            
+            // 通知所有视图控制器更新其支持的方向
+            if let window = windowScene.windows.first {
+                window.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
             }
-        } else {
-            // iOS 16以下版本，使用传统方式锁定方向
-            // 这种方式在某些情况下可能不如iOS 16+的API有效
-            // 但对于大部分情况来说足够用了
-            UIViewController.attemptRotationToDeviceOrientation()
         }
     }
 }

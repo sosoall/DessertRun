@@ -95,17 +95,12 @@ class AppState: ObservableObject {
     
     /// 完成工作的函数 - 优化版本
     func finishWorkout() {
-        print("【调试】AppState.finishWorkout() 开始 - 优化版本")
-        print("【调试】当前运动状态: activeWorkoutSession=\(activeWorkoutSession != nil ? "存在" : "nil"), inWorkoutMode=\(isInWorkoutMode)")
-        print("【调试】当前标签页: \(selectedTabIndex)")
+        print("【调试】AppState.finishWorkout() 开始")
         
-        // 立即清除活动会话引用 - 检查是否真正清除
+        // 立即清除活动会话引用
         if let session = activeWorkoutSession {
-            print("【调试】主动清理activeWorkoutSession: \(session.id)")
-            // 确保会话被标记为完成
-            if !session.isCompleted {
-                session.completeWorkout()
-            }
+            // 确保会话被完全重置而不仅是标记为完成
+            session.resetWorkout()
         }
         activeWorkoutSession = nil
         
@@ -116,25 +111,28 @@ class AppState: ObservableObject {
             // 更新运动模式状态
             self.isInWorkoutMode = false
             
-            // 切换到首页标签
-            self.selectedTabIndex = 0
+            // 切换到统计标签页
+            self.selectedTabIndex = 1
             
             // 标记需要重置导航
             self.shouldResetNavigation = true
             
             // 重置其他状态数据
-            self.selectedDessert = nil
-            self.selectedExerciseType = nil
-            
-            print("【调试】AppState - 已重置基本状态，等待导航刷新")
+            self.resetWorkoutStateWithoutNotifying()
             
             // 延迟清除导航重置标志
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
                 guard let self = self else { return }
                 self.shouldResetNavigation = false
-                print("【调试】AppState.finishWorkout() 完成 - 所有状态已重置")
             }
         }
+    }
+    
+    /// 不触发通知的重置方法，避免在视图更新期间发布变更
+    private func resetWorkoutStateWithoutNotifying() {
+        selectedDessert = nil
+        selectedExerciseType = nil
+        // activeWorkoutSession已在之前设置为nil
     }
     
     /// 强制重置所有状态（应急使用，用于解决应用状态不一致的问题）

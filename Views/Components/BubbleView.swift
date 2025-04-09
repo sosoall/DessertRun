@@ -114,7 +114,6 @@ struct BubbleView: View {
                                             .onAppear {
                                                 // 记录图片区域的相对位置
                                                 let imageFrame = imageGeo.frame(in: .named("bubbleCoordinateSpace"))
-                                                print("【调试-位置】图片区域位置: \(imageFrame)")
                                             }
                                     }
                                 )
@@ -190,11 +189,6 @@ struct BubbleView: View {
                     width: bubbleFrame.width,
                     height: imageFrameHeight
                 )
-                
-                print("【调试】气泡[\(item.name)]被点击")
-                print("【调试】气泡框架: \(bubbleFrame)")
-                print("【调试】图片框架: \(imageFrame)")
-                print("【调试】图片中心: (\(imageFrame.midX), \(imageFrame.midY))")
                 
                 // 传递在全局坐标空间中的位置，使坐标更一致
                 onTap(imageFrame) // 传递图片区域的框架而非整个气泡

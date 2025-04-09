@@ -30,41 +30,50 @@ struct DessertToExerciseTransition: View {
     /// 导航到运动页面
     @State private var navigateToWorkout = false
     
-    /// 获取当前图片位置
+    /// 计算甜品图片的位置
     private var currentPosition: CGRect {
-        // 获取原始气泡框架
-        let bubbleFrame = animationState.bubbleOriginFrame
+        // 如果没有选中的甜品，返回零框架
+        guard let dessert = animationState.selectedDessert else { return .zero }
         
-        // 直接使用传递的图片框架作为起始位置
-        // 这个框架包含了气泡中图片的实际大小和位置（会随拖动位置缩放）
-        let imageFrameFromBubble = animationState.imageOriginFrame ?? bubbleFrame
+        // 获取起始和目标位置
+        let startFrame = animationState.imageOriginFrame ?? .zero
+        let targetFrame = calculateTargetFrame()
         
-        // 构建起始图片框架，直接使用实际测量的图片框架
-        let startFrame = imageFrameFromBubble
+        // 确保有有效的起始位置
+        guard startFrame != .zero else { return targetFrame }
         
-        // 输出计算的起始框架
-        print("【调试-计算】起始框架: \(startFrame), 中心点: \(CGPoint(x: startFrame.midX, y: startFrame.midY))")
+        // 根据进度计算当前位置
+        let progress = animationState.dessertPositionProgress
         
-        // 构建目标位置：顶部中心，使用固定的120大小
-        let targetSize: CGFloat = 120  // 固定的目标图片尺寸
-        let targetFrame = CGRect(
-            x: screenSize.width/2 - targetSize/2,
-            y: screenSize.height * 0.07, // 放置在顶部位置
-            width: targetSize,
-            height: targetSize
+        // 使用插值计算框架
+        let resultFrame = calculateIntermediateFrame(
+            from: startFrame,
+            to: targetFrame,
+            progress: progress
         )
         
-        // 输出计算的目标框架
-        print("【调试-计算】目标框架: \(targetFrame)")
-        
-        // 根据动画进度在起始位置和目标位置之间插值
-        let progress = animationState.dessertPositionProgress
-        let resultFrame = interpolateFrame(from: startFrame, to: targetFrame, progress: progress)
-        
-        // 输出结果框架
-        print("【调试-计算】当前框架: \(resultFrame), 进度: \(progress)")
-        
         return resultFrame
+    }
+    
+    /// 计算目标框架（甜品在顶部的位置）
+    private func calculateTargetFrame() -> CGRect {
+        // 计算顶部中心的小图片位置：居中，宽度为屏幕宽度的1/3
+        let screenWidth = UIScreen.main.bounds.width
+        let size: CGFloat = 120
+        let x = (screenWidth - size) / 2
+        let y = UIScreen.main.bounds.height * 0.05  // 顶部5%位置
+        
+        return CGRect(x: x, y: y, width: size, height: size)
+    }
+    
+    /// 计算两个框架之间的中间帧
+    private func calculateIntermediateFrame(from: CGRect, to: CGRect, progress: CGFloat) -> CGRect {
+        let x = from.origin.x + (to.origin.x - from.origin.x) * progress
+        let y = from.origin.y + (to.origin.y - from.origin.y) * progress
+        let width = from.width + (to.width - from.width) * progress
+        let height = from.height + (to.height - from.height) * progress
+        
+        return CGRect(x: x, y: y, width: width, height: height)
     }
     
     /// 获取面板偏移量
@@ -78,16 +87,6 @@ struct DessertToExerciseTransition: View {
         // 根据面板位置进度计算当前偏移量
         // 从隐藏状态（屏幕外）到显示状态（底部对齐）
         return hiddenOffset * (1 - animationState.panelPositionProgress)
-    }
-    
-    /// 在两个矩形框架之间插值
-    private func interpolateFrame(from: CGRect, to: CGRect, progress: CGFloat) -> CGRect {
-        let x = from.origin.x + (to.origin.x - from.origin.x) * progress
-        let y = from.origin.y + (to.origin.y - from.origin.y) * progress
-        let width = from.width + (to.width - from.width) * progress
-        let height = from.height + (to.height - from.height) * progress
-        
-        return CGRect(x: x, y: y, width: width, height: height)
     }
     
     /// 背景不透明度

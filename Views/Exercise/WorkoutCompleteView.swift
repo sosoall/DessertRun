@@ -33,8 +33,8 @@ struct WorkoutCompleteView: View {
     /// 返回选择甜品界面
     @Environment(\.dismiss) private var dismiss
     
-    /// 导航到运动记录界面
-    @State private var navigateToRecords = false
+    /// 显示运动记录页面
+    @State private var showRecords = false
     
     /// 彩带动画控制
     @State private var showConfetti = true
@@ -219,9 +219,10 @@ struct WorkoutCompleteView: View {
                 VoucherDetailView(voucher: voucher)
             }
         }
-        .navigationDestination(isPresented: $navigateToRecords) {
-            // 导航到记录页面
-            Text("运动记录页面") // 占位，后续实现具体的记录页面
+        .sheet(isPresented: $showRecords) {
+            // 运动记录页面
+            Text("运动记录页面")
+                .navigationBarTitle("运动记录", displayMode: .inline)
         }
     }
     
@@ -273,26 +274,9 @@ struct WorkoutCompleteView: View {
                     )
                     .frame(width: 180, height: 180)
                 
-                // 前景进度环
-                Circle()
-                    .trim(from: 0, to: 0.8)
-                    .stroke(
-                        LinearGradient(
-                            gradient: Gradient(colors: [
-                                Color(hex: "FE2D55"),
-                                Color(hex: "FF9901"),
-                                Color(hex: "FE2D55")
-                            ]),
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        ),
-                        style: StrokeStyle(lineWidth: 8, lineCap: .round)
-                    )
+                // 使用实际的旋转动画
+                RotatingProgressView()
                     .frame(width: 180, height: 180)
-                    .rotationEffect(Angle(degrees: 270))
-                    .rotationEffect(Angle(degrees: Double.random(in: 0...360)))
-                    .animation(.linear(duration: 1).repeatForever(autoreverses: false), value: UUID())
-                    .shadow(color: Color(hex: "FE2D55").opacity(0.3), radius: 10, x: 0, y: 0)
                 
                 // 中心图标
                 ZStack {
@@ -327,6 +311,38 @@ struct WorkoutCompleteView: View {
                 .padding(.top, 20)
         }
         .frame(height: 300)
+    }
+    
+    /// 旋转进度视图 - 解决动画问题
+    struct RotatingProgressView: View {
+        @State private var isRotating = false
+        
+        var body: some View {
+            Circle()
+                .trim(from: 0, to: 0.8)
+                .stroke(
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            Color(hex: "FE2D55"),
+                            Color(hex: "FF9901"),
+                            Color(hex: "FE2D55")
+                        ]),
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    ),
+                    style: StrokeStyle(lineWidth: 8, lineCap: .round)
+                )
+                .rotationEffect(Angle(degrees: isRotating ? 360 : 0))
+                .animation(
+                    Animation.linear(duration: 1)
+                        .repeatForever(autoreverses: false),
+                    value: isRotating
+                )
+                .onAppear {
+                    self.isRotating = true
+                }
+                .shadow(color: Color(hex: "FE2D55").opacity(0.3), radius: 10, x: 0, y: 0)
+        }
     }
     
     /// 运动数据摘要
@@ -454,15 +470,16 @@ struct WorkoutCompleteView: View {
     /// 底部按钮区域
     private var buttonsSection: some View {
         VStack(spacing: 15) {
-            // 分享按钮
+            // 查看记录按钮（之前的分享按钮）
             Button(action: {
-                // 分享功能实现
+                // 显示运动记录页面
+                showRecords = true
             }) {
                 HStack {
-                    Image(systemName: "square.and.arrow.up")
+                    Image(systemName: "list.bullet.clipboard")
                         .font(.headline)
                     
-                    Text("分享")
+                    Text("查看运动记录")
                         .font(.headline)
                 }
                 .foregroundColor(.white)
@@ -475,13 +492,8 @@ struct WorkoutCompleteView: View {
             
             // 完成运动按钮
             Button(action: {
-                print("【调试】WorkoutCompleteView - 点击完成运动按钮")
-                print("【调试】当前WorkoutSession状态: \(workoutSession.state), isCompleted: \(workoutSession.isCompleted)")
-                print("【调试】isInWorkoutMode: \(appState.isInWorkoutMode)")
-                
                 // 先确保运动会话标记为已完成
                 if !workoutSession.isCompleted {
-                    print("【调试】WorkoutSession还未标记为已完成，正在标记...")
                     workoutSession.completeWorkout()
                 }
                 
@@ -490,12 +502,11 @@ struct WorkoutCompleteView: View {
                 
                 // 缓冲回到甜品选择页面前，先做一个延迟
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    print("【调试】开始重置应用状态...")
-                    
                     // 使用优化后的单一方法重置所有状态
                     appState.finishWorkout()
                     
-                    print("【调试】应用状态重置流程已启动")
+                    // 切换到统计tab
+                    appState.selectedTabIndex = 1 // 假设1是统计tab的索引
                 }
             }) {
                 HStack {
@@ -515,35 +526,6 @@ struct WorkoutCompleteView: View {
                 )
             }
             .padding(.horizontal)
-            
-            // 紧急状态重置按钮（仅开发测试使用）
-            Button(action: {
-                print("【调试】紧急重置按钮点击")
-                
-                // 调用AppState强制重置方法
-                appState.forceResetAllStates()
-                
-                // 关闭当前视图
-                dismiss()
-            }) {
-                HStack {
-                    Image(systemName: "exclamationmark.triangle")
-                        .font(.caption)
-                    
-                    Text("紧急重置")
-                        .font(.caption)
-                }
-                .foregroundColor(.red)
-                .padding(.vertical, 8)
-                .padding(.horizontal, 12)
-                .background(Color.white)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.red, lineWidth: 1)
-                )
-            }
-            .padding(.horizontal)
-            .padding(.top, -10)
         }
     }
     
