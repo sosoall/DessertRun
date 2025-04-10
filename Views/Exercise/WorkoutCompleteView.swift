@@ -76,23 +76,23 @@ struct WorkoutCompleteView: View {
                 }
                 .frame(height: 0)
                 
-                VStack(spacing: 20) {
-                    // 彩带动画
+                VStack(spacing: 15) {
+                    // 彩带动画 - 减小高度
                     if showConfetti {
                         ConfettiView()
                             .ignoresSafeArea()
-                            .frame(height: 150)
+                            .frame(height: 120)
                     }
                     
                     if !animationComplete {
                         // 加载阶段 - 居中显示加载动画
-                        Spacer(minLength: 50)
+                        Spacer(minLength: 30)
                         
                         completionAnimation
                             .frame(height: 300)
                             .transition(.opacity)
                         
-                        Spacer(minLength: 50)
+                        Spacer(minLength: 30)
                     } else {
                         // 加载完成阶段 - 奶茶杯和内容同步动画
                         if bubbleTeaVisible {
@@ -159,12 +159,12 @@ struct WorkoutCompleteView: View {
                         
                         // 祝贺标题和内容区域，只在showContent为true时显示
                         if showContent {
-                            // 添加顶部安全区域，避开灵动岛
-                            Color.clear.frame(height: 50)
+                            // 减小顶部安全区域，避开灵动岛但减少空白
+                            Color.clear.frame(height: 20)
                             
                             congratulationsHeader
                                 .transition(.opacity)
-                                .padding(.top, 20) // 增加顶部边距
+                                .padding(.top, 5) // 减少顶部边距
                             
                             // 美食券区域
                             if let voucher = dessertVoucher {
@@ -192,18 +192,20 @@ struct WorkoutCompleteView: View {
                                     }
                                 }
                                 .padding(.horizontal, 16)
+                                .padding(.top, 10) // 减少顶部边距
                                 .transition(.move(edge: .bottom).combined(with: .opacity))
                             }
                             
-                            // 运动数据摘要
+                            // 运动数据摘要 - 根据是否已撕开副券调整顶部边距
                             workoutSummary
                                 .transition(.move(edge: .bottom).combined(with: .opacity))
-                                .padding(.top, 20)
+                                .padding(.top, tornBottomPart ? 90 : 40) // 撕开后增加顶部边距
+                                .animation(.easeInOut(duration: 0.3), value: tornBottomPart) // 添加边距变化动画
                             
                             // 按钮区域
                             buttonsSection
                                 .transition(.move(edge: .bottom).combined(with: .opacity))
-                                .padding(.top, 20)
+                                .padding(.top, 15) // 减少顶部边距
                         }
                     }
                 }
@@ -211,7 +213,7 @@ struct WorkoutCompleteView: View {
             }
             .coordinateSpace(name: "scrollView")
             .background(Color.white)
-            .safeAreaInset(edge: .top) { Color.clear.frame(height: 40) }
+            .safeAreaInset(edge: .top) { Color.clear.frame(height: 20) } // 减少顶部安全区域高度
             .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
                 scrollOffset = value
             }
