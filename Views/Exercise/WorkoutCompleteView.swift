@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-// 美食券的部分被迁移到DessertVoucherViews.swift
+// 美食券的部分被迁移到Views/Vouchers目录下的VoucherDetailView.swift
 // 注意: 使用 ViewExtensions.swift 中的共享扩展实现圆角
 // 文件底部的扩展应该被删除以避免冲突
 

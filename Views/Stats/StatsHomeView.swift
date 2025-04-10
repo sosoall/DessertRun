@@ -7,6 +7,8 @@
 
 import SwiftUI
 
+// 引用美食券相关组件
+
 /// 统计模块主页面
 struct StatsHomeView: View {
     // 全局应用状态
