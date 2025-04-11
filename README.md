@@ -51,41 +51,126 @@ DessertRun是一款为运动初学者准备的创新健康应用，核心理念�
 ```
 DessertRun/
 ├── App/                           # 应用入口和配置
-│   ├── DessertRunApp.swift        # 应用入口
-│   └── AppState.swift             # 全局应用状态
-├── Assets/                        # 资源文件
+│   ├── DessertRunApp.swift        # 应用入口，定义应用的主要结构
+│   └── AppState.swift             # 全局应用状态，管理应用级别的状态数据
+├── Assets/                        # 资源文件，包括图片、颜色和字体
+│   ├── Images/                    # 图片资源，包括甜品、运动图标等
+│   └── Colors.xcassets            # 颜色资源，定义应用的主题色
 ├── Models/                        # 数据模型
-│   ├── User.swift                 # 用户模型
-│   ├── DessertItem.swift          # 甜品模型
-│   ├── ExerciseType.swift         # 运动类型模型
-│   ├── WorkoutSession.swift       # 运动会话模型
-│   ├── DessertVoucher.swift       # 甜品券模型
-│   └── WorkoutStats.swift         # 运动统计数据模型
+│   ├── User.swift                 # 用户模型，包含用户基本信息
+│   ├── DessertItem.swift          # 甜品模型，定义甜品的属性和分类
+│   ├── ExerciseType.swift         # 运动类型模型，定义不同运动的特性
+│   ├── WorkoutSession.swift       # 运动会话模型，跟踪运动过程和结果
+│   ├── DessertVoucher.swift       # 甜品券模型，包含券的状态和有效期
+│   └── WorkoutStats.swift         # 运动统计数据模型，用于分析运动趋势
 ├── Views/                         # 视图组件
 │   ├── Common/                    # 通用组件
+│   │   ├── CustomTabBar.swift     # 自定义底部标签栏，支持滑动隐藏
+│   │   ├── AnimatedButton.swift   # 动画按钮，提供丰富的交互反馈
+│   │   └── LoadingView.swift      # 加载动画视图，用于异步操作反馈
 │   ├── Exercise/                  # 运动相关视图
-│   │   ├── DessertSelectionView/  # 甜品选择（气泡UI）
-│   │   ├── ExerciseTypeView/      # 运动方式选择
-│   │   ├── WorkoutView/           # 运动中界面
-│   │   └── WorkoutCompleteView/   # 运动完成界面
+│   │   ├── DessertSelectionView.swift    # 甜品选择气泡布局页面
+│   │   ├── BubbleView.swift              # 气泡组件，支持拖拽和缩放
+│   │   ├── ExerciseTypeView.swift        # 运动方式选择页面
+│   │   ├── WorkoutView.swift             # 运动监控页面，包含动画页和数据页
+│   │   ├── WorkoutCompleteView.swift     # 运动完成页面，包含成功动画和奖励展示
+│   │   └── DessertVoucherViews.swift     # 甜品券视图，实现可撕式设计和动画效果
 │   ├── Stats/                     # 统计相关视图
-│   │   ├── CalendarView/          # 运动日历
-│   │   └── VouchersView/          # 甜品券管理
+│   │   ├── CalendarView/          # 运动日历相关视图
+│   │   │   ├── CalendarView.swift         # 日历主视图，展示月度运动记录
+│   │   │   └── DailyWorkoutView.swift     # 日运动详情视图
+│   │   └── VouchersView/          # 甜品券管理相关视图
+│   │       ├── VoucherListView.swift      # 甜品券列表视图，采用瀑布流布局
+│   │       └── VoucherDetailView.swift    # 甜品券详情视图，展示详细信息和核销选项
 │   └── Profile/                   # 个人信息相关视图
+│       ├── ProfileView.swift      # 个人信息主页
+│       └── SettingsView.swift     # 设置页面
 ├── ViewModels/                    # 视图模型
-│   ├── ExerciseViewModel.swift    # 运动相关逻辑
-│   ├── StatsViewModel.swift       # 统计相关逻辑
-│   └── ProfileViewModel.swift     # 个人信息相关逻辑
+│   ├── ExerciseViewModel.swift    # 运动相关逻辑，处理甜品选择和运动过程
+│   ├── StatsViewModel.swift       # 统计相关逻辑，处理数据分析和展示
+│   └── ProfileViewModel.swift     # 个人信息相关逻辑，处理用户偏好和设置
 ├── Services/                      # 服务层
 │   ├── API/                       # API通信
+│   │   ├── APIClient.swift        # API客户端，封装网络请求
+│   │   └── Endpoints.swift        # API端点定义
 │   ├── DataSync/                  # 数据同步服务
+│   │   └── SyncManager.swift      # 数据同步管理器
 │   ├── HealthKit/                 # 健康数据服务
+│   │   └── HealthKitManager.swift # 健康数据管理器，与系统HealthKit交互
 │   └── Location/                  # 位置服务
+│       └── LocationManager.swift  # 位置管理器，处理GPS定位和距离计算
 └── Utils/                         # 工具类
     ├── Animations/                # 动画工具
+    │   ├── ConfettiView.swift     # 彩带动画实现
+    │   └── LottieAnimations.swift # Lottie动画封装
     ├── Extensions/                # 扩展方法
+    │   ├── ColorExtensions.swift  # 颜色扩展，如从十六进制创建颜色
+    │   ├── DateExtensions.swift   # 日期扩展，用于格式化和计算
+    │   └── ViewExtensions.swift   # 视图扩展，如添加圆角和阴影
     └── Helpers/                   # 辅助函数
+        ├── CalorieCalculator.swift # 卡路里计算辅助工具
+        └── UserDefaults+Keys.swift # UserDefaults键管理
 ```
+
+### 核心文件介绍
+
+#### AppState.swift
+全局状态管理器，负责维护应用的关键状态，包括：
+- 当前选中的标签页
+- 运动模式状态（是否处于运动中）
+- 当前选中的甜品和运动类型
+- TabBar的显示状态控制
+这个文件使用@Published属性，结合Combine框架实现响应式状态更新。
+
+#### WorkoutSession.swift
+运动会话模型，追踪单次运动的全过程：
+- 目标甜品信息
+- 选择的运动类型
+- 实时运动数据（时间、距离、速度、卡路里）
+- 运动状态管理（准备、进行中、暂停、完成）
+- 运动完成度计算
+
+#### DessertVoucherViews.swift
+甜品券视图组件，实现了创新的可撕式优惠券设计：
+- TearableVoucherBackground - 可撕式券背景，支持动态撕裂效果
+- TornVoucherPartView - 副券（待撕下部分）
+- TornBottomPartView - 已撕下的副券（灰色效果）
+- FoodVoucherView - 综合券视图，整合主券和副券
+
+#### WorkoutCompleteView.swift
+运动完成页面，提供丰富的视觉反馈和交互：
+- 彩带庆祝动画
+- 奶茶杯弹跳动画
+- 甜品券展示和核销
+- 运动数据摘要
+- 流畅的转场和响应式布局
+
+#### BubbleView.swift
+气泡组件，用于甜品选择页面的核心交互：
+- 支持缩放和透明度动态变化
+- 解决了拖拽冲突问题
+- 实现了距离感知的名称显示
+
+#### StatsComponents.swift - 包含共享组件和辅助函数：
+- MonthPicker - 月份选择器组件，支持前后月份切换
+- MonthlyStatsCard - 月度统计卡片，显示时长、距离和券数量
+- StatusFilter - 状态筛选组件，用于甜品券筛选
+- DateHelper - 日期处理辅助函数
+- MockDataProvider - 模拟数据生成器，创建假的运动记录和甜品券
+
+#### WorkoutCalendarView.swift - 运动日历页面：
+日历视图，每个日期格子用甜品图标表示当日运动情况
+- 三种状态显示：今天、有运动记录、未来日期
+- 点击日期查看详细运动记录的弹出页面
+- 月度运动数据统计
+- 支持月份切换
+
+#### VoucherManagementView.swift - 甜品券管理页面：
+- 瀑布流展示美食券，两列布局
+- 按月份筛选功能
+- 支持按券状态（全部/有效/已使用/已过期）筛选
+- 点击券查看详情并支持券的核销操作
+- 对无券状态提供友好的空状态视图
 
 ## 主要页面设计与实现
 
@@ -121,19 +206,29 @@ DessertRun/
   - 完成状态（达成目标）：展示完整甜品券和庆祝动画
   - 提前结束（未达成目标）：显示部分甜品券，支持继续运动选项
 
+- **甜品券设计**:
+  - 采用可撕式设计，主券与副券结合
+  - 主券含甜品信息、完成度和使用细则
+  - 副券作为核销凭证
+  - 支持撕券动画，模拟真实撕券体验
+  - 撕下后副券以灰色显示，提示已核销状态
+  - 整体设计遵循现代UI风格，带有精致的圆角和渐变色彩
+
 ### 3. 统计模块
 统计模块分为两个主要部分：
 
 - **运动日历**:
-  - 自定义日历视图，显示每日运动打卡状态
-  - 支持月度、周度视图切换
+  - 日历视图，每个格子用甜品的小图来代表当日运动甜品。（3种状态：运动了、没运动、还没到日期）
   - 点击日期可查看当日详细运动记录
-  - 月度数据汇总统计
+  - 月度数据汇总统计：美食券数量、运动总时长、运动总距离
+  - 默认展示当月，可左右切换、或快速跳转到某一个月份。
 
 - **甜品券管理**:
   - 瀑布流展示所有获得的甜品券
-  - 券状态区分：有效、过期、已使用
-  - 支持券详情查看、分享、核销等操作
+  - 券状态区分：有效、已核销、过期
+  - 支持券详情查看和核销操作
+  - 优惠券支持仿真撕券体验，增强用户互动感
+  - 按照月份来筛选展示，默认展示当月，可左右切换，或快速跳转到某一个月份。
 
 ### 4. 个人信息模块
 - **用户资料**:
@@ -195,37 +290,43 @@ DessertRun/
 
 ## 开发计划
 
-### 阶段一：前端框架搭建
+### 阶段一：前端框架搭建（已完成）
 1. 创建项目基础架构
 2. 实现标签栏和基本导航
 3. 设计和实现基础UI组件
 4. 整合已有的甜品选择气泡UI
 
-### 阶段二：运动核心功能
+### 阶段二：运动核心功能（已完成）
 1. 开发甜品详情页面
-2. 实现运动方式推荐算法和UI
-3. 开发运动监控页面（动画页和数据页）
-4. 实现运动数据收集和处理逻辑
-5. 开发运动完成和奖励机制
+2. 开发运动监控页面（动画页和数据页）
+3. 实现运动数据收集和处理逻辑
+4. 开发运动完成和奖励机制
+5. 实现甜品券视图和核销动画效果
 
-### 阶段三：统计和用户功能
+### 阶段三：统计和数据管理（进行中）
 1. 开发运动日历和数据统计功能
 2. 实现甜品券管理系统
-3. 开发用户资料和设置页面
-4. 实现本地数据持久化
+3. 实现本地数据持久化
 
-### 阶段四：后端开发与集成
-1. 设计和实现API接口
-2. 开发用户认证系统
-3. 构建云端数据存储
-4. 实现前后端数据同步
-5. 集成测试和优化
+### 阶段四：后端开发与运动数据集成
+1. 设计和实现运动相关API接口
+2. 构建运动和甜品数据的本地存储
+3. 集成测试和优化
+4. 实现运动方式推荐算法和UI
 
-### 阶段五：发布准备
-1. 全面测试和Bug修复
-2. 性能优化
-3. 准备App Store发布材料
-4. 应用提交和发布
+### 阶段五：用户系统与云端同步
+1. 开发用户认证系统
+2. 构建云端数据存储
+3. 实现前后端数据同步
+4. 开发用户资料和设置页面
+
+### 阶段六：发布准备
+1. 设计和开发新手引导流程
+2. 完善个人信息页面
+3. 全面测试和Bug修复
+4. 性能优化
+5. 准备App Store发布材料
+6. 应用提交和发布
 
 ## 已知问题
 
@@ -237,7 +338,7 @@ DessertRun/
 
 ## 变更日志
 
-### 2023-04-02
+### 2025-04-02
 1. **UI优化**：
    - 根据Figma设计，将气泡形状从圆形改为圆角方形（squircle）
    - 更新了气泡阴影和内部阴影效果，增强现代感
@@ -262,7 +363,7 @@ DessertRun/
    - 创建了.gitignore文件，避免将图片资源文件添加到版本控制系统
    - 配置了忽略临时脚本和构建文件的规则
 
-### 2023-04-03
+### 2025-04-03
 1. **手势优化**：
    - 修复了气泡拖拽卡顿问题，通过放弃Button组件改用VStack+onTapGesture
    - 拖动手势现在优先于点击手势，使用户可以在气泡上无卡顿地拖动页面
@@ -277,7 +378,7 @@ DessertRun/
    - 简化了用户决策，移除非关键决策点的信息（热量数值）
    - 扩大了可视空间，使用户在浏览甜品时能够获得更大的视图区域
 
-### 2023-04-04
+### 2025-04-04
 1. **导航体验优化**：
    - 重构了标签栏隐藏机制，采用自定义覆盖层代替系统方法
    - 拖动时标签栏平滑隐藏，停止拖动后自动恢复
@@ -293,7 +394,7 @@ DessertRun/
    - 优化了手势系统，解决了触摸冲突问题
    - 增强了应用的直观性和易用性
 
-### 2023-04-05
+### 2025-04-05
 1. **自定义TabBar实现**：
    - 完全重构了TabBar实现，摒弃系统TabBar，采用自定义版本
    - 实现真正的底部导航栏向下滑动隐藏效果，彻底解决了之前的遮挡问题
@@ -309,7 +410,7 @@ DessertRun/
    - 优化了转场动画的流畅度
    - 提高了界面响应速度和交互体验
 
-### 2023-04-06
+### 2025-04-06
 1. **TabBar动画优化**：
    - 重构TabBar滑动动画，使图标与底栏一起平滑滑动
    - 修复了以前图标原地消失的突兀效果
@@ -325,7 +426,7 @@ DessertRun/
    - 防止了多页面导航时可能出现的状态不一致问题
    - 提高了应用在各种使用场景下的稳定性
 
-### 2023-04-07
+### 2025-04-07
 1. **项目结构优化**：
    - 修复了文件结构冲突问题，删除了重复的`ExerciseTypeSelectionView.swift`文件
    - 解决了编译时出现的"Multiple commands produce"错误
@@ -336,7 +437,7 @@ DessertRun/
    - 清理了项目中的冗余文件和重复定义
    - 提高了项目的稳定性和可维护性
 
-### 2023-04-08
+### 2025-04-08
 1. **UI细节优化**：
    - 修复了底部导航栏显示两种颜色的问题，确保整个TabBar保持纯白色背景
    - 优化了TabBar延伸到底部安全区域的显示效果
@@ -347,7 +448,7 @@ DessertRun/
    - 优化了各种机型上的显示效果
    - 为应用商店发布做最后的视觉调整
 
-### 2023-04-09
+### 2025-04-09
 1. **UI细节完善**：
    - 彻底解决了TabBar底部灰色问题，通过添加额外的白色底层确保整个安全区域都保持纯白色
    - 增大了气泡中甜品图片的尺寸，减少了内边距，使图片展示更加突出
@@ -358,308 +459,23 @@ DessertRun/
    - 进行最后的兼容性测试，确保在各种设备上显示正常
    - 准备App Store提交材料和截图
 
-### 2023-04-10
-1. **TabBar组件完全重构**：
-   - 彻底重写TabBar实现，采用新的布局策略和安全区域处理方式
-   - 正确检测和应用底部安全区域高度，确保TabBar精确置底
-   - 解决了底部灰色边缘显示问题，实现了完全统一的纯白色背景
-   - 添加了底部安全距离，避免与iOS系统Home指示条重叠
-   - 优化了TabBar隐藏逻辑，增加足够的偏移量确保完全隐藏
+### 2025-04-10
+1. **甜品券视觉优化**：
+   - 优化了甜品券撕线设计，添加了两端小圆点和精细虚线，更贴近真实优惠券
+   - 调整了主券和副券的宽度一致性，确保视觉上的连贯性
+   - 增加了撕下后副券的偏移量，使其更清晰地表达"已撕下"的视觉效果
+   - 微调了核销按钮的位置和样式，提升用户交互体验
 
-2. **高级UI布局优化**：
-   - 优化了内容区域和TabBar之间的布局关系
-   - 改进了在不同设备上的显示效果，包括有刘海和无刘海设备
-   - 确保视觉效果的一致性和专业性，为应用商店发布做最后准备
+2. **运动完成页面优化**：
+   - 减少了页面顶部多余的空白区域，使整体布局更紧凑
+   - 优化了彩带动画效果，使庆祝氛围更加丰富
+   - 调整了甜品券展示和数据摘要之间的间距，防止内容重叠
 
-3. **最终用户体验完善**：
-   - 图片尺寸和边距调整，提高主要内容可见性
-   - UI元素间距和对齐优化，增强整体设计的协调性
-   - 交互流畅度测试和优化，确保应用响应迅速且直观
-
+3. **全流程功能完善**：
+   - 完成了运动全流程的前端实现，从甜品选择到完成奖励的所有环节
+   - 优化了各个页面之间的转场动画，确保流畅的用户体验
+   - 处理了各种边缘情况，如中途退出运动、部分完成运动等场景
 
 ## 上线前多机型测试拾遗
 1. 运动选择类型页的移动动画，起始和结束的图片大小和位置。我做了绝对数值上的调整，但是不确定是否有普适性，在后面的机型测试中要格外关注
-
-## 技术问题分析与解决方案
-
-### 气泡拖拽卡顿问题深入分析
-
-#### 问题技术原因
-在SwiftUI中，手势识别有优先级系统。我们当前的实现中，BubbleView使用了Button组件封装了气泡内容，这导致：
-
-1. Button自带的点击手势优先级默认高于ScrollView的拖动手势
-2. 当用户手指接触气泡时，系统优先考虑这可能是对气泡的点击，因此阻止了滚动行为
-3. 只有当系统确定这不是点击（例如手指移动超过一定阈值）时，才会将事件传递给ScrollView
-
-#### 推荐解决方案
-
-##### 方案1：使用高优先级的拖动手势
-```swift
-.highPriorityGesture(
-    DragGesture()
-        .onChanged { _ in }
-)
-.simultaneousGesture(
-    TapGesture()
-        .onEnded { _ in
-            onTap()
-        }
-)
-```
-
-##### 方案2：使用手势识别器修饰符
-```swift
-Button(action: onTap) {
-    // 气泡内容...
-}
-.buttonStyle(PlainButtonStyle())
-.gesture(
-    DragGesture(minimumDistance: 0)
-        .onChanged { _ in }
-        .exclusively(
-            before: TapGesture()
-                .onEnded { _ in
-                    onTap()
-                }
-        )
-)
-```
-
-##### 方案3：放弃Button，使用自定义手势
-```swift
-// 替换Button为普通View
-VStack {
-    // 气泡内容...
-}
-.contentShape(RoundedRectangle(cornerRadius: bubbleSize * 0.25, style: .continuous))
-.onTapGesture {
-    onTap()
-}
-.allowsHitTesting(true) 
-```
-
-#### 实施计划
-1. 备份当前BubbleView.swift文件
-2. 实施方案1，测试效果
-3. 如效果不理想，尝试方案2或方案3
-4. 进行性能测试，确保UI响应流畅
-5. 更新文档，记录解决方案
-
-#### 最终解决方案
-
-经过测试，我们采用了**方案3**，放弃使用Button组件，改为使用普通的VStack加上简单的点击手势：
-
-```swift
-// 放弃Button，改用VStack和独立的点击手势
-VStack(spacing: 4) {
-    // 气泡内容...
-}
-.padding(contentPadding)
-.frame(width: bubbleSize, height: bubbleSize)
-.background(backgroundView)
-.opacity(calculateOpacity())
-.blur(radius: calculateBlurRadius())
-.contentShape(RoundedRectangle(cornerRadius: bubbleSize * 0.25, style: .continuous))
-// 使用简单的点击手势，优先级较低
-.onTapGesture {
-    onTap()
-}
-```
-
-这种实现方式有以下优势：
-1. **手势优先级合理**：默认情况下，`onTapGesture`的优先级低于ScrollView的拖动手势
-2. **行为一致**：保持了点击气泡的功能，同时允许用户在气泡上开始拖动
-3. **简洁可维护**：代码结构简单明了，易于维护和调整
-4. **性能良好**：减少了不必要的手势处理器层级
-
-在测试中，用户现在可以在气泡上开始拖动操作，系统不会再误将其识别为点击操作，从而实现了顺畅的拖动体验。
-
-## 备份代码
-
-### 删除的ExerciseTypeSelectionPanel代码
-```swift
-/// 运动类型选择面板
-struct ExerciseTypeSelectionPanel: View {
-    /// 选中的甜品
-    let dessert: DessertItem?
-    
-    /// 取消回调
-    var onDismiss: () -> Void
-    
-    /// 是否导航到运动界面
-    @State private var navigateToWorkout = false
-    
-    /// 环境中的应用状态
-    @EnvironmentObject var appState: AppState
-    
-    /// 运动类型列表
-    private let exerciseTypes = ExerciseTypeData.getSampleExerciseTypes()
-    
-    /// 卡路里值
-    private var calories: Double {
-        guard let selectedDessert = dessert else { return 0 }
-        if let calValue = Double(selectedDessert.calories.replacingOccurrences(of: "kcal", with: "")) {
-            return calValue
-        }
-        return 0
-    }
-    
-    var body: some View {
-        VStack(spacing: 20) {
-            // 顶部拖动条
-            RoundedRectangle(cornerRadius: 2.5)
-                .fill(Color.gray.opacity(0.5))
-                .frame(width: 60, height: 5)
-                .padding(.top, 12)
-            
-            // 标题
-            Text("请选择运动方式")
-                .font(.title2)
-                .fontWeight(.bold)
-                .foregroundColor(Color(hex: "61462C"))
-                .padding(.top, 5)
-            
-            // 甜品信息卡片
-            if let dessert = dessert {
-                HStack {
-                    Text("目标甜品 • \(dessert.name)")
-                        .font(.headline)
-                    
-                    Spacer()
-                    
-                    Text("\(dessert.calories)")
-                        .font(.headline)
-                        .foregroundColor(Color(hex: "FE2D55"))
-                }
-                .padding(.horizontal, 20)
-            }
-            
-            // 运动类型列表
-            ScrollView {
-                LazyVStack(spacing: 16) {
-                    ForEach(exerciseTypes) { exerciseType in
-                        ExerciseTypeCard(
-                            exerciseType: exerciseType,
-                            calories: calories,
-                            onSelect: {
-                                // 选择运动类型并导航到运动界面
-                                appState.selectedExerciseType = exerciseType
-                                navigateToWorkout = true
-                            }
-                        )
-                    }
-                }
-                .padding(.horizontal)
-                .padding(.bottom, 30)
-            }
-        }
-        .padding(.horizontal)
-        .frame(height: UIScreen.main.bounds.height * 0.75)
-        .background(Color(hex: "faf0dd"))
-        .cornerRadius(20, corners: [.topLeft, .topRight])
-        .gesture(
-            DragGesture()
-                .onEnded { gesture in
-                    if gesture.translation.height > 100 {
-                        onDismiss()
-                    }
-                }
-        )
-        .navigationDestination(isPresented: $navigateToWorkout) {
-            WorkoutView()
-                .onAppear {
-                    appState.isInWorkoutMode = true
-                }
-        }
-    }
-}
-
-/// 运动类型卡片
-struct ExerciseTypeCard: View {
-    /// 运动类型
-    let exerciseType: ExerciseType
-    
-    /// 需要消耗的卡路里
-    let calories: Double
-    
-    /// 选择回调
-    var onSelect: () -> Void
-    
-    /// 预计时间（分钟）
-    private var estimatedTime: Double {
-        exerciseType.estimatedTimeToComplete(calories: calories)
-    }
-    
-    var body: some View {
-        Button(action: onSelect) {
-            HStack {
-                // 左侧图标
-                ZStack {
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(exerciseType.backgroundColor)
-                        .frame(width: 70, height: 70)
-                    
-                    Image(systemName: exerciseType.iconName)
-                        .resizable()
-                        .scaledToFit()
-                        .foregroundColor(.white)
-                        .frame(width: 30, height: 30)
-                }
-                
-                // 中间内容
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(exerciseType.name)
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                    
-                    Text(exerciseType.description)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .lineLimit(2)
-                    
-                    HStack {
-                        Image(systemName: "clock.fill")
-                            .font(.caption)
-                            .foregroundColor(Color(hex: "FE2D55"))
-                        
-                        Text(formatTime(estimatedTime))
-                            .font(.caption)
-                            .foregroundColor(Color(hex: "FE2D55"))
-                            .fontWeight(.semibold)
-                    }
-                }
-                .padding(.leading, 8)
-                
-                Spacer()
-                
-                // 右侧箭头
-                Image(systemName: "chevron.right")
-                    .foregroundColor(.secondary)
-            }
-            .padding()
-            .background(Color.white)
-            .cornerRadius(16)
-            .shadow(color: Color.black.opacity(0.05), radius: 5)
-        }
-    }
-    
-    /// 格式化时间
-    private func formatTime(_ minutes: Double) -> String {
-        if minutes < 1 {
-            return "不到1分钟"
-        } else if minutes < 60 {
-            return "约\(Int(minutes.rounded()))分钟"
-        } else {
-            let hours = Int(minutes / 60)
-            let mins = Int(minutes.truncatingRemainder(dividingBy: 60))
-            
-            if mins == 0 {
-                return "约\(hours)小时"
-            } else {
-                return "约\(hours)小时\(mins)分钟"
-            }
-        }
-    }
-}
-
-
+2. 甜品券页面，也有很多是绝对数值

@@ -15,7 +15,7 @@ enum StatsPeriod {
     case year
 }
 
-/// 单日运动记录
+/// 单日运动记录 - 用于数据存储和统计
 struct DailyWorkoutRecord: Identifiable {
     /// 唯一标识
     let id: UUID = UUID()
@@ -80,6 +80,38 @@ struct DailyWorkoutRecord: Identifiable {
     var formattedCalories: String {
         return String(format: "%.0f卡路里", totalCalories)
     }
+}
+
+/// 日历视图用的运动记录模型 - 包含完整的会话和甜品券对象
+struct CalendarWorkoutRecord: Identifiable {
+    let id = UUID()
+    let date: Date
+    let sessions: [WorkoutSession]
+    let dessertVouchers: [DessertRun.DessertVoucher]
+    
+    // 快速访问器
+    var totalDuration: Int {
+        sessions.reduce(0) { $0 + $1.totalElapsedSeconds }
+    }
+    
+    var totalDistance: Double {
+        sessions.reduce(0.0) { $0 + $1.distanceInMeters }
+    }
+    
+    var totalBurnedCalories: Double {
+        sessions.reduce(0.0) { $0 + $1.burnedCalories }
+    }
+    
+    var mainDessert: DessertItem? {
+        dessertVouchers.first?.dessert
+    }
+}
+
+/// 运动统计数据模型
+struct WorkoutStats {
+    var totalMinutes: Int
+    var totalDistance: Double
+    var vouchersEarned: Int
 }
 
 /// 运动统计管理器
@@ -190,5 +222,21 @@ class WorkoutStatsManager {
         }
         
         return records
+    }
+    
+    // MARK: - 日历视图数据转换
+    
+    /// 将DailyWorkoutRecord转换为CalendarWorkoutRecord
+    /// - Parameters:
+    ///   - record: 数据记录
+    ///   - sessions: 会话记录
+    ///   - vouchers: 甜品券
+    /// - Returns: 日历视图用的记录
+    func convertToCalendarRecord(from record: DailyWorkoutRecord, sessions: [WorkoutSession], vouchers: [DessertRun.DessertVoucher]) -> CalendarWorkoutRecord {
+        return CalendarWorkoutRecord(
+            date: record.date,
+            sessions: sessions,
+            dessertVouchers: vouchers
+        )
     }
 } 
