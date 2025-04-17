@@ -242,6 +242,19 @@ class WorkoutViewModel: NSObject, ObservableObject {
     
     // MARK: - 私有辅助方法
     
+    /// 请求所有需要的传感器权限
+    private func requestSensorPermissions() {
+        // 请求位置权限
+        if workoutSession.exerciseType.requiresGPS {
+            locationManager?.requestWhenInUseAuthorization()
+        }
+        
+        // 请求运动和健身权限 (CoreMotion不需要明确的授权对话框，但会反映在隐私设置中)
+        // 使用系统API时会自动请求必要权限
+        
+        print("已请求所有必要的运动传感器权限")
+    }
+    
     /// 设置传感器和定时器
     private func setupSensors() {
         // 如果需要GPS，创建并配置位置管理器
@@ -324,6 +337,9 @@ class WorkoutViewModel: NSObject, ObservableObject {
     
     /// 开始倒计时
     private func startCountdown() {
+        // 请求所有必要的传感器权限
+        requestSensorPermissions()
+        
         // 确保先停止任何可能存在的定时器
         countdownTimer?.invalidate()
         countdownTimer = nil

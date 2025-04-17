@@ -36,6 +36,17 @@ struct DataView: View {
         span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
     )
     
+    /// 拖动偏移量
+    @State private var dragOffset: CGFloat = 0
+    
+    /// 资源加载状态
+    @State private var resourcesLoaded = false
+    
+    // 在状态变量区域添加位置相关状态
+    @State private var userLocation: CLLocationCoordinate2D? = nil
+    @State private var locationAccuracy: CLLocationAccuracy = 0
+    @State private var lastLocationUpdate = Date()
+    
     // 根据完成百分比确定要显示的粒子数量
     private var particleCount: Int {
         return Int(workoutSession.completionPercentage / 3) + 5 // 至少5个粒子
@@ -51,107 +62,169 @@ struct DataView: View {
             // 背景 - 确保是纯白色
             Color.white.edgesIgnoringSafeArea(.all)
             
-            // 主要内容容器
-            VStack(spacing: 15) {
-                // 增加顶部安全区域边距
-                Spacer(minLength: 40)
-                
-                if shouldShowMap {
-                    // 户外运动布局 - 左侧缩小的进度环，右侧地图
-                    HStack(alignment: .top, spacing: 10) {
-                        // 左侧缩小的进度环
-                        progressRingView
-                            .frame(width: screenSize.width * 0.35)
+            if shouldShowMap {
+                // 户外运动布局 - 全屏地图布局，数据卡悬浮在地图上
+                ZStack {
+                    // 地图填充整个屏幕
+                    mapContent
+                        .ignoresSafeArea()
+                        .overlay(mapOverlay)
+                        // 添加手势限制，仅允许地图区域的手势
+                        .gesture(
+                            DragGesture(minimumDistance: 5)
+                                .onChanged { _ in
+                                    // 仅允许地图内部的拖动，不处理外部手势
+                                }
+                        )
+                        .allowsHitTesting(true)
+                    
+                    // 悬浮的数据卡片 - 4个核心数据
+                    VStack {
+                        Spacer()
                         
-                        // 右侧地图
-                        mapView
-                            .frame(height: screenSize.height * 0.3)
-                            .cornerRadius(16)
-                            .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 3)
+                        // 四个核心数据卡片悬浮在底部
+                        HStack(spacing: 10) {
+                            // 时间
+                            FloatingDataCard(
+                                icon: "clock.fill",
+                                iconColor: primaryColor,
+                                value: formattedTime,
+                                label: "总时间"
+                            )
+                            
+                            // 卡路里
+                            FloatingDataCard(
+                                icon: "flame.fill",
+                                iconColor: secondaryColor,
+                                value: "\(Int(workoutSession.burnedCalories))",
+                                label: "卡路里"
+                            )
+                            
+                            // 总里程
+                            FloatingDataCard(
+                                icon: "map.fill",
+                                iconColor: Color(hex: "4CD964"),
+                                value: String(format: "%.2f", workoutSession.distanceInMeters / 1000),
+                                label: "总里程(km)"
+                            )
+                            
+                            // 配速
+                            FloatingDataCard(
+                                icon: "speedometer",
+                                iconColor: Color(hex: "FF3B30"),
+                                value: paceString,
+                                label: "配速"
+                            )
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.bottom, 20)
                     }
-                    .frame(height: screenSize.height * 0.3)
-                    .padding(.horizontal, 15)
-                } else {
-                    // 室内运动 - 保持原来的居中大进度环
+                    
+                    // 左右边缘滑动区域，用于TabView页面切换
+                    HStack(spacing: 0) {
+                        // 左边缘区域 - 检测右滑（返回上一页）
+                        Rectangle()
+                            .fill(Color.clear)
+                            .frame(width: 60)
+                            .contentShape(Rectangle())
+                            .gesture(
+                                DragGesture(minimumDistance: 20)
+                                    .onChanged { value in
+                                        self.dragOffset = value.translation.width
+                                    }
+                                    .onEnded { value in
+                                        if value.translation.width > 80 {
+                                            // 向右滑动超过阈值，切换到激励页面(index 0)
+                                            withAnimation {
+                                                NotificationCenter.default.post(
+                                                    name: NSNotification.Name("ChangePageIndex"),
+                                                    object: nil,
+                                                    userInfo: ["index": 0]
+                                                )
+                                            }
+                                        }
+                                        self.dragOffset = 0
+                                    }
+                            )
+                        
+                        Spacer()
+                        
+                        // 右边缘区域 - 为完整性添加，检测左滑
+                        Rectangle()
+                            .fill(Color.clear)
+                            .frame(width: 60)
+                            .contentShape(Rectangle())
+                    }
+                    .frame(maxHeight: .infinity)
+                    .allowsHitTesting(true)
+                    
+                    // 暂停状态标识 - 仅在暂停时显示
+                    if workoutSession.state == .paused {
+                        pauseIndicator
+                    }
+                }
+            } else {
+                // 室内运动 - 保持原来的居中大进度环和数据布局
+                VStack(spacing: 15) {
+                    // 增加顶部安全区域边距
+                    Spacer(minLength: 40)
+                    
+                    // 进度环
                     progressRingView
                         .frame(height: screenSize.height * 0.3)
                         .padding(.bottom, 10)
-                }
-                
-                // 核心数据卡片
-                LazyVGrid(columns: [
-                    GridItem(.flexible()),
-                    GridItem(.flexible()),
-                ], spacing: 12) {
-                    // 时间
-                    CoreDataCard(
-                        icon: "clock.fill",
-                        iconColor: primaryColor,
-                        value: formattedTime,
-                        label: "总时间",
-                        isAnimating: isAnimating
-                    )
                     
-                    // 卡路里
-                    CoreDataCard(
-                        icon: "flame.fill",
-                        iconColor: secondaryColor,
-                        value: "\(Int(workoutSession.burnedCalories))",
-                        label: "卡路里消耗",
-                        isAnimating: isAnimating
-                    )
-                    
-                    // 距离/次数
-                    CoreDataCard(
-                        icon: workoutSession.exerciseType.requiresGPS ? "map.fill" : "repeat",
-                        iconColor: Color(hex: "4CD964"),
-                        value: distanceOrCount,
-                        label: distanceOrCountLabel,
-                        isAnimating: isAnimating
-                    )
-                    
-                    // 目标
-                    CoreDataCard(
-                        icon: "flag.fill",
-                        iconColor: Color(hex: "5AC8FA"),
-                        value: "\(Int(workoutSession.targetCalories))",
-                        label: "目标卡路里",
-                        isAnimating: isAnimating
-                    )
-                }
-                .padding(.horizontal, 15)
-                
-                // 为户外运动添加额外的数据卡片
-                if shouldShowMap {
-                    HStack(spacing: 12) {
-                        // 当前配速
+                    // 核心数据卡片
+                    LazyVGrid(columns: [
+                        GridItem(.flexible()),
+                        GridItem(.flexible()),
+                    ], spacing: 12) {
+                        // 时间
                         CoreDataCard(
-                            icon: "speedometer",
-                            iconColor: Color(hex: "FF3B30"),
-                            value: paceString,
-                            label: "当前配速",
+                            icon: "clock.fill",
+                            iconColor: primaryColor,
+                            value: formattedTime,
+                            label: "总时间",
                             isAnimating: isAnimating
                         )
                         
-                        // 平均速度
+                        // 卡路里
                         CoreDataCard(
-                            icon: "figure.walk",
-                            iconColor: Color(hex: "007AFF"),
-                            value: avgSpeedString,
-                            label: "平均速度",
+                            icon: "flame.fill",
+                            iconColor: secondaryColor,
+                            value: "\(Int(workoutSession.burnedCalories))",
+                            label: "卡路里消耗",
+                            isAnimating: isAnimating
+                        )
+                        
+                        // 距离/次数
+                        CoreDataCard(
+                            icon: "repeat",
+                            iconColor: Color(hex: "4CD964"),
+                            value: distanceOrCount,
+                            label: distanceOrCountLabel,
+                            isAnimating: isAnimating
+                        )
+                        
+                        // 目标
+                        CoreDataCard(
+                            icon: "flag.fill",
+                            iconColor: Color(hex: "5AC8FA"),
+                            value: "\(Int(workoutSession.targetCalories))",
+                            label: "目标卡路里",
                             isAnimating: isAnimating
                         )
                     }
                     .padding(.horizontal, 15)
+                    
+                    Spacer()
+                    
+                    // 为暂停按钮留出安全区域
+                    Spacer()
+                        .frame(height: 90)
                 }
-                
-                Spacer()
-                
-                // 为暂停按钮留出安全区域
-                Spacer()
-                    .frame(height: 90)
+                .padding(.vertical)
             }
-            .padding(.vertical)
         }
         .onAppear {
             isAnimating = true
@@ -167,6 +240,12 @@ struct DataView: View {
             
             // 设置通知监听器
             setupNotificationObservers()
+            
+            // 处理资源加载问题
+            setupMapResources()
+            
+            // 设置实时位置更新监听
+            setupLocationTracking()
         }
         .onDisappear {
             // 移除通知监听器
@@ -345,18 +424,70 @@ struct DataView: View {
             #if swift(>=5.9) && canImport(MapKit)
             // iOS 17+ 新的Map API
             Map(initialPosition: .region(mapRegion)) {
-                UserAnnotation()
+                // 路线轨迹
+                if locationAnnotations.count > 1 {
+                    MapPolyline(coordinates: locationAnnotations.map { $0.coordinate })
+                        .stroke(primaryColor, lineWidth: 4)
+                }
                 
-                ForEach(locationAnnotations) { annotation in
-                    Marker("", coordinate: annotation.coordinate)
-                        .tint(primaryColor)
+                // 起点标记
+                if let firstLocation = locationAnnotations.first {
+                    Annotation("起点", coordinate: firstLocation.coordinate) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.green)
+                                .frame(width: 24, height: 24)
+                            
+                            Image(systemName: "flag.fill")
+                                .font(.system(size: 12))
+                                .foregroundColor(.white)
+                        }
+                    }
+                }
+                
+                // 使用系统位置作为标记位置 - 更加准确
+                if let userLocation = userLocation {
+                    Annotation("当前", coordinate: userLocation) {
+                        ZStack {
+                            Circle()
+                                .fill(primaryColor)
+                                .frame(width: 28, height: 28)
+                            
+                            Image(systemName: "location.fill")
+                                .font(.system(size: 14))
+                                .foregroundColor(.white)
+                        }
+                    }
                 }
             }
             .mapStyle(.standard)
+            .mapControls {
+                MapCompass()
+                MapScaleView()
+            }
+            .onMapCameraChange { context in
+                // 实时更新地图区域
+                mapRegion = MKCoordinateRegion(
+                    center: context.region.center,
+                    span: context.region.span
+                )
+            }
+            .overlay(alignment: .topTrailing) {
+                // GPS信号强度指示器
+                GPSSignalIndicator(accuracy: locationAccuracy, lastUpdate: lastLocationUpdate)
+                    .padding(.trailing, 12)
+                    .padding(.top, 12)
+            }
             #else
             // 旧的Map API，用于兼容iOS 16及更早版本
             Map(coordinateRegion: $mapRegion, showsUserLocation: true, annotationItems: locationAnnotations) { annotation in
                 MapMarker(coordinate: annotation.coordinate, tint: primaryColor)
+            }
+            .overlay(alignment: .topTrailing) {
+                // GPS信号强度指示器
+                GPSSignalIndicator(accuracy: locationAccuracy, lastUpdate: lastLocationUpdate)
+                    .padding(.trailing, 12)
+                    .padding(.top, 12)
             }
             #endif
         }
@@ -368,15 +499,26 @@ struct DataView: View {
             if workoutSession.locationHistory.count < 2 {
                 ZStack {
                     Color.white.opacity(0.8)
-                    VStack {
+                    VStack(spacing: 10) {
+                        Image(systemName: "location.magnifyingglass")
+                            .font(.system(size: 36))
+                            .foregroundColor(primaryColor)
+                            .padding(.bottom, 5)
+                        
                         Text("等待位置数据...")
                             .font(.headline)
                         
                         Text("请保持移动以收集运动轨迹")
                             .font(.subheadline)
                             .foregroundColor(.gray)
-                            .padding(.top, 5)
                     }
+                    .padding(20)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color.white)
+                            .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
+                    )
+                    .padding()
                 }
             }
         }
@@ -615,6 +757,65 @@ struct DataView: View {
             return "高"
         }
     }
+    
+    // 处理地图资源加载问题
+    private func setupMapResources() {
+        // 检查是否已经处理过资源问题
+        if !resourcesLoaded {
+            // 创建一个空的default.csv文件到应用文档目录
+            let fileManager = FileManager.default
+            let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
+            let defaultCSVPath = documentsDirectory.appendingPathComponent("default.csv")
+            
+            // 只有在文件不存在时才创建
+            if !fileManager.fileExists(atPath: defaultCSVPath.path) {
+                do {
+                    // 创建一个含有基本CSV结构的文件而不是空文件
+                    let basicCSVContent = "id,name,latitude,longitude\n"
+                    try basicCSVContent.write(to: defaultCSVPath, atomically: true, encoding: .utf8)
+                    print("创建默认地图资源文件成功")
+                } catch {
+                    print("创建default.csv时出错: \(error.localizedDescription)")
+                }
+            }
+            
+            // 设置为已处理
+            resourcesLoaded = true
+        }
+    }
+    
+    // 添加位置跟踪方法
+    private func setupLocationTracking() {
+        // 设置位置监听器
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("LocationUpdated"),
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            if let locationData = notification.userInfo?["location"] as? CLLocation {
+                self?.userLocation = locationData.coordinate
+                self?.locationAccuracy = locationData.horizontalAccuracy
+                self?.lastLocationUpdate = Date()
+            }
+        }
+        
+        // 创建位置监听定时器，确保定位更新
+        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            if let location = self.workoutSession.locationManager?.manager.location {
+                self.userLocation = location.coordinate
+                self.locationAccuracy = location.horizontalAccuracy
+                self.lastLocationUpdate = Date()
+                
+                // 发布通知以便其他组件更新
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("LocationUpdated"),
+                    object: nil,
+                    userInfo: ["location": location]
+                )
+            }
+        }
+    }
 }
 
 /// 核心数据卡片
@@ -688,5 +889,102 @@ struct LocationAnnotation: Identifiable {
     init(from location: LocationPoint) {
         self.id = UUID()
         self.coordinate = location.coordinate
+    }
+}
+
+// 添加悬浮数据卡片组件
+struct FloatingDataCard: View {
+    let icon: String
+    let iconColor: Color
+    let value: String
+    let label: String
+    
+    var body: some View {
+        VStack(spacing: 6) {
+            // 图标
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(iconColor)
+                .frame(width: 28, height: 28)
+                .background(
+                    Circle()
+                        .fill(iconColor.opacity(0.2))
+                        .frame(width: 28, height: 28)
+                )
+            
+            // 值和标签垂直排列
+            Text(value)
+                .font(.system(size: 16, weight: .bold))
+                .foregroundColor(.white)
+            
+            Text(label)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(.white.opacity(0.7))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .padding(.horizontal, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.black.opacity(0.6))
+                .shadow(color: Color.black.opacity(0.2), radius: 6, x: 0, y: 3)
+        )
+    }
+}
+
+// 添加GPS信号强度指示器组件
+struct GPSSignalIndicator: View {
+    let accuracy: CLLocationAccuracy
+    let lastUpdate: Date
+    
+    private var signalStrength: Int {
+        if accuracy <= 5 {
+            return 4 // 极佳信号
+        } else if accuracy <= 10 {
+            return 3 // 良好信号
+        } else if accuracy <= 50 {
+            return 2 // 一般信号
+        } else if accuracy <= 100 {
+            return 1 // 弱信号
+        } else {
+            return 0 // 极弱信号或无信号
+        }
+    }
+    
+    private var signalColor: Color {
+        switch signalStrength {
+        case 4: return .green
+        case 3: return .green.opacity(0.8)
+        case 2: return .yellow
+        case 1: return .orange
+        default: return .red
+        }
+    }
+    
+    private var timeSinceUpdate: TimeInterval {
+        return Date().timeIntervalSince(lastUpdate)
+    }
+    
+    var body: some View {
+        VStack(alignment: .center, spacing: 2) {
+            HStack(spacing: 1) {
+                ForEach(0..<5) { i in
+                    Rectangle()
+                        .fill(i < signalStrength ? signalColor : Color.gray.opacity(0.3))
+                        .frame(width: 4, height: CGFloat(i + 1) * 3 + 2)
+                        .cornerRadius(1)
+                }
+            }
+            
+            Text(String(format: "%.1fm", accuracy))
+                .font(.system(size: 9))
+                .foregroundColor(signalColor)
+                .frame(height: 10)
+        }
+        .padding(6)
+        .background(Color.white.opacity(0.8))
+        .cornerRadius(8)
+        .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+        .opacity(timeSinceUpdate > 10 ? 0.5 : 1.0) // 10秒没更新则降低透明度
     }
 } 

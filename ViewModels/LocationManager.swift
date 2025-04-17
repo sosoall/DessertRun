@@ -115,7 +115,7 @@ class LocationManager: NSObject, ObservableObject, LocationManaging {
     private func setupLocationManager() {
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyBest
-        manager.distanceFilter = 5 // 只在移动5米以上时更新位置
+        manager.distanceFilter = 3 // 只在移动3米以上时更新位置
         manager.activityType = .fitness
         manager.pausesLocationUpdatesAutomatically = false
         
@@ -135,6 +135,27 @@ class LocationManager: NSObject, ObservableObject, LocationManaging {
     
     /// 开始位置更新
     func startTracking() {
+        // 先检查权限状态
+        if manager.authorizationStatus == .notDetermined {
+            // 如果权限未确定，先请求权限
+            requestAuthorization()
+            
+            // 延迟启动，等待用户响应权限请求
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                self?.startTrackingAfterPermissionCheck()
+            }
+        } else if manager.authorizationStatus == .authorizedWhenInUse || 
+                 manager.authorizationStatus == .authorizedAlways {
+            // 已有权限，直接启动
+            startTrackingAfterPermissionCheck()
+        } else {
+            // 权限被拒绝，打印警告
+            print("位置权限被拒绝或受限，无法启动位置追踪")
+        }
+    }
+    
+    /// 权限检查后启动跟踪
+    private func startTrackingAfterPermissionCheck() {
         // 重置数据
         locationHistory.removeAll()
         totalDistance = 0

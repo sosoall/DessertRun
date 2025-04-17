@@ -7,6 +7,8 @@
 
 import SwiftUI
 import UIKit
+import CoreLocation
+import UserNotifications
 
 /// 应用主入口
 @main
@@ -42,11 +44,29 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         // 应用启动时锁定为竖屏
         AppDelegate.lockOrientation(.portrait)
+        
+        // 应用启动时主动请求必要的权限
+        requestPermissions()
+        
         return true
     }
     
     func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
         return AppDelegate.orientationLock
+    }
+    
+    /// 请求应用所需的权限
+    private func requestPermissions() {
+        // 请求位置权限
+        let locationManager = CLLocationManager()
+        locationManager.requestWhenInUseAuthorization()
+        
+        // 请求通知权限
+        Task {
+            _ = await UNUserNotificationCenter.requestPermission()
+        }
+        
+        print("已请求应用所需的基本权限")
     }
     
     /// 设置屏幕方向锁定的辅助方法

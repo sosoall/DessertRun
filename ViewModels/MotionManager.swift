@@ -70,6 +70,18 @@ class MotionManager: NSObject, ObservableObject, MotionManaging {
     func startTracking() {
         guard !isTracking else { return }
         
+        // 检查传感器可用性
+        if !cmMotionManager.isDeviceMotionAvailable && 
+           !cmMotionManager.isAccelerometerAvailable {
+            print("设备不支持运动传感器，无法获取运动数据")
+            return
+        }
+        
+        if !CMPedometer.isStepCountingAvailable() {
+            print("设备不支持步数计算，将无法获取步数数据")
+            // 不中断执行，因为可以继续使用其他传感器
+        }
+        
         // 设置开始日期
         startDate = Date()
         

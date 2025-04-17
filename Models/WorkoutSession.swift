@@ -127,10 +127,14 @@ class WorkoutSession: ObservableObject {
         locationHistory = []
         endTime = nil  // 重置结束时间
         
-        // 如果是户外运动，启动位置追踪
+        // 如果是户外运动，请求权限并启动位置追踪
         if exerciseType.requiresGPS {
+            // 先请求权限
             locationManager?.requestAuthorization()
-            locationManager?.startTracking()
+            // 确保在请求权限后再开始跟踪
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                self?.locationManager?.startTracking()
+            }
         }
         
         // 启动运动传感器追踪

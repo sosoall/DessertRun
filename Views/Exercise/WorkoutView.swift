@@ -71,27 +71,30 @@ struct WorkoutView: View {
                     // 倒计时视图
                     countdownView
                 } else {
+                    // 主体内容视图
                     VStack(spacing: 0) {
-                        // 标题和页面指示器 - 贴近顶部但留出灵动岛空间
-                        VStack(spacing: 4) {
-                            // 修改标题部分，使用HStack放在同一行
+                        // 顶部标题栏 - 确保在两个页面都显示
+                        VStack(spacing: 2) {
                             HStack(spacing: 8) {
-                                Text(showPauseMenu ? "已暂停" : "\(workoutSession.targetDessert.name)")
-                                    .font(.title2)
-                                    .fontWeight(.bold)
+                                Text(showPauseMenu ? "已暂停" : workoutSession.targetDessert.name)
+                                    .font(.system(size: 20, weight: .bold))
                                     .foregroundColor(Color(hex: "61462C"))
                                 
-                                Text("(\(workoutSession.exerciseType.name) · \(workoutSession.targetDessert.name))")
+                                Text("(\(workoutSession.exerciseType.name))")
                                     .font(.system(size: 14, weight: .medium))
                                     .foregroundColor(.gray.opacity(0.8))
+                                
+                                Spacer()
                             }
-                            .padding(.top, 40) // 增加顶部边距，给灵动岛留空间
+                            .padding(.horizontal, 16)
+                            .padding(.top, 12)
                             
                             // 页面指示器
                             PageIndicator(currentPage: pageIndex)
+                                .padding(.bottom, 4)
                         }
-                        .padding(.top, 5) // 顶部留一点空间
-                        .padding(.bottom, 5)
+                        .background(Color.white)
+                        .zIndex(100) // 确保总是在顶部
                         
                         // 页面内容
                         TabView(selection: $pageIndex) {
@@ -122,7 +125,7 @@ struct WorkoutView: View {
                             }
                         }
                     }
-                    .edgesIgnoringSafeArea(.top)
+                    .edgesIgnoringSafeArea(.bottom)
                     
                     // 底部控制栏 - 仅在非暂停状态下显示
                     if !showPauseMenu {
@@ -177,6 +180,19 @@ struct WorkoutView: View {
             
             // 修复设备方向相关错误
             configureOrientation()
+            
+            // 添加页面切换通知观察者
+            NotificationCenter.default.addObserver(
+                forName: NSNotification.Name("ChangePageIndex"),
+                object: nil,
+                queue: .main
+            ) { notification in
+                if let index = notification.userInfo?["index"] as? Int {
+                    withAnimation {
+                        self.pageIndex = index
+                    }
+                }
+            }
         }
         // 使用新的NavigationStack推荐的方式
         .background(
@@ -200,6 +216,13 @@ struct WorkoutView: View {
             
             // 释放动作管理器资源
             workoutSession.motionManager?.stopTracking()
+            
+            // 移除通知观察者
+            NotificationCenter.default.removeObserver(
+                self,
+                name: NSNotification.Name("ChangePageIndex"),
+                object: nil
+            )
             
             if !navigateToComplete {
                 // 如果不是导航到完成页面，则恢复UI状态
@@ -358,6 +381,9 @@ struct WorkoutView: View {
         @unknown default:
             break
         }
+        
+        // 打印一个明确的调试信息，确认方法被调用
+        print("【调试】WorkoutView.requestLocationPermission() - 已请求位置权限")
     }
     
     // 启动定时器模拟数据更新
