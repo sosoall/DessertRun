@@ -81,7 +81,7 @@ protocol LocationManaging: ObservableObject {
 /// 位置管理器 - 负责GPS位置数据采集
 class LocationManager: NSObject, ObservableObject, LocationManaging {
     /// 位置管理器
-    private let manager = CLLocationManager()
+    let manager = CLLocationManager()
     
     /// 当前位置发布者
     @Published var currentLocation: LocationPoint?
@@ -216,6 +216,13 @@ class LocationManager: NSObject, ObservableObject, LocationManaging {
         
         // 发布位置更新事件
         locationUpdatePublisher.send(locationData)
+        
+        // 发送位置更新通知
+        NotificationCenter.default.post(
+            name: NSNotification.Name("LocationUpdated"),
+            object: nil,
+            userInfo: ["location": location]
+        )
     }
     
     /// 获取位置权限状态

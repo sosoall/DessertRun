@@ -424,6 +424,9 @@ struct DataView: View {
             #if swift(>=5.9) && canImport(MapKit)
             // iOS 17+ 新的Map API
             Map(initialPosition: .region(mapRegion)) {
+                // 使用系统的用户位置标记 - 更准确
+                UserAnnotation()
+                
                 // 路线轨迹
                 if locationAnnotations.count > 1 {
                     MapPolyline(coordinates: locationAnnotations.map { $0.coordinate })
@@ -444,21 +447,6 @@ struct DataView: View {
                         }
                     }
                 }
-                
-                // 使用系统位置作为标记位置 - 更加准确
-                if let userLocation = userLocation {
-                    Annotation("当前", coordinate: userLocation) {
-                        ZStack {
-                            Circle()
-                                .fill(primaryColor)
-                                .frame(width: 28, height: 28)
-                            
-                            Image(systemName: "location.fill")
-                                .font(.system(size: 14))
-                                .foregroundColor(.white)
-                        }
-                    }
-                }
             }
             .mapStyle(.standard)
             .mapControls {
@@ -473,7 +461,7 @@ struct DataView: View {
                 )
             }
             .overlay(alignment: .topTrailing) {
-                // GPS信号强度指示器
+                // 保留GPS信号强度指示器
                 GPSSignalIndicator(accuracy: locationAccuracy, lastUpdate: lastLocationUpdate)
                     .padding(.trailing, 12)
                     .padding(.top, 12)
@@ -791,17 +779,16 @@ struct DataView: View {
             forName: NSNotification.Name("LocationUpdated"),
             object: nil,
             queue: .main
-        ) { [weak self] notification in
+        ) { notification in
             if let locationData = notification.userInfo?["location"] as? CLLocation {
-                self?.userLocation = locationData.coordinate
-                self?.locationAccuracy = locationData.horizontalAccuracy
-                self?.lastLocationUpdate = Date()
+                self.userLocation = locationData.coordinate
+                self.locationAccuracy = locationData.horizontalAccuracy
+                self.lastLocationUpdate = Date()
             }
         }
         
         // 创建位置监听定时器，确保定位更新
-        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
+        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
             if let location = self.workoutSession.locationManager?.manager.location {
                 self.userLocation = location.coordinate
                 self.locationAccuracy = location.horizontalAccuracy
