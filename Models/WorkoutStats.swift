@@ -86,12 +86,12 @@ struct DailyWorkoutRecord: Identifiable {
 struct CalendarWorkoutRecord: Identifiable {
     let id = UUID()
     let date: Date
-    let sessions: [WorkoutSession]
+    let sessions: [DessertRun.WorkoutSession]
     let dessertVouchers: [DessertRun.DessertVoucher]
     
     // 快速访问器
     var totalDuration: Int {
-        sessions.reduce(0) { $0 + $1.totalElapsedSeconds }
+        return Int(sessions.reduce(0) { $0 + $1.totalElapsedSeconds })
     }
     
     var totalDistance: Double {
@@ -232,7 +232,7 @@ class WorkoutStatsManager {
     ///   - sessions: 会话记录
     ///   - vouchers: 甜品券
     /// - Returns: 日历视图用的记录
-    func convertToCalendarRecord(from record: DailyWorkoutRecord, sessions: [WorkoutSession], vouchers: [DessertRun.DessertVoucher]) -> CalendarWorkoutRecord {
+    func convertToCalendarRecord(from record: DailyWorkoutRecord, sessions: [DessertRun.WorkoutSession], vouchers: [DessertRun.DessertVoucher]) -> CalendarWorkoutRecord {
         return CalendarWorkoutRecord(
             date: record.date,
             sessions: sessions,

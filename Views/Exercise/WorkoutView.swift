@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import CoreLocation
 
 /// 运动界面
 struct WorkoutView: View {
@@ -113,9 +114,10 @@ struct WorkoutView: View {
                         .onDisappear {
                             // 在视图消失时释放资源
                             if pageIndex == 0 {
-                                // 让主线程处理，避免后台GPU工作
+                                // 停止所有动画
                                 DispatchQueue.main.async {
-                                    // 空操作或简单重置
+                                    // 确保停止与GPU相关的任何操作
+                                    workoutSession.suspendAnimations()
                                 }
                             }
                         }
@@ -180,47 +182,36 @@ struct WorkoutView: View {
         .background(
             NavigationLink(isActive: $navigateToComplete) {
                 WorkoutCompleteView(workoutSession: workoutSession)
-                    .onAppear {
-                        print("【调试】WorkoutCompleteView.onAppear 从WorkoutView")
-                        print("【调试】WorkoutSession状态: \(workoutSession.state)")
-                        print("【调试】isInWorkoutMode: \(appState.isInWorkoutMode)")
-                    }
             } label: {
                 EmptyView()
             }
         )
         .onDisappear {
             // 确保退出运动视图时清理状态
-            print("【调试】WorkoutView.onDisappear")
-            print("【调试】navigateToComplete: \(navigateToComplete)")
-            print("【调试】WorkoutSession状态: \(workoutSession.state), isCompleted: \(workoutSession.isCompleted)")
             
             // 强制停止所有定时器，避免泄漏
             workoutTimer?.invalidate()
             workoutTimer = nil
             countdownTimer?.invalidate()
             countdownTimer = nil
-            print("【调试】WorkoutView - 强制清理所有定时器")
+            
+            // 释放位置管理器资源
+            workoutSession.locationManager?.stopTracking()
+            
+            // 释放动作管理器资源
+            workoutSession.motionManager?.stopTracking()
             
             if !navigateToComplete {
                 // 如果不是导航到完成页面，则恢复UI状态
-                print("【调试】手动返回，重置UI状态")
                 appState.isInWorkoutMode = false
                 
                 // 如果用户直接点击返回按钮，清理所有相关状态
                 if !workoutSession.isCompleted {
-                    print("【调试】运动未完成，执行状态清理")
                     DispatchQueue.main.async {
                         // 使用统一的状态重置方法
                         appState.finishWorkout()
-                        
-                        print("【调试】状态清理完成")
                     }
-                } else {
-                    print("【调试】运动已完成，跳过状态清理")
                 }
-            } else {
-                print("【调试】正在导航到完成页面，跳过状态清理")
             }
         }
     }
@@ -332,6 +323,12 @@ struct WorkoutView: View {
                     withAnimation(.easeInOut(duration: 0.5)) {
                         self.showingCountdown = false
                         
+                        // 在倒计时结束后开始位置追踪（如果是户外运动）
+                        if self.workoutSession.exerciseType.requiresGPS {
+                            // 请求位置权限
+                            self.requestLocationPermission()
+                        }
+                        
                         // 启动会话
                         self.workoutSession.startWorkout()
                         
@@ -346,27 +343,36 @@ struct WorkoutView: View {
         }
     }
     
+    // 请求位置权限的方法
+    private func requestLocationPermission() {
+        let locationManager = CLLocationManager()
+        switch locationManager.authorizationStatus {
+        case .notDetermined:
+            locationManager.requestWhenInUseAuthorization()
+        case .restricted, .denied:
+            // 显示提醒用户开启位置权限的提示
+            print("【警告】用户已拒绝位置权限，户外运动无法准确记录距离")
+        case .authorizedWhenInUse, .authorizedAlways:
+            // 已有权限，无需操作
+            break
+        @unknown default:
+            break
+        }
+    }
+    
     // 启动定时器模拟数据更新
     private func startTimer() {
-        print("【调试】WorkoutView.startTimer() - 开始模拟数据更新")
+        print("【调试】WorkoutView.startTimer() - 开始定期更新运动数据")
         
         // 确保先停止任何可能存在的定时器
         workoutTimer?.invalidate()
         workoutTimer = nil
         
-        // 创建1秒间隔的定时器，模拟数据更新
+        // 创建1秒间隔的定时器，定期更新数据
         workoutTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
             if self.workoutSession.isActive {
-                // 更新时间和卡路里
+                // 更新运动数据
                 self.workoutSession.updateWorkoutData()
-                
-                // 模拟距离增加 (如果是GPS类型运动)
-                if self.workoutSession.exerciseType.requiresGPS {
-                    // 每秒增加1-3米
-                    let speedMetersPerSecond = Double.random(in: 1...3)
-                    self.workoutSession.distanceInMeters += speedMetersPerSecond
-                    self.workoutSession.currentSpeed = speedMetersPerSecond
-                }
                 
                 // 检查是否完成，如果卡路里达到目标，自动完成
                 if self.workoutSession.burnedCalories >= self.workoutSession.targetCalories {

@@ -28,6 +28,21 @@ struct AnimationView: View {
     private let primaryColor = Color(hex: "FE2D55")
     private let secondaryColor = Color(hex: "FF9901")
     
+    /// 激励文本数组
+    private let motivationalTexts = [
+        "加油！你可以的！",
+        "每一步都是进步！",
+        "坚持就是胜利！",
+        "感受身体的力量！",
+        "为自己而战！"
+    ]
+    
+    /// 当前显示的激励文本索引
+    @State private var currentTextIndex = 0
+    
+    /// 应用是否在前台
+    @State private var isAppActive: Bool = true
+    
     var body: some View {
         ZStack {
             // 背景
@@ -150,9 +165,17 @@ struct AnimationView: View {
             .padding(.top, 0) // 移除顶部内边距
             .onAppear {
                 // 开始动画
-                withAnimation(Animation.easeInOut(duration: 3).repeatForever(autoreverses: true)) {
-                    isAnimating = true
-                }
+                startAnimations()
+                
+                // 设置计时器，定期更换激励文本
+                startMotivationalTextTimer()
+                
+                // 设置通知监听器
+                setupNotificationObservers()
+            }
+            .onDisappear {
+                // 移除通知监听器
+                removeNotificationObservers()
             }
         }
     }
@@ -184,6 +207,97 @@ struct AnimationView: View {
                 }
             }
         }
+    }
+    
+    /// 开始动画
+    private func startAnimations() {
+        if isAppActive {
+            withAnimation(Animation.easeInOut(duration: 3).repeatForever(autoreverses: true)) {
+                isAnimating = true
+            }
+        }
+    }
+    
+    /// 停止动画
+    private func stopAnimations() {
+        withAnimation(.easeOut(duration: 0.5)) {
+            isAnimating = false
+        }
+    }
+    
+    /// 启动激励文本计时器
+    private func startMotivationalTextTimer() {
+        // 创建一个每5秒触发一次的计时器，用于更新激励文本
+        Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { _ in
+            // 只在应用处于前台时更新文字
+            if isAppActive {
+                withAnimation(.easeInOut) {
+                    // 随机选择下一条激励文本
+                    let nextIndex = Int.random(in: 0..<motivationalTexts.count)
+                    // 确保不会连续显示相同的文本
+                    if nextIndex != currentTextIndex {
+                        currentTextIndex = nextIndex
+                    } else {
+                        currentTextIndex = (currentTextIndex + 1) % motivationalTexts.count
+                    }
+                }
+            }
+        }
+    }
+    
+    // MARK: - 通知处理
+    
+    /// 设置通知监听器
+    private func setupNotificationObservers() {
+        // 监听应用进入后台
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.didEnterBackgroundNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            isAppActive = false
+            stopAnimations()
+        }
+        
+        // 监听应用即将进入前台
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.willEnterForegroundNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            isAppActive = true
+            startAnimations()
+        }
+        
+        // 监听停止动画通知
+        NotificationCenter.default.addObserver(
+            forName: Notification.Name("SuspendWorkoutAnimations"),
+            object: nil,
+            queue: .main
+        ) { _ in
+            stopAnimations()
+        }
+    }
+    
+    /// 移除通知监听器
+    private func removeNotificationObservers() {
+        NotificationCenter.default.removeObserver(
+            self,
+            name: UIApplication.didEnterBackgroundNotification,
+            object: nil
+        )
+        
+        NotificationCenter.default.removeObserver(
+            self,
+            name: UIApplication.willEnterForegroundNotification,
+            object: nil
+        )
+        
+        NotificationCenter.default.removeObserver(
+            self,
+            name: Notification.Name("SuspendWorkoutAnimations"),
+            object: nil
+        )
     }
 }
 

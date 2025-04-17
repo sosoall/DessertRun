@@ -65,6 +65,9 @@ struct BubbleLayout<Item: Identifiable, Content: View>: View {
     /// 上一次缩放比例
     @State private var lastScale: CGFloat = 1.0
     
+    /// 应用是否在前台
+    @State private var isAppActive: Bool = true
+    
     // MARK: - 初始化器
     
     /// 初始化气泡布局
@@ -110,31 +113,25 @@ struct BubbleLayout<Item: Identifiable, Content: View>: View {
                     let state = bubbleState(for: item, in: geometry)
                     content(item, state)
                         .position(x: geometry.size.width/2 + state.position.x, y: geometry.size.height/2 + state.position.y)
-                        .animation(isInitialized && !isDragging ? .interpolatingSpring(stiffness: 300, damping: 15) : nil, value: state.position)
-                        .animation(isInitialized && !isDragging ? .easeInOut : nil, value: state.size)
+                        .animation(isInitialized && !isDragging && isAppActive ? .interpolatingSpring(stiffness: 300, damping: 15) : nil, value: state.position)
+                        .animation(isInitialized && !isDragging && isAppActive ? .easeInOut : nil, value: state.size)
                 }
             }
             .scaleEffect(scaleAmount)
             .contentShape(Rectangle())
-            // 添加缩放手势
+            // 只在应用活跃状态下启用手势
             .gesture(
-                MagnificationGesture()
+                isAppActive ? MagnificationGesture()
                     .onChanged { value in
-                        // 添加调试信息
-                        print("【缩放调试】当前手势值: \(value), 当前缩放: \(scaleAmount)")
-                        
                         // 降低缩放灵敏度：应用缩放系数0.5，使手势的效果减弱
                         let dampedValue = 1.0 + (value - 1.0) * 0.5
                         
                         // 计算新的缩放值，使用降低灵敏度后的值
                         let newScale = dampedValue * lastScale
                         
-                        print("【缩放调试】原始手势值: \(value), 降低灵敏度后: \(dampedValue), 计算出的新缩放比例: \(newScale)")
-                        
                         // 检查是否在缩放过程中经过1.0点
                         if (lastScale < 1.0 && newScale > 1.0) || 
                            (lastScale > 1.0 && newScale < 1.0) {
-                            print("【缩放调试】经过100%，锁定为原始大小")
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                                 scaleAmount = 1.0
                                 isLockedToOriginalSize = true
@@ -155,25 +152,22 @@ struct BubbleLayout<Item: Identifiable, Content: View>: View {
                         }
                     }
                     .onEnded { _ in
-                        print("【缩放调试】缩放结束，最终缩放: \(scaleAmount)")
-                        
                         // 更新最后的缩放值
                         lastScale = scaleAmount
                         
                         // 如果接近原始大小，吸附到1.0
                         if abs(scaleAmount - 1.0) < 0.15 {
-                            print("【缩放调试】接近100%，吸附到原始大小")
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                                 scaleAmount = 1.0
                                 isLockedToOriginalSize = true
                                 lastScale = 1.0 // 重要：更新lastScale
                             }
                         }
-                    }
+                    } : nil
             )
             // 拖动手势
             .simultaneousGesture(
-                DragGesture(minimumDistance: 10, coordinateSpace: .local)
+                isAppActive ? DragGesture(minimumDistance: 10, coordinateSpace: .local)
                     .onChanged { value in
                         // 首次拖动时通知状态变更
                         if !isDragging {
@@ -272,7 +266,7 @@ struct BubbleLayout<Item: Identifiable, Content: View>: View {
                             contentOffset.y = min(max(contentOffset.y, -config.maxOffsetY), config.maxOffsetY)
                             recalculateBubbleStates(for: geometry.size)
                         }
-                    }
+                    } : nil
             )
             .onAppear {
                 // 尝试从应用状态恢复偏移量
@@ -293,12 +287,55 @@ struct BubbleLayout<Item: Identifiable, Content: View>: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     isInitialized = true
                 }
+                
+                // 添加应用生命周期通知观察者
+                setupNotificationObservers()
+            }
+            .onDisappear {
+                // 移除通知观察者
+                removeNotificationObservers()
             }
             .onChange(of: geometry.size) { oldSize, newSize in
                 // 当尺寸变化时重新计算
                 recalculateBubbleStates(for: newSize)
             }
         }
+    }
+    
+    // MARK: - 通知观察者
+    
+    private func setupNotificationObservers() {
+        // 注册应用进入后台和前台的通知
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.didEnterBackgroundNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            isAppActive = false
+        }
+        
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.willEnterForegroundNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            isAppActive = true
+        }
+    }
+    
+    private func removeNotificationObservers() {
+        // 移除通知观察者
+        NotificationCenter.default.removeObserver(
+            self,
+            name: UIApplication.didEnterBackgroundNotification,
+            object: nil
+        )
+        
+        NotificationCenter.default.removeObserver(
+            self,
+            name: UIApplication.willEnterForegroundNotification,
+            object: nil
+        )
     }
     
     /// 计算特定项的气泡状态
@@ -325,6 +362,9 @@ struct BubbleLayout<Item: Identifiable, Content: View>: View {
     /// 重新计算所有气泡状态
     /// - Parameter size: 容器尺寸
     private func recalculateBubbleStates(for size: CGSize) {
+        // 如果应用不在前台，不进行更新
+        if !isAppActive { return }
+        
         var newStates: [ID: BubbleState] = [:]
         
         for (index, item) in items.enumerated() {

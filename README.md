@@ -86,7 +86,7 @@ DessertRun/
 │       ├── ProfileView.swift      # 个人信息主页
 │       └── SettingsView.swift     # 设置页面
 ├── ViewModels/                    # 视图模型
-│   ├── ExerciseViewModel.swift    # 运动相关逻辑，处理甜品选择和运动过程
+│   ├── WorkoutViewModel.swift    # 运动相关逻辑，处理甜品选择和运动过程
 │   ├── StatsViewModel.swift       # 统计相关逻辑，处理数据分析和展示
 │   └── ProfileViewModel.swift     # 个人信息相关逻辑，处理用户偏好和设置
 ├── Services/                      # 服务层

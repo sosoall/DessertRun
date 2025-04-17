@@ -51,10 +51,10 @@ class AppState: ObservableObject {
     @Published var selectedDessert: DessertItem?
     
     /// 当前选中的运动类型
-    @Published var selectedExerciseType: ExerciseType?
+    @Published var selectedExerciseType: DessertRun.ExerciseType?
     
     /// 当前正在进行的运动会话
-    @Published var activeWorkoutSession: WorkoutSession?
+    @Published var activeWorkoutSession: DessertRun.WorkoutSession?
     
     /// 用户获得的甜品券
     /// 使用完全限定类型路径解决歧义问题
@@ -81,16 +81,17 @@ class AppState: ObservableObject {
     
     /// 初始化
     private init() {
-        // 这里可以添加读取持久化数据的逻辑
+        // 加载示例甜品券数据
+        loadSampleVouchers()
     }
     
     // MARK: - 状态重置
     
     /// 重置运动状态
     func resetWorkoutState() {
-        selectedDessert = nil
-        selectedExerciseType = nil
-        activeWorkoutSession = nil
+        selectedDessert = nil as DessertItem?
+        selectedExerciseType = nil as DessertRun.ExerciseType?
+        activeWorkoutSession = nil as DessertRun.WorkoutSession?
     }
     
     /// 完成工作的函数 - 优化版本
@@ -99,10 +100,19 @@ class AppState: ObservableObject {
         
         // 立即清除活动会话引用
         if let session = activeWorkoutSession {
-            // 确保会话被完全重置而不仅是标记为完成
-            session.resetWorkout()
+            // 确保会话被完全重置
+            session.cancelWorkout()
         }
-        activeWorkoutSession = nil
+        
+        // 创建并保存甜品券（如果满足条件）
+        if let session = activeWorkoutSession, session.isCompleted {
+            // 生成并添加新甜品券
+            let voucher = session.generateVoucher()
+            dessertVouchers.append(voucher)
+            print("【调试】生成了新的甜品券: \(voucher.dessert.name)")
+        }
+        
+        activeWorkoutSession = nil as DessertRun.WorkoutSession?
         
         // 使用单一异步调用更新UI状态，避免多层嵌套
         DispatchQueue.main.async { [weak self] in
@@ -112,8 +122,8 @@ class AppState: ObservableObject {
             self.isInWorkoutMode = false
             
             // 清除所有运动相关状态
-            self.selectedDessert = nil
-            self.selectedExerciseType = nil
+            self.selectedDessert = nil as DessertItem?
+            self.selectedExerciseType = nil as DessertRun.ExerciseType?
             
             // 切换到统计标签页
             self.selectedTabIndex = 1
@@ -132,13 +142,6 @@ class AppState: ObservableObject {
         }
     }
     
-    /// 不触发通知的重置方法，避免在视图更新期间发布变更
-    private func resetWorkoutStateWithoutNotifying() {
-        selectedDessert = nil
-        selectedExerciseType = nil
-        // activeWorkoutSession已在之前设置为nil
-    }
-    
     /// 强制重置所有状态（应急使用，用于解决应用状态不一致的问题）
     func forceResetAllStates() {
         print("【调试警告】AppState.forceResetAllStates() - 强制重置所有状态")
@@ -148,9 +151,14 @@ class AppState: ObservableObject {
             guard let self = self else { return }
             
             // 重置所有状态变量
-            self.selectedDessert = nil
-            self.selectedExerciseType = nil
-            self.activeWorkoutSession = nil
+            self.selectedDessert = nil as DessertItem?
+            self.selectedExerciseType = nil as DessertRun.ExerciseType?
+            
+            if let session = self.activeWorkoutSession {
+                session.cancelWorkout()
+            }
+            self.activeWorkoutSession = nil as DessertRun.WorkoutSession?
+            
             self.isInWorkoutMode = false
             self.selectedTabIndex = 0
             self.hideTabBarForDrag = false
@@ -161,6 +169,54 @@ class AppState: ObservableObject {
             print("【调试】AppState.forceResetAllStates() 完成 - 所有状态已强制重置")
         }
     }
+    
+    /// 导航到指定的屏幕
+    func navigateToScreen(_ screen: AppScreen) {
+        switch screen {
+        case .home:
+            // 回到主页
+            selectedTabIndex = 0
+            // 重置运动状态
+            resetWorkoutState()
+            
+        case .stats:
+            // 导航到统计页面
+            selectedTabIndex = 1
+            
+        case .profile:
+            // 导航到个人资料页面
+            selectedTabIndex = 2
+        }
+    }
+    
+    /// 加载示例甜品券数据
+    private func loadSampleVouchers() {
+        let sampleVouchers = DessertVoucherData.getSampleVouchers()
+        
+        // 将示例甜品券添加到应用状态
+        dessertVouchers.append(contentsOf: sampleVouchers)
+    }
+    
+    /// 兑换甜品券
+    func redeemVoucher(_ voucherId: UUID) {
+        if let index = dessertVouchers.firstIndex(where: { $0.id == voucherId }) {
+            // 使用临时变量修改甜品券状态
+            var voucher = dessertVouchers[index]
+            voucher.status = .used
+            
+            // 更新数组中的元素
+            dessertVouchers[index] = voucher
+            
+            print("【调试】甜品券已兑换: \(voucher.dessert.name)")
+        }
+    }
+}
+
+/// 应用屏幕枚举
+enum AppScreen {
+    case home     // 主页
+    case stats    // 统计
+    case profile  // 个人资料
 }
 
 /// 用户资料结构

@@ -33,10 +33,8 @@ struct ExerciseTypeRow: View {
         
         // 创建新的运动会话
         let workoutSession = WorkoutSession(
-            dessert: selectedDessert,
-            exerciseType: exerciseType,
-            targetCalories: Double(selectedDessert.calories.replacingOccurrences(of: "kcal", with: "")) ?? 0,
-            startTime: Date()
+            targetDessert: selectedDessert,
+            exerciseType: exerciseType
         )
         
         // 更新应用状态

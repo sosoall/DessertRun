@@ -1,6 +1,7 @@
 {
   "images" : [
     {
+      "filename" : "BubbleTea_regular.png",
       "idiom" : "universal",
       "scale" : "1x"
     },

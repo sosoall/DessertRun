@@ -254,7 +254,7 @@ class MockDataProvider {
             
             // 创建运动会话记录
             let session = WorkoutSession(targetDessert: dessert, exerciseType: exerciseType)
-            session.totalElapsedSeconds = duration
+            session.totalElapsedSeconds = TimeInterval(duration)
             // 使用MET值计算卡路里消耗
             let minutes = Double(duration) / 60.0 // 转换为分钟
             let weight = 70.0 // 默认体重70kg
@@ -291,8 +291,8 @@ class MockDataProvider {
     
     // 生成模拟甜品券
     static func generateMockVouchers(for date: Date, count: Int = 10) -> [DessertRun.DessertVoucher] {
-        let calendar = Calendar.current
-        let currentDate = Date()
+        let _ = Calendar.current
+        let _ = Date()
         let desserts = DessertData.getSampleDesserts()
         
         var vouchers: [DessertRun.DessertVoucher] = []
@@ -352,7 +352,7 @@ class MockDataProvider {
         let vouchersEarned = records.flatMap { $0.dessertVouchers }.count
         
         return WorkoutStats(
-            totalMinutes: totalMinutes,
+            totalMinutes: Int(totalMinutes),
             totalDistance: totalDistance,
             vouchersEarned: vouchersEarned
         )

@@ -234,10 +234,6 @@ struct WorkoutCompleteView: View {
             }
         }
         .onAppear {
-            print("【调试】WorkoutCompleteView.onAppear - 初始化完成页面")
-            print("【调试】WorkoutSession状态: \(workoutSession.state), ID: \(workoutSession.id)")
-            print("【调试】AppState: isInWorkoutMode=\(appState.isInWorkoutMode), 标签页=\(appState.selectedTabIndex)")
-            
             // 初始化美食券动画状态
             voucherScale = 0.6
             voucherOpacity = 0
@@ -260,13 +256,7 @@ struct WorkoutCompleteView: View {
             }
         }
         .onDisappear {
-            print("【调试】WorkoutCompleteView.onDisappear")
-            print("【调试】WorkoutSession状态: \(workoutSession.state), isCompleted: \(workoutSession.isCompleted)")
-            print("【调试】AppState: isInWorkoutMode=\(appState.isInWorkoutMode), 标签页=\(appState.selectedTabIndex)")
-            
             // 不再设置isInWorkoutMode，完全由finishWorkout()管理
-            // 避免与finishWorkout()中的状态设置冲突
-            print("【调试】WorkoutCompleteView.onDisappear完成 - 状态由finishWorkout()管理")
         }
         .sheet(isPresented: $showVoucherDetails) {
             // 美食券详情页
@@ -417,7 +407,7 @@ struct WorkoutCompleteView: View {
                     summaryItem(
                         iconName: "clock.fill",
                         iconColor: .orange,
-                        value: workoutSession.formattedTotalTime,
+                        value: formattedTotalTime,
                         label: "总时长"
                     )
                     
@@ -548,7 +538,6 @@ struct WorkoutCompleteView: View {
             // 完成运动按钮
             Button(action: {
                 // 简化状态管理流程，使用单一方法重置所有状态
-                print("【调试】WorkoutCompleteView - 点击完成按钮")
                 
                 // 先确保运动会话标记为已完成
                 if !workoutSession.isCompleted {
@@ -606,13 +595,27 @@ struct WorkoutCompleteView: View {
         .frame(maxWidth: .infinity)
     }
     
+    /// 格式化总时间
+    private var formattedTotalTime: String {
+        let totalSeconds = Int(workoutSession.totalElapsedSeconds)
+        let hours = totalSeconds / 3600
+        let minutes = (totalSeconds % 3600) / 60
+        let seconds = totalSeconds % 60
+        
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        } else {
+            return String(format: "%d:%02d", minutes, seconds)
+        }
+    }
+    
     /// 生成美食券
     private func generateDessertVoucher() {
         // 生成美食券 - 使用正确的参数
         dessertVoucher = DessertVoucher(
             dessert: workoutSession.targetDessert,
             completionPercentage: min(workoutSession.completionPercentage, 100),
-            workoutSessionId: workoutSession.id
+            workoutSessionId: workoutSession.id // 使用WorkoutSession的id
         )
     }
     

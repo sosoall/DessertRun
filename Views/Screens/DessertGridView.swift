@@ -44,7 +44,6 @@ struct DessertGridView: View {
             result[middleStart + index] = item
         }
         
-        print("【布局调试】甜品总数: \(totalCount), 重要甜品: \(important.count), 中间开始位置: \(middleStart)")
         
         return result
     }
@@ -87,10 +86,6 @@ struct DessertGridView: View {
                             maxSize: createConfig(for: geometry.size).bubbleSize,
                             minSize: createConfig(for: geometry.size).minBubbleSize,
                             onTap: { bubbleFrame in
-                                // 记录选中的甜品和位置信息
-                                print("【调试-详细】传递给动画状态 - 甜品: \(dessert.name)")
-                                print("【调试-详细】框架: \(bubbleFrame), 中心点: (\(bubbleFrame.midX), \(bubbleFrame.midY))")
-                                print("【调试-详细】大小: \(state.size), 到中心距离: \(state.distanceToCenter)")
                                 
                                 // 计算图片在气泡中的实际大小
                                 // 图片区域大小由气泡大小和当前位置决定
@@ -108,8 +103,6 @@ struct DessertGridView: View {
                                     width: bubbleFrame.width,
                                     height: imageHeight
                                 )
-                                
-                                print("【调试-详细】图片框架: \(imageFrame), 缩放比例: \(scaleFactor)")
                                 
                                 animationState.selectDessert(
                                     dessert,

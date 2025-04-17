@@ -181,13 +181,13 @@ struct DessertToExerciseTransition: View {
         VStack(spacing: 0) {
             // 顶部区域包含关闭按钮
             HStack {
-                // 顶部拖动条
+            // 顶部拖动条
                 Spacer()
-                RoundedRectangle(cornerRadius: 2.5)
-                    .fill(Color.gray.opacity(0.5))
-                    .frame(width: 60, height: 5)
-                    .padding(.top, 12)
-                    .padding(.bottom, 8)
+            RoundedRectangle(cornerRadius: 2.5)
+                .fill(Color.gray.opacity(0.5))
+                .frame(width: 60, height: 5)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
                 Spacer()
                 
                 // 右上角关闭按钮
@@ -347,7 +347,7 @@ struct DessertToExerciseTransition: View {
                         path.addLine(to: CGPoint(x: 350, y: 0))
                         path.addLine(to: CGPoint(x: 350, y: 40))
                         path.closeSubpath()
-                    }
+    }
                     .fill(
                         LinearGradient(
                             gradient: Gradient(colors: [
@@ -411,8 +411,8 @@ struct DessertToExerciseTransition: View {
             return [Color(hex: "4CD964"), Color(hex: "2CA94C")]
         default:
             return [Color(hex: "8A2387"), Color(hex: "E94057")]
+            }
         }
-    }
 }
 
 // MARK: - 自定义按钮样式
@@ -450,9 +450,9 @@ extension Color {
         }
         
         return self // 如果无法调整，返回原始颜色
+        }
     }
-}
-
+    
 // MARK: - 自定义按钮样式
 struct ScaleButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
