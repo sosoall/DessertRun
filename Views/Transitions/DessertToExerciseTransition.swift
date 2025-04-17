@@ -33,7 +33,7 @@ struct DessertToExerciseTransition: View {
     /// 计算甜品图片的位置
     private var currentPosition: CGRect {
         // 如果没有选中的甜品，返回零框架
-        guard let dessert = animationState.selectedDessert else { return .zero }
+        guard animationState.selectedDessert != nil else { return .zero }
         
         // 获取起始和目标位置
         let startFrame = animationState.imageOriginFrame ?? .zero
@@ -133,13 +133,6 @@ struct DessertToExerciseTransition: View {
                 dessertImageView
                     .position(x: currentPosition.midX, y: currentPosition.midY)
                     .zIndex(2) // 确保甜品图片在面板上层
-                
-                // 右上角关闭按钮
-                VStack {
-                    closeButton
-                    Spacer()
-                }
-                .zIndex(3) // 确保关闭按钮在最上层
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .edgesIgnoringSafeArea(.bottom) // 忽略底部安全区域，避免出现白条
@@ -161,9 +154,11 @@ struct DessertToExerciseTransition: View {
     private var dessertImageView: some View {
         Group {
             if let dessert = animationState.selectedDessert {
+                // 使用getFullImageName获取新的图片名称格式
+                let imageName = dessert.getFullImageName(for: .regular)
                 // 如果找到甜品图片名称，使用该图片，否则使用默认图标
-                if UIImage(named: dessert.imageName) != nil {
-                    Image(dessert.imageName)
+                if UIImage(named: imageName) != nil {
+                    Image(imageName)
                         .resizable()
                         .scaledToFit() // 使用scaledToFit保持图片比例
                         .frame(width: currentPosition.width, height: currentPosition.height)
@@ -184,12 +179,30 @@ struct DessertToExerciseTransition: View {
     /// 面板视图
     private var panelView: some View {
         VStack(spacing: 0) {
-            // 顶部拖动条
-            RoundedRectangle(cornerRadius: 2.5)
-                .fill(Color.gray.opacity(0.5))
-                .frame(width: 60, height: 5)
-                .padding(.top, 12)
-                .padding(.bottom, 8)
+            // 顶部区域包含关闭按钮
+            HStack {
+                // 顶部拖动条
+                Spacer()
+                RoundedRectangle(cornerRadius: 2.5)
+                    .fill(Color.gray.opacity(0.5))
+                    .frame(width: 60, height: 5)
+                    .padding(.top, 12)
+                    .padding(.bottom, 8)
+                Spacer()
+                
+                // 右上角关闭按钮
+                Button(action: {
+                    animationState.dismissPanel()
+                }) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 20))
+                        .foregroundColor(.black)
+                        .frame(width: 36, height: 36)
+                        .background(Circle().fill(Color.gray.opacity(0.1)))
+                }
+                .padding(.trailing, 16)
+                .padding(.top, 10)
+            }
             
             // 标题区域
             titleView
@@ -209,12 +222,10 @@ struct DessertToExerciseTransition: View {
             
             // 面板内容 - 运动类型列表
             exerciseListView
-                .padding(.bottom, 50) // 确保底部有足够的间距
+                .padding(.bottom, 0) // 移除底部间距
         }
-        .padding(.top, 20) // 顶部增加一些间距
+        .padding(.top, 0) // 移除顶部间距
         .background(Color.white)
-        // 不需要设置圆角，系统sheet会自动处理
-        // .cornerRadius(20, corners: [.topLeft, .topRight])
     }
     
     /// 标题视图
@@ -258,97 +269,219 @@ struct DessertToExerciseTransition: View {
             appState.selectedExerciseType = exerciseType
             navigateToWorkout = true
         }) {
-            HStack {
-                // 左侧图标
-                exerciseIconView(for: exerciseType)
+            HStack(spacing: 0) {
+                // 左侧圆形图标区域
+                ZStack {
+                    // 渐变背景圆
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                gradient: Gradient(colors: getGradientColors(for: exerciseType)),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 70, height: 70)
+                        .shadow(color: getGradientColors(for: exerciseType)[0].opacity(0.5), radius: 8, x: 2, y: 4)
+                    
+                    // 白色内圆
+                    Circle()
+                        .fill(Color.white.opacity(0.25))
+                        .frame(width: 50, height: 50)
+                    
+                    // 图标
+                    Image(systemName: exerciseType.iconName)
+                        .font(.system(size: 28, weight: .semibold))
+                        .foregroundColor(.white)
+                        .shadow(color: Color.black.opacity(0.1), radius: 1, x: 1, y: 1)
+                }
+                .padding(.leading, 5)
                 
-                // 中间内容
-                exerciseDetailView(for: exerciseType)
+                // 中间文本内容
+                VStack(alignment: .leading, spacing: 6) {
+                    // 运动名称
+                    Text(exerciseType.name)
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(.black)
+                    
+                    HStack(spacing: 5) {
+                        // 时间/距离图标
+                        Image(systemName: exerciseType.usesDistance ? "figure.walk" : "clock.fill")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(Color(hex: "666666"))
+                        
+                        // 时间/距离文本
+                        Text(exerciseType.getEstimatedCompletion(calories: calories))
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(Color(hex: "666666"))
+                    }
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 8)
+                    .background(
+                        Capsule()
+                            .fill(Color(hex: "F3F3F3"))
+                    )
+                }
+                .padding(.leading, 12)
                 
                 Spacer()
                 
                 // 右侧箭头
                 Image(systemName: "chevron.right")
-                    .foregroundColor(.secondary)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(Color(hex: "BBBBBB"))
+                    .padding(.trailing, 20)
             }
-            .padding()
-            .background(Color(hex: "F1F1F1"))
-            .cornerRadius(16)
+            .frame(height: 90)
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(Color.white)
+                    .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 5)
+            )
+            .overlay(
+                // 为卡片添加几何装饰
+                ZStack {
+                    // 右上角三角形装饰
+                    Path { path in
+                        path.move(to: CGPoint(x: 280, y: 0))
+                        path.addLine(to: CGPoint(x: 350, y: 0))
+                        path.addLine(to: CGPoint(x: 350, y: 40))
+                        path.closeSubpath()
+                    }
+                    .fill(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                getGradientColors(for: exerciseType)[0].opacity(0.05),
+                                getGradientColors(for: exerciseType)[1].opacity(0.1)
+                            ]),
+                            startPoint: .topTrailing,
+                            endPoint: .bottomLeading
+                        )
+                    )
+                    
+                    // 左下角弧形装饰
+                    Path { path in
+                        path.move(to: CGPoint(x: 80, y: 90))
+                        path.addArc(center: CGPoint(x: 40, y: 60),
+                                   radius: 40,
+                                   startAngle: .degrees(90),
+                                   endAngle: .degrees(180),
+                                   clockwise: false)
+                        path.addLine(to: CGPoint(x: 0, y: 90))
+                        path.closeSubpath()
+                    }
+                    .fill(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                getGradientColors(for: exerciseType)[0].opacity(0.08),
+                                getGradientColors(for: exerciseType)[1].opacity(0.12)
+                            ]),
+                            startPoint: .bottomLeading,
+                            endPoint: .topTrailing
+                        )
+                    )
+                }
+                .mask(
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(Color.white)
+                )
+            )
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
         }
-        .buttonStyle(PlainButtonStyle())
-        .padding(.horizontal, 16)
-        .padding(.bottom, 8)
+        .buttonStyle(CustomScaleButtonStyle())
     }
     
-    /// 运动图标视图
-    private func exerciseIconView(for exerciseType: ExerciseType) -> some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 16)
-                .fill(exerciseType.backgroundColor)
-                .frame(width: 70, height: 70)
+    /// 获取运动类型专属渐变色
+    private func getGradientColors(for exerciseType: ExerciseType) -> [Color] {
+        switch exerciseType {
+        case .houseCleaning:
+            return [Color(hex: "825AE2"), Color(hex: "5D42B5")]
+        case .dogWalking:
+            return [Color(hex: "FF9F2F"), Color(hex: "F27121")]
+        case .walking:
+            return [Color(hex: "56E38A"), Color(hex: "39B574")]
+        case .running:
+            return [Color(hex: "FF6928"), Color(hex: "FF3F1A")]
+        case .homeWorkout:
+            return [Color(hex: "FF4B91"), Color(hex: "E61E5A")]
+        case .hiitWorkout:
+            return [Color(hex: "FF2D55"), Color(hex: "D81547")]
+        case .stairClimbing:
+            return [Color(hex: "4CD964"), Color(hex: "2CA94C")]
+        default:
+            return [Color(hex: "8A2387"), Color(hex: "E94057")]
+        }
+    }
+}
+
+// MARK: - 自定义按钮样式
+struct CustomScaleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
+            .opacity(configuration.isPressed ? 0.9 : 1.0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: configuration.isPressed)
+    }
+}
+
+// MARK: - Color扩展
+extension Color {
+    /// 根据指定系数调整颜色饱和度
+    /// - Parameter factor: 饱和度调整系数 (0-1)
+    /// - Returns: 调整后的颜色
+    func saturated(by factor: CGFloat) -> Color {
+        // 提取色相、饱和度和亮度
+        let uiColor = UIColor(self)
+        var h: CGFloat = 0
+        var s: CGFloat = 0
+        var b: CGFloat = 0
+        var a: CGFloat = 0
+        
+        if uiColor.getHue(&h, saturation: &s, brightness: &b, alpha: &a) {
+            // 调整饱和度和亮度
+            let adjustedSaturation = min(1.0, s * factor * 1.3) // 稍微提高饱和度
+            let adjustedBrightness = min(1.0, b * (0.7 + factor * 0.3)) // 较高饱和度时亮度稍低
             
-            Image(systemName: exerciseType.iconName)
-                .resizable()
-                .scaledToFit()
-                .foregroundColor(.white)
-                .frame(width: 30, height: 30)
+            return Color(UIColor(hue: h, 
+                               saturation: adjustedSaturation, 
+                               brightness: adjustedBrightness, 
+                               alpha: a))
         }
+        
+        return self // 如果无法调整，返回原始颜色
     }
-    
-    /// 运动详情视图
-    private func exerciseDetailView(for exerciseType: ExerciseType) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(exerciseType.name)
-                .font(.headline)
-                .foregroundColor(.primary)
-            
-            HStack {
-                Image(systemName: "clock.fill")
-                    .font(.caption)
-                    .foregroundColor(Color(hex: "FE2D55"))
-                
-                Text(formatTime(exerciseType.estimatedTimeToComplete(calories: calories)))
-                    .font(.caption)
-                    .foregroundColor(Color(hex: "FE2D55"))
-                    .fontWeight(.semibold)
-            }
-        }
-        .padding(.leading, 8)
+}
+
+// MARK: - 自定义按钮样式
+struct ScaleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: configuration.isPressed)
     }
-    
-    /// 关闭按钮视图
-    private var closeButton: some View {
-        HStack {
-            Spacer()
-            Button(action: {
-                animationState.dismissPanel()
-            }) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 24))
-                    .foregroundColor(.black)
-                    .frame(width: 44, height: 44)
-            }
-            .padding(.trailing, 16)
-            .padding(.top, 20)
-            .opacity(animationState.panelPositionProgress)
-        }
-    }
-    
-    /// 格式化时间
-    private func formatTime(_ minutes: Double) -> String {
-        if minutes < 1 {
-            return "不到1分钟"
-        } else if minutes < 60 {
-            return "约\(Int(minutes.rounded()))分钟"
-        } else {
-            let hours = Int(minutes / 60)
-            let mins = Int(minutes.truncatingRemainder(dividingBy: 60))
-            
-            if mins == 0 {
-                return "约\(hours)小时"
-            } else {
-                return "约\(hours)小时\(mins)分钟"
-            }
+}
+
+// 在文件顶部添加扩展，为ExerciseType添加渐变色属性
+extension ExerciseType {
+    var gradientColors: [Color] {
+        switch self {
+        case .houseCleaning:
+            return [Color(hex: "825AE2"), Color(hex: "5D42B5")]
+        case .dogWalking:
+            return [Color(hex: "FF9F2F"), Color(hex: "F27121")]
+        case .running:
+            return [Color(hex: "FF6928"), Color(hex: "FF3F1A")]
+        case .walking:
+            return [Color(hex: "4CB8C4"), Color(hex: "3CD3AD")]
+        case .homeWorkout:
+            return [Color(hex: "FF4B91"), Color(hex: "E61E5A")]
+        case .hiitWorkout:
+            return [Color(hex: "FF2D55"), Color(hex: "D81547")]
+        case .stairClimbing:
+            return [Color(hex: "4CD964"), Color(hex: "2CA94C")]
+        default:
+            return [Color(hex: "8A2387"), Color(hex: "E94057")]
         }
     }
 } 

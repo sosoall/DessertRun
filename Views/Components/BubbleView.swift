@@ -97,7 +97,7 @@ struct BubbleView: View {
                 // 美食图片
                 ZStack {
                     // 获取对应风格的图片名称
-                    let imageName = item.getImageName(for: imageStyle)
+                    let imageName = item.getFullImageName(for: imageStyle)
                     
                     // 仅当甜品不在动画中时显示图片
                     if animationState.animatingDessertID != item.id {
@@ -209,18 +209,16 @@ struct BubbleView: View {
         // 假设最大距离是屏幕对角线的一半
         let normalizedDistance = distanceToCenter / (maxSize * 2)
         
+        // 修改透明度计算规则，确保边缘区域也能显示名称
         // 如果在中心区域内，完全显示
         if normalizedDistance < centerZoneRatio {
             return 1.0
         }
-        // 如果超出中心区域但在过渡区域内，逐渐降低透明度
-        else if normalizedDistance < centerZoneRatio * 2 {
-            // 计算从1到0的线性过渡
-            return Double(1.0 - (normalizedDistance - centerZoneRatio) / centerZoneRatio)
-        }
-        // 如果远离中心，完全隐藏
+        // 如果在边缘区域，降低透明度但确保至少有0.3的基础透明度
         else {
-            return 0.0
+            // 计算从1到0.3的线性过渡
+            let opacity = max(0.3, 1.0 - (normalizedDistance - centerZoneRatio) / (1.0 - centerZoneRatio) * 0.7)
+            return Double(opacity)
         }
     }
     

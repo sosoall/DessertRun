@@ -217,9 +217,10 @@ class WorkoutSession: ObservableObject {
         // 增加活动时长
         activeElapsedSeconds += 1
         
-        // 根据运动类型和时间计算卡路里
-        // 卡路里 = 每分钟消耗卡路里 * 分钟数
-        let additionalCalories = exerciseType.caloriesPerMinute / 60.0
+        // 根据MET值计算卡路里消耗
+        let weight = 70.0 // 默认体重70kg
+        // 每秒消耗的卡路里 = 体重(kg) × MET值 × (1秒/3600秒)
+        let additionalCalories = weight * exerciseType.metValue / 3600.0
         burnedCalories += additionalCalories
         
         // 更新平均速度

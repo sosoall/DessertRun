@@ -255,8 +255,11 @@ class MockDataProvider {
             // 创建运动会话记录
             let session = WorkoutSession(targetDessert: dessert, exerciseType: exerciseType)
             session.totalElapsedSeconds = duration
-            // 使用运动类型的卡路里消耗率计算
-            session.burnedCalories = Double(duration / 60) * exerciseType.caloriesPerMinute
+            // 使用MET值计算卡路里消耗
+            let minutes = Double(duration) / 60.0 // 转换为分钟
+            let weight = 70.0 // 默认体重70kg
+            // 卡路里 = 体重(kg) × MET值 × 时间(小时)
+            session.burnedCalories = weight * exerciseType.metValue * (minutes / 60.0)
             
             // 如果是跑步，添加距离
             if exerciseType.requiresGPS {

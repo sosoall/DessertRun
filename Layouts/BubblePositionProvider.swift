@@ -70,14 +70,6 @@ struct BubblePositionProvider {
             positions = positions.map { CGPoint(x: $0.x - centerX, y: $0.y - centerY) }
         }
         
-        // 应用初始分布乘数因子
-        if config.initialSpreadMultiplier != 1.0 {
-            positions = positions.map { CGPoint(
-                x: $0.x * config.initialSpreadMultiplier,
-                y: $0.y * config.initialSpreadMultiplier
-            )}
-        }
-        
         return positions
     }
 } 

@@ -138,7 +138,17 @@ struct ExerciseTypeRow: View {
 extension ExerciseType {
     /// 获取时间描述
     func getTimeDescription() -> String {
-        return "约30分钟，2公里。"
+        guard let dessert = AppState.shared.selectedDessert else { 
+            return "时长计算中..." 
+        }
+        
+        // 提取卡路里数值
+        let caloriesString = dessert.calories.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()
+        guard let calories = Double(caloriesString) else {
+            return "未知时长"
+        }
+        
+        return getEstimatedCompletion(calories: calories)
     }
 }
 

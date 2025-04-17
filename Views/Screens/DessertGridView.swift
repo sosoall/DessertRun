@@ -9,8 +9,45 @@ import SwiftUI
 
 /// 甜品网格视图
 struct DessertGridView: View {
-    /// 甜品数据
-    private let desserts = DessertData.getSampleDesserts()
+    /// 甜品数据 - 重新排序以确保重要甜品在中心位置
+    private var desserts: [DessertItem] {
+        let allDesserts = DessertData.getSampleDesserts()
+        
+        // 定义重要甜品的ID列表(芝芝云顶奶茶、珍珠奶茶、拿铁、瑞士卷、提拉米苏、甜筒、方便面)
+        let importantIds = [1, 2, 3, 8, 9, 18, 21]
+        
+        // 将甜品分为重要和非重要两组
+        let important = allDesserts.filter { importantIds.contains($0.id) }
+        let others = allDesserts.filter { !importantIds.contains($0.id) }
+        
+        // 安排甜品顺序，将重要甜品放在数组中间
+        // 蜂窝布局中，中间位置的索引约为数组长度的1/3到2/3之间
+        let totalCount = allDesserts.count
+        let middleStart = totalCount / 3
+        
+        // 计算重要甜品和其他甜品各自应该占用的位置
+        var result: [DessertItem] = Array(repeating: allDesserts[0], count: totalCount)
+        
+        // 先填充前1/3和后1/3位置为其他甜品
+        for (index, item) in others.enumerated() {
+            if index < middleStart {
+                // 放在前面1/3
+                result[index] = item
+            } else if index >= middleStart && index - middleStart < others.count - middleStart {
+                // 放在后面1/3
+                result[index - middleStart + middleStart + important.count] = item
+            }
+        }
+        
+        // 中间1/3位置放置重要甜品
+        for (index, item) in important.enumerated() {
+            result[middleStart + index] = item
+        }
+        
+        print("【布局调试】甜品总数: \(totalCount), 重要甜品: \(important.count), 中间开始位置: \(middleStart)")
+        
+        return result
+    }
     
     /// 动画状态管理
     @ObservedObject var animationState: TransitionAnimationState

@@ -38,11 +38,32 @@ struct BubbleLayout<Item: Identifiable, Content: View>: View {
     /// 屏幕大小
     @State private var screenSize: CGSize = .zero
     
+    /// 是否已完成初始化
+    @State private var isInitialized: Bool = false
+    
+    /// 缩放比例
+    @State private var scaleAmount: CGFloat = 1.0
+    
+    /// 最小缩放比例
+    private let minScale: CGFloat = 0.6
+    
+    /// 原始缩放比例
+    private let originalScale: CGFloat = 1.0
+    
+    /// 最大缩放比例
+    private let maxScale: CGFloat = 1.5
+    
     /// 拖动状态回调
     var onDragStateChanged: ((Bool) -> Void)? = nil
     
     /// 环境中的应用状态
     @EnvironmentObject var appState: AppState
+    
+    /// 是否锁定到原始大小
+    @State private var isLockedToOriginalSize: Bool = false
+    
+    /// 上一次缩放比例
+    @State private var lastScale: CGFloat = 1.0
     
     // MARK: - 初始化器
     
@@ -89,12 +110,69 @@ struct BubbleLayout<Item: Identifiable, Content: View>: View {
                     let state = bubbleState(for: item, in: geometry)
                     content(item, state)
                         .position(x: geometry.size.width/2 + state.position.x, y: geometry.size.height/2 + state.position.y)
-                        .animation(isDragging ? nil : .interpolatingSpring(stiffness: 300, damping: 15), value: state.position)
-                        .animation(isDragging ? nil : .easeInOut, value: state.size)
+                        .animation(isInitialized && !isDragging ? .interpolatingSpring(stiffness: 300, damping: 15) : nil, value: state.position)
+                        .animation(isInitialized && !isDragging ? .easeInOut : nil, value: state.size)
                 }
             }
+            .scaleEffect(scaleAmount)
             .contentShape(Rectangle())
+            // 添加缩放手势
             .gesture(
+                MagnificationGesture()
+                    .onChanged { value in
+                        // 添加调试信息
+                        print("【缩放调试】当前手势值: \(value), 当前缩放: \(scaleAmount)")
+                        
+                        // 降低缩放灵敏度：应用缩放系数0.5，使手势的效果减弱
+                        let dampedValue = 1.0 + (value - 1.0) * 0.5
+                        
+                        // 计算新的缩放值，使用降低灵敏度后的值
+                        let newScale = dampedValue * lastScale
+                        
+                        print("【缩放调试】原始手势值: \(value), 降低灵敏度后: \(dampedValue), 计算出的新缩放比例: \(newScale)")
+                        
+                        // 检查是否在缩放过程中经过1.0点
+                        if (lastScale < 1.0 && newScale > 1.0) || 
+                           (lastScale > 1.0 && newScale < 1.0) {
+                            print("【缩放调试】经过100%，锁定为原始大小")
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                scaleAmount = 1.0
+                                isLockedToOriginalSize = true
+                                lastScale = 1.0 // 重要：更新lastScale
+                            }
+                            return
+                        }
+                        
+                        // 如果不是经过1.0点，继续正常缩放
+                        let limitedScale = min(maxScale, max(minScale, newScale))
+                        
+                        // 添加缓动效果：通过微小增量变化而不是直接设置
+                        let smoothedScale = scaleAmount + (limitedScale - scaleAmount) * 0.3
+                        
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                            scaleAmount = smoothedScale
+                            isLockedToOriginalSize = false
+                        }
+                    }
+                    .onEnded { _ in
+                        print("【缩放调试】缩放结束，最终缩放: \(scaleAmount)")
+                        
+                        // 更新最后的缩放值
+                        lastScale = scaleAmount
+                        
+                        // 如果接近原始大小，吸附到1.0
+                        if abs(scaleAmount - 1.0) < 0.15 {
+                            print("【缩放调试】接近100%，吸附到原始大小")
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                scaleAmount = 1.0
+                                isLockedToOriginalSize = true
+                                lastScale = 1.0 // 重要：更新lastScale
+                            }
+                        }
+                    }
+            )
+            // 拖动手势
+            .simultaneousGesture(
                 DragGesture(minimumDistance: 10, coordinateSpace: .local)
                     .onChanged { value in
                         // 首次拖动时通知状态变更
@@ -207,8 +285,14 @@ struct BubbleLayout<Item: Identifiable, Content: View>: View {
                     totalItems: items.count,
                     config: config
                 )
-                // 初始计算气泡状态
+                // 初始计算气泡状态 - 直接显示，不要动画
                 recalculateBubbleStates(for: geometry.size)
+                
+                // 延迟设置isInitialized以允许后续互动时的动画
+                // 但是初始渲染不使用动画
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    isInitialized = true
+                }
             }
             .onChange(of: geometry.size) { oldSize, newSize in
                 // 当尺寸变化时重新计算

@@ -178,18 +178,18 @@ struct WorkoutCompleteView: View {
                                         tornBottomPart: $tornBottomPart,
                                         showRedeemAlert: $showRedeemAlert
                                     )
-                                    .scaleEffect(voucherScale)
-                                    .opacity(voucherOpacity)
-                                    .onAppear {
-                                        // 添加展开动效
-                                        withAnimation(.spring(response: 0.6, dampingFraction: 0.7)) {
-                                            voucherScale = 1.0
-                                            voucherOpacity = 1.0
+                                        .scaleEffect(voucherScale)
+                                        .opacity(voucherOpacity)
+                                        .onAppear {
+                                            // 添加展开动效
+                                            withAnimation(.spring(response: 0.6, dampingFraction: 0.7)) {
+                                                voucherScale = 1.0
+                                                voucherOpacity = 1.0
+                                            }
                                         }
-                                    }
-                                    .onTapGesture {
-                                        showVoucherDetails = true
-                                    }
+                                        .onTapGesture {
+                                            showVoucherDetails = true
+                                        }
                                 }
                                 .padding(.horizontal, 16)
                                 .padding(.top, 10) // 减少顶部边距
@@ -507,7 +507,7 @@ struct WorkoutCompleteView: View {
                                 .font(.subheadline)
                                 .fontWeight(.semibold)
                             
-                            Text(workoutSession.exerciseType.category.rawValue)
+                            Text(getExerciseIntensity(workoutSession.exerciseType))
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -614,6 +614,19 @@ struct WorkoutCompleteView: View {
             completionPercentage: min(workoutSession.completionPercentage, 100),
             workoutSessionId: workoutSession.id
         )
+    }
+    
+    /// 获取运动强度
+    private func getExerciseIntensity(_ exerciseType: ExerciseType) -> String {
+        // 基于MET值划分强度
+        let met = exerciseType.metValue
+        if met < 4.0 {
+            return "低强度运动"
+        } else if met < 7.0 {
+            return "中强度运动"
+                            } else {
+            return "高强度运动"
+        }
     }
 }
 

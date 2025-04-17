@@ -66,7 +66,7 @@ struct BubbleLayoutConfiguration {
                 rowGap: 35 * multiplier,     // 行间距
                 colGap: 10 * multiplier,     // 列间距
                 provideProps: true,
-                numCols: 4,
+                numCols: 3,
                 fringeWidth: 120 * multiplier,
                 yRadius: 220 * multiplier,
                 xRadius: 120 * multiplier,

@@ -35,10 +35,11 @@ enum FoodCategory: String, Codable, CaseIterable {
 
 /// 美食图片风格
 enum FoodImageStyle {
-    case regular       // 常规风格
-    case animated      // 动画风格
+    case regular       // 常规风格 (气泡UI)
+    case animated      // 动画风格 (运动中激励页)
+    case paused        // 暂停风格 (运动暂停页)
+    case celebration   // 庆祝风格 (运动结束页)
     case voucher       // 优惠券风格
-    case celebration   // 庆祝风格
     case custom(type: String)  // 自定义风格
 }
 
@@ -50,7 +51,7 @@ struct DessertItem: Identifiable, Codable {
     /// 美食名称
     let name: String
     
-    /// 主图片名称（在Assets.xcassets中）
+    /// 主图片名称（基础名称，不包含后缀）
     let imageName: String
     
     /// 美食分类
@@ -73,17 +74,24 @@ struct DessertItem: Identifiable, Codable {
     
     // MARK: - 扩展功能方法
     
-    /// 获取特定风格的图片名称
-    func getImageName(for style: FoodImageStyle = .regular) -> String {
+    /// 获取基本图片名称（不带目录）
+    func getImageName() -> String {
+        return imageName
+    }
+    
+    /// 获取完整图片名称（包含目录）
+    func getFullImageName(for style: FoodImageStyle = .regular) -> String {
         switch style {
         case .regular:
-            return imageName
+            return "\(imageName)_regular"
         case .animated:
             return "\(imageName)_animated"
-        case .voucher:
-            return "\(imageName)_voucher"
+        case .paused:
+            return "\(imageName)_paused"
         case .celebration:
             return "\(imageName)_celebration"
+        case .voucher:
+            return "\(imageName)_voucher"
         case .custom(let type):
             return "\(imageName)_\(type)"
         }
@@ -162,61 +170,37 @@ struct DessertData {
     /// 获取示例美食数据
     static func getSampleDesserts() -> [DessertItem] {
         return [
+            // 首屏显示的7个甜品
+            DessertItem(id: 1, name: "芝芝云顶奶茶", imageName: "MilkTea", calories: "344", category: .drink, description: "全糖大杯奶茶，650ml", backgroundColor: Color(hex: "E0C9A6")),
+            DessertItem(id: 2, name: "珍珠奶茶", imageName: "BubbleTea", calories: "192", category: .drink, description: "全糖大杯柠檬茶，650ml", backgroundColor: Color(hex: "FFFBD6")),
+            DessertItem(id: 3, name: "拿铁", imageName: "Latte", calories: "265", category: .drink, description: "风味拿铁，450ml", backgroundColor: Color(hex: "D2B48C")),
+            DessertItem(id: 8, name: "瑞士卷", imageName: "SwissRoll", calories: "256", category: .cake, description: "瑞士卷，85克", backgroundColor: Color(hex: "D8EFDC")),
+            DessertItem(id: 9, name: "提拉米苏", imageName: "Tiramisu", calories: "318", category: .cake, description: "提拉米苏，100克", backgroundColor: Color(hex: "E5D6C3")),
+            DessertItem(id: 18, name: "甜筒", imageName: "IceCreamCone", calories: "173", category: .iceCream, description: "甜筒，60克", backgroundColor: Color(hex: "C9E6C0")),
+            DessertItem(id: 21, name: "方便面", imageName: "InstantNoodles", calories: "510", category: .snack, description: "辛拉面，120克", backgroundColor: Color(hex: "F5DEB3")),
+            
+            // 饮料类
+            DessertItem(id: 5, name: "原味可乐", imageName: "CocaCola", calories: "215", category: .drink, description: "经典原味可乐，500ml", backgroundColor: Color(hex: "3C2218")),
+            
             // 蛋糕类
-            DessertItem(id: 1, name: "蛋糕卷", imageName: "cake_roll", calories: "280", category: .cake, description: "松软的海绵蛋糕卷，内部填充鲜奶油，甜而不腻", backgroundColor: Color(hex: "FFD6D6")),
-            DessertItem(id: 2, name: "巧克力切块", imageName: "slices_of_chocolate_cake", calories: "320", category: .cake, description: "浓郁的巧克力蛋糕，口感湿润，香甜可口", backgroundColor: Color(hex: "D6A988")),
-            DessertItem(id: 3, name: "提拉米苏", imageName: "tiramisu", calories: "350", category: .cake, description: "经典意大利甜点，咖啡浸泡的手指饼干与马斯卡彭芝士的完美结合", backgroundColor: Color(hex: "D6E5FF")),
-            DessertItem(id: 4, name: "红丝绒", imageName: "red_velvet", calories: "310", category: .cake, description: "红色天鹅绒般的蛋糕，搭配奶油芝士糖霜，质地细腻", backgroundColor: Color(hex: "FFCECE")),
-            DessertItem(id: 5, name: "提拉米苏", imageName: "tiramisu", calories: "300", category: .cake, description: "经典意大利甜点，咖啡浸泡的手指饼干与马斯卡彭芝士的完美结合", backgroundColor: Color(hex: "E5D6C3")),
+            DessertItem(id: 7, name: "千层切角", imageName: "MilleCrepes", calories: "156", category: .cake, description: "千层切角蛋糕，60克", backgroundColor: Color(hex: "D6E5FF")),
+            DessertItem(id: 10, name: "巧克力甜品", imageName: "ChocolateCake", calories: "430", category: .cake, description: "巧克力蛋糕/甜品，100克", backgroundColor: Color(hex: "FFE8C4")),
+            DessertItem(id: 11, name: "拿破仑", imageName: "Napoleon", calories: "413", category: .cake, description: "拿破仑，90克", backgroundColor: Color(hex: "FFCECE")),
+            DessertItem(id: 12, name: "奶油蛋糕", imageName: "CreamCake", calories: "312", category: .cake, description: "奶油芝士蛋糕/巴斯克，130克", backgroundColor: Color(hex: "D6E5FF")),
+            DessertItem(id: 13, name: "芝士蛋糕", imageName: "CheeseCake", calories: "341", category: .cake, description: "芝士蛋糕/巴斯克，100克", backgroundColor: Color(hex: "D6E5FF")),
             
             // 甜点类
-            DessertItem(id: 6, name: "瑞士卷", imageName: "swiss_roll", calories: "270", category: .dessert, description: "传统欧式甜点，细软的蛋糕与甜馅的完美结合", backgroundColor: Color(hex: "D8EFDC")),
-            DessertItem(id: 7, name: "柠檬塔", imageName: "lemon_tart", calories: "240", category: .dessert, description: "酸甜可口的柠檬塔，脆皮与柠檬馅的完美搭配", backgroundColor: Color(hex: "FFFBD6")),
-            DessertItem(id: 8, name: "焦糖布蕾", imageName: "creme_brulee", calories: "290", category: .dessert, description: "经典法式甜点，表面焦糖脆皮，内里丝滑柔软", backgroundColor: Color(hex: "F0E4D0")),
-            DessertItem(id: 9, name: "树莓舒芙蕾", imageName: "raspberry_souffle", calories: "260", category: .dessert, description: "空气般轻盈的蛋奶酥，散发着浓郁的树莓香气", backgroundColor: Color(hex: "FFD6E5")),
-            DessertItem(id: 10, name: "奥利奥杯", imageName: "oreo_cup", calories: "310", category: .dessert, description: "层叠的奥利奥饼干与奶油慕斯，口感丰富", backgroundColor: Color(hex: "E0E0E0")),
+            DessertItem(id: 14, name: "大福", imageName: "Daifuku", calories: "218", category: .dessert, description: "大福/雪媚娘，50克", backgroundColor: Color(hex: "FFCECE")),
+            DessertItem(id: 15, name: "蛋挞", imageName: "EggTart", calories: "192", category: .dessert, description: "蛋挞，45克", backgroundColor: Color(hex: "FFE8C4")),
+            DessertItem(id: 16, name: "蛋黄酥", imageName: "EggYolkPastry", calories: "221", category: .dessert, description: "蛋黄酥/凤梨酥/肉松/月饼，50克/一块", backgroundColor: Color(hex: "FFD6E5")),
             
-            // 冰品类
-            DessertItem(id: 11, name: "芒果冰沙", imageName: "mango_smoothie", calories: "200", category: .iceCream, description: "新鲜芒果制成的冰沙，清凉爽口，酸甜可口", backgroundColor: Color(hex: "FFE8C4")),
-            DessertItem(id: 12, name: "香草冰淇淋", imageName: "ice_cream", calories: "210", category: .iceCream, description: "纯正香草风味的冰淇淋，口感丝滑细腻", backgroundColor: Color(hex: "C9E6C0")),
-            DessertItem(id: 13, name: "抹茶冰淇淋", imageName: "matcha_icecream", calories: "210", category: .iceCream, description: "浓郁抹茶风味的冰淇淋，微苦回甘", backgroundColor: Color(hex: "C9E6C0")),
-            DessertItem(id: 14, name: "覆盆子雪糕", imageName: "raspberry_icecream", calories: "240", category: .iceCream, description: "酸甜覆盆子风味的雪糕，色泽艳丽，口感细腻", backgroundColor: Color(hex: "FFC0CB")),
-            DessertItem(id: 15, name: "巧克力圣代", imageName: "chocolate_sundae", calories: "320", category: .iceCream, description: "丰盛的巧克力圣代，搭配巧克力酱，香浓可口", backgroundColor: Color(hex: "8B4513")),
+            // 冰淇淋类
+            DessertItem(id: 17, name: "圣代", imageName: "Sundae", calories: "394", category: .iceCream, description: "圣代，120克", backgroundColor: Color(hex: "8B4513")),
             
-            // 饮品类
-            DessertItem(id: 16, name: "珍珠奶茶", imageName: "milk_tea", calories: "350", category: .drink, description: "香浓奶茶搭配弹牙珍珠，经典台式饮品", backgroundColor: Color(hex: "E0C9A6")),
-            DessertItem(id: 17, name: "椰香拿铁", imageName: "coconut_latte", calories: "240", category: .drink, description: "浓郁咖啡与香甜椰奶的完美结合，热带风情", backgroundColor: Color(hex: "F8F8F8")),
-            DessertItem(id: 18, name: "草莓气泡水", imageName: "strawberry_soda", calories: "150", category: .drink, description: "气泡水搭配新鲜草莓，酸甜爽口，低热量选择", backgroundColor: Color(hex: "FFD1DC")),
-            DessertItem(id: 19, name: "蓝莓思慕雪", imageName: "blueberry_smoothie", calories: "180", category: .drink, description: "蓝莓与酸奶制成的思慕雪，营养丰富，味道浓郁", backgroundColor: Color(hex: "B0C4DE")),
-            DessertItem(id: 20, name: "芒果气泡冰", imageName: "mango_bubble", calories: "190", category: .drink, description: "清爽芒果气泡冰，热带风情，消暑解渴", backgroundColor: Color(hex: "FFCC66")),
-            
-            // 咖啡类
-            DessertItem(id: 21, name: "焦糖玛奇朵", imageName: "caramel_macchiato", calories: "250", category: .coffee, description: "香浓的意式浓缩咖啡与焦糖的完美融合", backgroundColor: Color(hex: "D2B48C"), isFeatured: true),
-            DessertItem(id: 22, name: "摩卡咖啡", imageName: "mocha_coffee", calories: "230", category: .coffee, description: "咖啡与巧克力的经典组合，甜而不腻", backgroundColor: Color(hex: "8B5A2B")),
-            DessertItem(id: 23, name: "香草拿铁", imageName: "vanilla_latte", calories: "210", category: .coffee, description: "细腻的泡沫拿铁，加入香草风味，温暖怡人", backgroundColor: Color(hex: "D3D3D3")),
-            DessertItem(id: 24, name: "冰滴咖啡", imageName: "cold_brew", calories: "15", category: .coffee, description: "冷萃工艺制作的咖啡，风味温和，低酸低苦", backgroundColor: Color(hex: "4A3728")),
-            DessertItem(id: 25, name: "榛果美式", imageName: "hazelnut_americano", calories: "80", category: .coffee, description: "清爽的美式咖啡，加入榛果风味，香气怡人", backgroundColor: Color(hex: "967259")),
-            
-            // 面包类
-            DessertItem(id: 26, name: "肉桂面包卷", imageName: "cinnamon_roll", calories: "380", category: .bread, description: "软糯的面包卷，带有浓浓的肉桂风味，表面铺满糖霜", backgroundColor: Color(hex: "D2B48C")),
-            DessertItem(id: 27, name: "芝士面包", imageName: "cheese_bread", calories: "290", category: .bread, description: "松软的面包中充满了浓郁的芝士风味，咸香可口", backgroundColor: Color(hex: "F5DEB3")),
-            DessertItem(id: 28, name: "巧克力可颂", imageName: "chocolate_croissant", calories: "340", category: .bread, description: "酥脆的可颂面包，内有巧克力馅料，层次丰富", backgroundColor: Color(hex: "D2691E")),
-            DessertItem(id: 29, name: "吐司", imageName: "toast", calories: "260", category: .bread, description: "金黄酥脆的吐司，简单美味的经典早餐", backgroundColor: Color(hex: "F0E68C")),
-            DessertItem(id: 30, name: "抹茶红豆包", imageName: "matcha_bread", calories: "220", category: .bread, description: "抹茶风味的面包，内馅是甜甜的红豆沙，东方风味", backgroundColor: Color(hex: "90EE90")),
-            
-            // 包装零食
-            DessertItem(id: 31, name: "鸡肉块", imageName: "chicken_nuggets", calories: "230", category: .snack, description: "外酥里嫩的鸡肉块，配上特制酱料，美味可口", backgroundColor: Color(hex: "F5F5DC")),
-            DessertItem(id: 32, name: "章鱼小丸子", imageName: "octopus_balls", calories: "280", category: .snack, description: "日式小吃，外酥内软，浇上特制酱汁，风味独特", backgroundColor: Color(hex: "F4A460")),
-            DessertItem(id: 33, name: "巧克力曲奇", imageName: "chocolate_cookies", calories: "260", category: .snack, description: "香脆的巧克力曲奇，满口巧克力香", backgroundColor: Color(hex: "8B4513")),
-            DessertItem(id: 34, name: "奶油爆米花", imageName: "butter_popcorn", calories: "240", category: .snack, description: "奶油风味的爆米花，香气四溢，口感松脆", backgroundColor: Color(hex: "FFF8DC")),
-            DessertItem(id: 35, name: "果冻糖", imageName: "jelly_beans", calories: "170", category: .snack, description: "多彩的果冻糖豆，各种水果风味，缤纷可爱", backgroundColor: Color(hex: "FFB6C1")),
-            
-            // 巧克力类
-            DessertItem(id: 36, name: "巧克力酱", imageName: "nutella", calories: "210", category: .chocolate, description: "浓郁的巧克力榛子酱，甜蜜顺滑", backgroundColor: Color(hex: "3C2218"), isFeatured: true),
-            DessertItem(id: 37, name: "榛子巧克力", imageName: "hazelnut_chocolate", calories: "270", category: .chocolate, description: "细腻的巧克力中加入了脆脆的榛子，香气浓郁", backgroundColor: Color(hex: "8B4513")),
-            DessertItem(id: 38, name: "草莓松露", imageName: "strawberry_truffle", calories: "180", category: .chocolate, description: "草莓风味的巧克力松露，外层撒上可可粉，精致美味", backgroundColor: Color(hex: "FFB6C1")),
-            DessertItem(id: 39, name: "薄荷巧克力", imageName: "mint_chocolate", calories: "190", category: .chocolate, description: "清新的薄荷风味巧克力，回味悠长", backgroundColor: Color(hex: "98FB98")),
-            DessertItem(id: 40, name: "巧克力蜂巢", imageName: "chocolate_honeycomb", calories: "220", category: .chocolate, description: "外脆内软的蜂巢状巧克力，口感丰富有趣", backgroundColor: Color(hex: "CD853F"))
+            // 零食类
+            DessertItem(id: 6, name: "面包", imageName: "Bread", calories: "358", category: .bread, description: "奶酪/芝士/风味糖浆面包，100克", backgroundColor: Color(hex: "F5DEB3")),
+            DessertItem(id: 19, name: "好丽友派", imageName: "OrionPie", calories: "104", category: .snack, description: "蛋黄派/巧克力派，23克/一块", backgroundColor: Color(hex: "FFB6C1")),
+            DessertItem(id: 20, name: "薯片", imageName: "PotatoChips", calories: "400", category: .snack, description: "乐事薯片，75克", backgroundColor: Color(hex: "FFF8DC"))
         ]
     }
     
