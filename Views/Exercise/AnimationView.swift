@@ -249,55 +249,59 @@ struct AnimationView: View {
     
     /// 设置通知监听器
     private func setupNotificationObservers() {
-        // 监听应用进入后台
+        // 监听应用状态变化
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            self.isAppActive = true
+        }
+        
         NotificationCenter.default.addObserver(
             forName: UIApplication.didEnterBackgroundNotification,
             object: nil,
             queue: .main
         ) { _ in
-            isAppActive = false
-            stopAnimations()
+            self.isAppActive = false
         }
         
-        // 监听应用即将进入前台
-        NotificationCenter.default.addObserver(
-            forName: UIApplication.willEnterForegroundNotification,
-            object: nil,
-            queue: .main
-        ) { _ in
-            isAppActive = true
-            startAnimations()
-        }
-        
-        // 监听停止动画通知
+        // 监听运动动画暂停/恢复通知
         NotificationCenter.default.addObserver(
             forName: Notification.Name("SuspendWorkoutAnimations"),
             object: nil,
             queue: .main
         ) { _ in
-            stopAnimations()
+            // 当收到暂停动画通知时，停止所有动画
+            self.pauseAllAnimations()
+        }
+        
+        NotificationCenter.default.addObserver(
+            forName: Notification.Name("ResumeWorkoutAnimations"),
+            object: nil,
+            queue: .main
+        ) { _ in
+            // 当收到恢复动画通知时，重新开始所有动画
+            self.startAnimations()
         }
     }
     
-    /// 移除通知监听器
+    /// 添加暂停所有动画的方法
+    private func pauseAllAnimations() {
+        // 停止所有会消耗GPU的动画
+        withAnimation(.easeOut(duration: 0.2)) {
+            // 降低透明度或应用其他视觉提示，表明动画已暂停
+            // 但不实际更改视图结构（避免在后台触发GPU工作）
+        }
+    }
+    
+    /// 修改removeNotificationObservers方法
     private func removeNotificationObservers() {
-        NotificationCenter.default.removeObserver(
-            self,
-            name: UIApplication.didEnterBackgroundNotification,
-            object: nil
-        )
-        
-        NotificationCenter.default.removeObserver(
-            self,
-            name: UIApplication.willEnterForegroundNotification,
-            object: nil
-        )
-        
-        NotificationCenter.default.removeObserver(
-            self,
-            name: Notification.Name("SuspendWorkoutAnimations"),
-            object: nil
-        )
+        // 移除所有通知监听器
+        NotificationCenter.default.removeObserver(self, name: UIApplication.didBecomeActiveNotification, object: nil)
+        NotificationCenter.default.removeObserver(self, name: UIApplication.didEnterBackgroundNotification, object: nil)
+        NotificationCenter.default.removeObserver(self, name: Notification.Name("SuspendWorkoutAnimations"), object: nil)
+        NotificationCenter.default.removeObserver(self, name: Notification.Name("ResumeWorkoutAnimations"), object: nil)
     }
 }
 

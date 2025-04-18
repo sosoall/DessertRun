@@ -421,22 +421,16 @@ struct WorkoutCompleteView: View {
                         label: "消耗卡路里"
                     )
                     
-                    Divider()
-                        .frame(height: 40)
-                    
+                    // 只为GPS类型的运动显示距离
                     if workoutSession.exerciseType.requiresGPS {
+                        Divider()
+                            .frame(height: 40)
+                            
                         summaryItem(
                             iconName: "map.fill",
                             iconColor: .green,
                             value: String(format: "%.2f", workoutSession.distanceInMeters / 1000),
                             label: "公里"
-                        )
-                    } else {
-                        summaryItem(
-                            iconName: "repeat",
-                            iconColor: .green,
-                            value: "0", // 这里需要修改为实际的次数值
-                            label: "次数"
                         )
                     }
                 }

@@ -169,6 +169,9 @@ class MockMotionManager: ObservableObject, MotionManaging {
         let newCalories = (caloriesPerMinute / 60) * elapsedTime
         totalCalories += newCalories
         
+        // 添加调试信息
+        print("【调试-模拟数据】活动级别:\(activityLevel), 步数:\(newSteps), 距离:\(String(format: "%.2f", newDistance))米, 卡路里:\(String(format: "%.2f", newCalories))卡, 总计:\(String(format: "%.2f", totalCalories))卡")
+        
         // 更新最后更新时间
         self.lastUpdate = now
         
@@ -247,4 +250,42 @@ class MockMotionManager: ObservableObject, MotionManaging {
         // 发布计步器数据更新
         pedometerUpdatePublisher.send(mockPedometerData)
     }
+    
+    // 添加后台模式支持
+    /// 进入后台模式，暂停UI更新但继续收集运动数据
+    func pauseUIUpdates() {
+        print("【MockMotionManager】暂停UI更新，但继续模拟数据")
+        
+        // 降低模拟数据更新频率以节省电池
+        // 暂停任何现有的定时器
+        timer?.invalidate()
+        
+        // 创建更低频率的定时器（每3秒）
+        timer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
+            self?.updateSimulatedData()
+        }
+        
+        // 标记我们处于后台模式
+        isInBackgroundMode = true
+    }
+    
+    /// 恢复前台模式，恢复UI更新
+    func resumeUIUpdates() {
+        print("【MockMotionManager】恢复UI更新和正常频率的模拟数据")
+        
+        // 恢复正常更新频率
+        // 暂停低频率的定时器
+        timer?.invalidate()
+        
+        // 重新创建正常频率的定时器（每秒）
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            self?.updateSimulatedData()
+        }
+        
+        // 标记我们不再处于后台模式
+        isInBackgroundMode = false
+    }
+    
+    // 添加一个属性来跟踪当前模式
+    private var isInBackgroundMode = false
 } 

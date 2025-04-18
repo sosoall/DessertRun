@@ -43,7 +43,6 @@ struct DataView: View {
     @State private var resourcesLoaded = false
     
     // 在状态变量区域添加位置相关状态
-    @State private var userLocation: CLLocationCoordinate2D? = nil
     @State private var locationAccuracy: CLLocationAccuracy = 0
     @State private var lastLocationUpdate = Date()
     
@@ -77,6 +76,52 @@ struct DataView: View {
                                 }
                         )
                         .allowsHitTesting(true)
+                    
+                    // 添加模拟数据提示
+                    VStack {
+                        simulatedDataAlert
+                        Spacer()
+                    }
+                    .padding(.top, 50) // 调整顶部边距，确保不被状态栏遮挡
+                    .padding(.horizontal, 16)
+                    
+                    // 左右边缘滑动区域，用于TabView页面切换
+                    HStack(spacing: 0) {
+                        // 左边缘区域 - 检测右滑（返回上一页）
+                        Rectangle()
+                            .fill(Color.clear)
+                            .frame(width: 60)
+                            .contentShape(Rectangle())
+                            .gesture(
+                                DragGesture(minimumDistance: 20)
+                                    .onChanged { value in
+                                        self.dragOffset = value.translation.width
+                                    }
+                                    .onEnded { value in
+                                        if value.translation.width > 80 {
+                                            // 向右滑动超过阈值，切换到激励页面(index 0)
+                                            withAnimation {
+                                                NotificationCenter.default.post(
+                                                    name: NSNotification.Name("ChangePageIndex"),
+                                                    object: nil,
+                                                    userInfo: ["index": 0]
+                                                )
+                                            }
+                                        }
+                                        self.dragOffset = 0
+                                    }
+                            )
+                        
+                        Spacer()
+                        
+                        // 右边缘区域 - 为完整性添加，检测左滑
+                        Rectangle()
+                            .fill(Color.clear)
+                            .frame(width: 60)
+                            .contentShape(Rectangle())
+                    }
+                    .frame(maxHeight: .infinity)
+                    .allowsHitTesting(true)
                     
                     // 悬浮的数据卡片 - 4个核心数据
                     VStack {
@@ -120,44 +165,6 @@ struct DataView: View {
                         .padding(.bottom, 20)
                     }
                     
-                    // 左右边缘滑动区域，用于TabView页面切换
-                    HStack(spacing: 0) {
-                        // 左边缘区域 - 检测右滑（返回上一页）
-                        Rectangle()
-                            .fill(Color.clear)
-                            .frame(width: 60)
-                            .contentShape(Rectangle())
-                            .gesture(
-                                DragGesture(minimumDistance: 20)
-                                    .onChanged { value in
-                                        self.dragOffset = value.translation.width
-                                    }
-                                    .onEnded { value in
-                                        if value.translation.width > 80 {
-                                            // 向右滑动超过阈值，切换到激励页面(index 0)
-                                            withAnimation {
-                                                NotificationCenter.default.post(
-                                                    name: NSNotification.Name("ChangePageIndex"),
-                                                    object: nil,
-                                                    userInfo: ["index": 0]
-                                                )
-                                            }
-                                        }
-                                        self.dragOffset = 0
-                                    }
-                            )
-                        
-                        Spacer()
-                        
-                        // 右边缘区域 - 为完整性添加，检测左滑
-                        Rectangle()
-                            .fill(Color.clear)
-                            .frame(width: 60)
-                            .contentShape(Rectangle())
-                    }
-                    .frame(maxHeight: .infinity)
-                    .allowsHitTesting(true)
-                    
                     // 暂停状态标识 - 仅在暂停时显示
                     if workoutSession.state == .paused {
                         pauseIndicator
@@ -169,16 +176,16 @@ struct DataView: View {
                     // 增加顶部安全区域边距
                     Spacer(minLength: 40)
                     
+                    // 添加模拟数据提示
+                    simulatedDataAlert
+                    
                     // 进度环
                     progressRingView
                         .frame(height: screenSize.height * 0.3)
                         .padding(.bottom, 10)
                     
-                    // 核心数据卡片
-                    LazyVGrid(columns: [
-                        GridItem(.flexible()),
-                        GridItem(.flexible()),
-                    ], spacing: 12) {
+                    // 核心数据卡片 - 仅显示时间和卡路里两个卡片
+                    HStack(spacing: 12) {
                         // 时间
                         CoreDataCard(
                             icon: "clock.fill",
@@ -196,34 +203,17 @@ struct DataView: View {
                             label: "卡路里消耗",
                             isAnimating: isAnimating
                         )
-                        
-                        // 距离/次数
-                        CoreDataCard(
-                            icon: "repeat",
-                            iconColor: Color(hex: "4CD964"),
-                            value: distanceOrCount,
-                            label: distanceOrCountLabel,
-                            isAnimating: isAnimating
-                        )
-                        
-                        // 目标
-                        CoreDataCard(
-                            icon: "flag.fill",
-                            iconColor: Color(hex: "5AC8FA"),
-                            value: "\(Int(workoutSession.targetCalories))",
-                            label: "目标卡路里",
-                            isAnimating: isAnimating
-                        )
                     }
-                    .padding(.horizontal, 15)
+                    .padding(.horizontal, 24)
                     
                     Spacer()
                     
-                    // 为暂停按钮留出安全区域
-                    Spacer()
-                        .frame(height: 90)
+                    // 暂停状态标识 - 仅在暂停时显示
+                    if workoutSession.state == .paused {
+                        pauseIndicator
+                    }
                 }
-                .padding(.vertical)
+                .padding(.horizontal, 16)
             }
         }
         .onAppear {
@@ -246,6 +236,11 @@ struct DataView: View {
             
             // 设置实时位置更新监听
             setupLocationTracking()
+            
+            // 确保在3秒后再次更新地图区域，以防初始位置不精确
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                updateMapRegion()
+            }
         }
         .onDisappear {
             // 移除通知监听器
@@ -254,6 +249,21 @@ struct DataView: View {
         .onChange(of: workoutSession.locationHistory) { oldValue, newValue in
             // 当位置历史更新时，更新地图区域
             if isAppActive && workoutSession.exerciseType.requiresGPS {
+                updateMapRegion()
+            }
+        }
+        .onChange(of: workoutSession.locationManager?.manager.location) { oldLocation, newLocation in
+            // 当用户位置有显著变化时更新地图区域
+            if let old = oldLocation, let new = newLocation {
+                let distance = CLLocation(latitude: old.coordinate.latitude, longitude: old.coordinate.longitude)
+                    .distance(from: CLLocation(latitude: new.coordinate.latitude, longitude: new.coordinate.longitude))
+                
+                // 如果移动超过50米，更新地图区域
+                if distance > 50 && workoutSession.locationHistory.count < 3 {
+                    updateMapRegion()
+                }
+            } else if newLocation != nil && oldLocation == nil {
+                // 首次获取到位置，更新地图区域
                 updateMapRegion()
             }
         }
@@ -418,64 +428,129 @@ struct DataView: View {
         }
     }
     
-    // 地图内容
+    // 重写地图内容视图，确保没有在Map内容构建器中进行变量赋值
     private var mapContent: some View {
         Group {
-            #if swift(>=5.9) && canImport(MapKit)
-            // iOS 17+ 新的Map API
-            Map(initialPosition: .region(mapRegion)) {
-                // 使用系统的用户位置标记 - 更准确
-                UserAnnotation()
-                
-                // 路线轨迹
-                if locationAnnotations.count > 1 {
-                    MapPolyline(coordinates: locationAnnotations.map { $0.coordinate })
-                        .stroke(primaryColor, lineWidth: 4)
-                }
-                
-                // 起点标记
-                if let firstLocation = locationAnnotations.first {
-                    Annotation("起点", coordinate: firstLocation.coordinate) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.green)
-                                .frame(width: 24, height: 24)
+            #if swift(>=5.8) && canImport(MapKit)
+            if #available(iOS 17.0, *) {
+                // iOS 17+ 新的Map API
+                ZStack {
+                    // 地图视图
+                    Map(position: .constant(MapCameraPosition.region(mapRegion))) {
+                        // 注意：UserAnnotation使用系统位置，我们必须通过自定义标记修复位置偏移问题
+                        
+                        // 如果有当前位置，添加自定义当前位置标记
+                        if let currentLocation = workoutSession.locationManager?.manager.location?.coordinate {
+                            // 转换为GCJ-02坐标系
+                            let gcjLocation = CoordinateTransform.wgs84ToGcj02(
+                                latitude: currentLocation.latitude,
+                                longitude: currentLocation.longitude
+                            )
                             
-                            Image(systemName: "flag.fill")
-                                .font(.system(size: 12))
-                                .foregroundColor(.white)
+                            // 自定义当前位置标记
+                            Annotation("", coordinate: gcjLocation) {
+                                Circle()
+                                    .fill(Color.blue)
+                                    .frame(width: 16, height: 16)
+                                    .overlay(
+                                        Circle()
+                                            .stroke(Color.white, lineWidth: 2)
+                                    )
+                            }
+                            .annotationTitles(.hidden)
                         }
+                        
+                        // 路线轨迹 - 这里使用的是已经转换为GCJ-02的locationAnnotations
+                        ForEach(0..<max(0, locationAnnotations.count-1), id: \.self) { index in
+                            MapPolyline(coordinates: [
+                                locationAnnotations[index].coordinate,
+                                locationAnnotations[index + 1].coordinate
+                            ])
+                            .stroke(primaryColor, lineWidth: 4)
+                        }
+                        
+                        // 起点标记
+                        if let firstLocation = locationAnnotations.first {
+                            Annotation("起点", coordinate: firstLocation.coordinate) {
+                                ZStack {
+                                    Circle()
+                                        .fill(Color.green)
+                                        .frame(width: 24, height: 24)
+                                    
+                                    Image(systemName: "flag.fill")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.white)
+                                }
+                            }
+                        }
+                    }
+                    .mapStyle(.standard)
+                    .mapControls {
+                        MapCompass()
+                        MapScaleView()
+                    }
+                    
+                    // 顶部右侧GPS信号强度指示器
+                    VStack {
+                        HStack {
+                            Spacer()
+                            GPSSignalIndicator(accuracy: locationAccuracy, lastUpdate: lastLocationUpdate)
+                                .padding(.trailing, 12)
+                                .padding(.top, 12)
+                        }
+                        Spacer()
+                    }
+                }
+                .onAppear {
+                    // 设置初始地图区域
+                    DispatchQueue.main.async {
+                        updateMapRegion()
+                    }
+                }
+            } else {
+                // iOS 16 兼容性版本
+                ZStack {
+                    MapContainer(
+                        mapRegion: mapRegion,
+                        locationAnnotations: locationAnnotations,
+                        primaryColor: primaryColor,
+                        currentLocation: workoutSession.locationManager?.manager.location?.coordinate
+                    )
+                    
+                    // GPS信号强度指示器
+                    VStack {
+                        HStack {
+                            Spacer()
+                            GPSSignalIndicator(accuracy: locationAccuracy, lastUpdate: lastLocationUpdate)
+                                .padding(.trailing, 12)
+                                .padding(.top, 12)
+                        }
+                        Spacer()
+                    }
+                }
+                .onAppear {
+                    DispatchQueue.main.async {
+                        updateMapRegion()
                     }
                 }
             }
-            .mapStyle(.standard)
-            .mapControls {
-                MapCompass()
-                MapScaleView()
-            }
-            .onMapCameraChange { context in
-                // 实时更新地图区域
-                mapRegion = MKCoordinateRegion(
-                    center: context.region.center,
-                    span: context.region.span
-                )
-            }
-            .overlay(alignment: .topTrailing) {
-                // 保留GPS信号强度指示器
-                GPSSignalIndicator(accuracy: locationAccuracy, lastUpdate: lastLocationUpdate)
-                    .padding(.trailing, 12)
-                    .padding(.top, 12)
-            }
             #else
-            // 旧的Map API，用于兼容iOS 16及更早版本
-            Map(coordinateRegion: $mapRegion, showsUserLocation: true, annotationItems: locationAnnotations) { annotation in
-                MapMarker(coordinate: annotation.coordinate, tint: primaryColor)
-            }
-            .overlay(alignment: .topTrailing) {
+            // 旧的Map API，用于兼容iOS 15及更早版本
+            ZStack {
+                Map(coordinateRegion: $mapRegion, showsUserLocation: true, annotationItems: locationAnnotations) { annotation in
+                    MapMarker(coordinate: annotation.coordinate, tint: primaryColor)
+                }
+                
                 // GPS信号强度指示器
-                GPSSignalIndicator(accuracy: locationAccuracy, lastUpdate: lastLocationUpdate)
-                    .padding(.trailing, 12)
-                    .padding(.top, 12)
+                VStack {
+                    HStack {
+                        Spacer()
+                        GPSSignalIndicator(accuracy: locationAccuracy, lastUpdate: lastLocationUpdate)
+                            .padding(.trailing, 12)
+                            .padding(.top, 12)
+                    }
+                    Spacer()
+                }
             }
             #endif
         }
@@ -591,102 +666,200 @@ struct DataView: View {
     
     /// 设置通知监听器
     private func setupNotificationObservers() {
-        // 监听应用进入后台
+        // 监听应用状态变化
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            self.isAppActive = true
+        }
+        
         NotificationCenter.default.addObserver(
             forName: UIApplication.didEnterBackgroundNotification,
             object: nil,
             queue: .main
         ) { _ in
-            isAppActive = false
+            self.isAppActive = false
         }
         
-        // 监听应用即将进入前台
-        NotificationCenter.default.addObserver(
-            forName: UIApplication.willEnterForegroundNotification,
-            object: nil,
-            queue: .main
-        ) { _ in
-            isAppActive = true
-            // 如果是GPS运动，刷新地图
-            if workoutSession.exerciseType.requiresGPS {
-                updateMapRegion()
-            }
-        }
-        
-        // 监听停止动画通知
+        // 监听运动动画暂停/恢复通知
         NotificationCenter.default.addObserver(
             forName: Notification.Name("SuspendWorkoutAnimations"),
             object: nil,
             queue: .main
         ) { _ in
-            pauseOpacity = 0.0
+            print("DataView: 收到暂停动画通知")
+            self.isAppActive = false
+        }
+        
+        NotificationCenter.default.addObserver(
+            forName: Notification.Name("ResumeWorkoutAnimations"),
+            object: nil,
+            queue: .main
+        ) { _ in
+            print("DataView: 收到恢复动画通知")
+            self.isAppActive = true
         }
     }
     
     /// 移除通知监听器
     private func removeNotificationObservers() {
-        NotificationCenter.default.removeObserver(
-            self,
-            name: UIApplication.didEnterBackgroundNotification,
-            object: nil
-        )
-        
-        NotificationCenter.default.removeObserver(
-            self,
-            name: UIApplication.willEnterForegroundNotification,
-            object: nil
-        )
-        
-        NotificationCenter.default.removeObserver(
-            self,
-            name: Notification.Name("SuspendWorkoutAnimations"),
-            object: nil
-        )
+        // 移除所有通知监听器
+        NotificationCenter.default.removeObserver(self, name: UIApplication.didBecomeActiveNotification, object: nil)
+        NotificationCenter.default.removeObserver(self, name: UIApplication.didEnterBackgroundNotification, object: nil)
+        NotificationCenter.default.removeObserver(self, name: Notification.Name("SuspendWorkoutAnimations"), object: nil)
+        NotificationCenter.default.removeObserver(self, name: Notification.Name("ResumeWorkoutAnimations"), object: nil)
     }
     
     /// 更新地图区域
     private func updateMapRegion() {
-        guard !workoutSession.locationHistory.isEmpty else { return }
-        
-        if workoutSession.locationHistory.count > 1 {
-            // 获取所有位置的经纬度
-            let coordinates = workoutSession.locationHistory.map { 
-                CLLocationCoordinate2D(latitude: $0.coordinate.latitude, longitude: $0.coordinate.longitude)
+        // 首先检查当前用户位置
+        if let userLocation = workoutSession.locationManager?.manager.location?.coordinate {
+            // 转换用户位置为GCJ-02
+            let gcjUserLocation = CoordinateTransform.wgs84ToGcj02(
+                latitude: userLocation.latitude,
+                longitude: userLocation.longitude
+            )
+            
+            if workoutSession.locationHistory.count > 1 {
+                // 有历史轨迹时，显示整个轨迹
+                // 获取所有位置的经纬度，包括当前位置（都转换为GCJ-02）
+                var coordinates = workoutSession.locationHistory.map { 
+                    let gcjCoord = CoordinateTransform.wgs84ToGcj02(
+                        latitude: $0.coordinate.latitude, 
+                        longitude: $0.coordinate.longitude
+                    )
+                    return gcjCoord
+                }
+                
+                // 确保当前位置也被纳入计算
+                coordinates.append(gcjUserLocation)
+                
+                // 计算边界
+                var minLat = coordinates.map { $0.latitude }.min() ?? 0
+                var maxLat = coordinates.map { $0.latitude }.max() ?? 0
+                var minLon = coordinates.map { $0.longitude }.min() ?? 0
+                var maxLon = coordinates.map { $0.longitude }.max() ?? 0
+                
+                // 添加边距
+                let latPadding = (maxLat - minLat) * 0.5
+                let lonPadding = (maxLon - minLon) * 0.5
+                
+                minLat -= latPadding
+                maxLat += latPadding
+                minLon -= lonPadding
+                maxLon += lonPadding
+                
+                // 计算中心和跨度
+                let center = CLLocationCoordinate2D(
+                    latitude: (minLat + maxLat) / 2, 
+                    longitude: (minLon + maxLon) / 2
+                )
+                
+                let latDelta = max(0.01, maxLat - minLat)
+                let lonDelta = max(0.01, maxLon - minLon)
+                
+                let span = MKCoordinateSpan(
+                    latitudeDelta: latDelta,
+                    longitudeDelta: lonDelta
+                )
+                
+                // 设置地图区域
+                mapRegion = MKCoordinateRegion(center: center, span: span)
+            } else if let startPoint = workoutSession.locationHistory.first?.coordinate {
+                // 只有一个起点位置和当前位置的情况
+                // 转换起点为GCJ-02
+                let gcjStartPoint = CoordinateTransform.wgs84ToGcj02(
+                    latitude: startPoint.latitude, 
+                    longitude: startPoint.longitude
+                )
+                
+                // 计算两点之间的中心
+                let centerLat = (gcjStartPoint.latitude + gcjUserLocation.latitude) / 2
+                let centerLon = (gcjStartPoint.longitude + gcjUserLocation.longitude) / 2
+                
+                // 计算两点之间的距离以确定适当的跨度
+                let minLat = min(gcjStartPoint.latitude, gcjUserLocation.latitude)
+                let maxLat = max(gcjStartPoint.latitude, gcjUserLocation.latitude)
+                let minLon = min(gcjStartPoint.longitude, gcjUserLocation.longitude)
+                let maxLon = max(gcjStartPoint.longitude, gcjUserLocation.longitude)
+                
+                // 添加足够的边距
+                let latDelta = max(0.015, (maxLat - minLat) * 2.5)
+                let lonDelta = max(0.015, (maxLon - minLon) * 2.5)
+                
+                mapRegion = MKCoordinateRegion(
+                    center: CLLocationCoordinate2D(latitude: centerLat, longitude: centerLon),
+                    span: MKCoordinateSpan(latitudeDelta: latDelta, longitudeDelta: lonDelta)
+                )
+            } else {
+                // 只有当前位置，无历史轨迹
+                // 以用户当前位置为中心，使用较大的缩放比例
+                mapRegion = MKCoordinateRegion(
+                    center: gcjUserLocation,
+                    span: MKCoordinateSpan(latitudeDelta: 0.035, longitudeDelta: 0.035)
+                )
             }
-            
-            // 计算边界
-            var minLat = coordinates.map { $0.latitude }.min() ?? 0
-            var maxLat = coordinates.map { $0.latitude }.max() ?? 0
-            var minLon = coordinates.map { $0.longitude }.min() ?? 0
-            var maxLon = coordinates.map { $0.longitude }.max() ?? 0
-            
-            // 添加边距
-            let latPadding = (maxLat - minLat) * 0.2
-            let lonPadding = (maxLon - minLon) * 0.2
-            
-            minLat -= latPadding
-            maxLat += latPadding
-            minLon -= lonPadding
-            maxLon += lonPadding
-            
-            // 计算中心和跨度
-            let center = CLLocationCoordinate2D(
-                latitude: (minLat + maxLat) / 2, 
-                longitude: (minLon + maxLon) / 2
+        } else if !workoutSession.locationHistory.isEmpty {
+            // 没有当前位置但有历史数据
+            if workoutSession.locationHistory.count > 1 {
+                // 与之前逻辑类似，但不考虑当前位置
+                let coordinates = workoutSession.locationHistory.map { 
+                    let gcjCoord = CoordinateTransform.wgs84ToGcj02(
+                        latitude: $0.coordinate.latitude, 
+                        longitude: $0.coordinate.longitude
+                    )
+                    return gcjCoord
+                }
+                
+                var minLat = coordinates.map { $0.latitude }.min() ?? 0
+                var maxLat = coordinates.map { $0.latitude }.max() ?? 0
+                var minLon = coordinates.map { $0.longitude }.min() ?? 0
+                var maxLon = coordinates.map { $0.longitude }.max() ?? 0
+                
+                let latPadding = (maxLat - minLat) * 0.5
+                let lonPadding = (maxLon - minLon) * 0.5
+                
+                minLat -= latPadding
+                maxLat += latPadding
+                minLon -= lonPadding
+                maxLon += lonPadding
+                
+                let center = CLLocationCoordinate2D(
+                    latitude: (minLat + maxLat) / 2, 
+                    longitude: (minLon + maxLon) / 2
+                )
+                
+                let span = MKCoordinateSpan(
+                    latitudeDelta: max(0.015, maxLat - minLat),
+                    longitudeDelta: max(0.015, maxLon - minLon)
+                )
+                
+                mapRegion = MKCoordinateRegion(center: center, span: span)
+            } else if let location = workoutSession.locationHistory.first {
+                // 只有起点位置，转换为GCJ-02
+                let gcjLocation = CoordinateTransform.wgs84ToGcj02(
+                    latitude: location.coordinate.latitude, 
+                    longitude: location.coordinate.longitude
+                )
+                
+                mapRegion = MKCoordinateRegion(
+                    center: gcjLocation,
+                    span: MKCoordinateSpan(latitudeDelta: 0.035, longitudeDelta: 0.035)
+                )
+            }
+        } else {
+            // 既没有当前位置也没有历史数据，使用默认位置和较大缩放比例
+            // 默认位置也应转换为GCJ-02
+            let defaultGcjLocation = CoordinateTransform.wgs84ToGcj02(
+                latitude: 39.9087, 
+                longitude: 116.3975
             )
             
-            let span = MKCoordinateSpan(
-                latitudeDelta: max(0.005, maxLat - minLat),
-                longitudeDelta: max(0.005, maxLon - minLon)
-            )
-            
-            // 设置地图区域
-            mapRegion = MKCoordinateRegion(center: center, span: span)
-        } else if let location = workoutSession.locationHistory.first {
-            // 只有一个位置，以该位置为中心
             mapRegion = MKCoordinateRegion(
-                center: location.coordinate,
-                span: MKCoordinateSpan(latitudeDelta: 0.005, longitudeDelta: 0.005)
+                center: defaultGcjLocation,
+                span: MKCoordinateSpan(latitudeDelta: 0.015, longitudeDelta: 0.015)
             )
         }
     }
@@ -696,7 +869,12 @@ struct DataView: View {
     /// 位置标注
     private var locationAnnotations: [LocationAnnotation] {
         return workoutSession.locationHistory.map { 
-            LocationAnnotation(id: UUID(), coordinate: $0.coordinate)
+            // 转换为GCJ-02坐标系
+            let gcjCoord = CoordinateTransform.wgs84ToGcj02(
+                latitude: $0.coordinate.latitude, 
+                longitude: $0.coordinate.longitude
+            )
+            return LocationAnnotation(id: UUID(), coordinate: gcjCoord)
         }
     }
     
@@ -772,7 +950,7 @@ struct DataView: View {
         }
     }
     
-    // 添加位置跟踪方法
+    // 修改定位追踪逻辑
     private func setupLocationTracking() {
         // 设置位置监听器
         NotificationCenter.default.addObserver(
@@ -781,16 +959,21 @@ struct DataView: View {
             queue: .main
         ) { notification in
             if let locationData = notification.userInfo?["location"] as? CLLocation {
-                self.userLocation = locationData.coordinate
                 self.locationAccuracy = locationData.horizontalAccuracy
                 self.lastLocationUpdate = Date()
+                
+                // 如果这是首次获取到位置，更新地图区域
+                if self.mapRegion.span.latitudeDelta > 0.03 {
+                    DispatchQueue.main.async {
+                        self.updateMapRegion()
+                    }
+                }
             }
         }
         
-        // 创建位置监听定时器，确保定位更新
+        // 创建位置监听定时器
         Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
             if let location = self.workoutSession.locationManager?.manager.location {
-                self.userLocation = location.coordinate
                 self.locationAccuracy = location.horizontalAccuracy
                 self.lastLocationUpdate = Date()
                 
@@ -800,6 +983,34 @@ struct DataView: View {
                     object: nil,
                     userInfo: ["location": location]
                 )
+            }
+        }
+    }
+    
+    // 添加模拟数据提示组件
+    private var simulatedDataAlert: some View {
+        Group {
+            if workoutSession.isUsingSimulatedData {
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(.orange)
+                    
+                    Text("无授权，仅模拟数据")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.orange)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.orange.opacity(0.15))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                        )
+                )
+                .padding(.top, 8)
             }
         }
     }
@@ -973,5 +1184,139 @@ struct GPSSignalIndicator: View {
         .cornerRadius(8)
         .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
         .opacity(timeSinceUpdate > 10 ? 0.5 : 1.0) // 10秒没更新则降低透明度
+    }
+}
+
+// 修改MapContainer组件
+struct MapContainer: View {
+    let mapRegion: MKCoordinateRegion
+    let locationAnnotations: [LocationAnnotation]
+    let primaryColor: Color
+    let currentLocation: CLLocationCoordinate2D?
+    
+    // 转换当前位置坐标
+    private var gcjCurrentLocation: CLLocationCoordinate2D? {
+        guard let currentLocation = currentLocation else { return nil }
+        return CoordinateTransform.wgs84ToGcj02(
+            latitude: currentLocation.latitude,
+            longitude: currentLocation.longitude
+        )
+    }
+    
+    var body: some View {
+        ZStack {
+            // 使用不同版本的Map API
+            #if swift(>=5.8) && canImport(MapKit)
+            if #available(iOS 17.0, *) {
+                // iOS 17+ 新的Map API
+                Map(position: .constant(MapCameraPosition.region(mapRegion))) {
+                    // 使用系统的用户位置标记 - 这使用iOS内置的定位标注，自动处理标注位置
+                    UserAnnotation()
+                        .annotationTitles(.hidden)
+                    
+                    // 路线轨迹
+                    ForEach(0..<max(0, locationAnnotations.count-1), id: \.self) { index in
+                        MapPolyline(coordinates: [
+                            locationAnnotations[index].coordinate,
+                            locationAnnotations[index + 1].coordinate
+                        ])
+                        .stroke(primaryColor, lineWidth: 4)
+                    }
+                    
+                    // 起点标记
+                    if let firstLocation = locationAnnotations.first {
+                        Annotation("起点", coordinate: firstLocation.coordinate) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.green)
+                                    .frame(width: 24, height: 24)
+                                
+                                Image(systemName: "flag.fill")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.white)
+                            }
+                        }
+                    }
+                }
+                .mapStyle(.standard)
+                .mapControls {
+                    MapCompass()
+                    MapScaleView()
+                }
+            } else {
+                // iOS 16 兼容性版本
+                Map(coordinateRegion: .constant(mapRegion), showsUserLocation: true, annotationItems: locationAnnotations) { annotation in
+                    MapMarker(coordinate: annotation.coordinate, tint: primaryColor)
+                }
+            }
+            #else
+            // 更早版本API，兼容iOS 15及更早版本
+            Map(coordinateRegion: .constant(mapRegion), showsUserLocation: true, annotationItems: locationAnnotations) { annotation in
+                MapMarker(coordinate: annotation.coordinate, tint: primaryColor)
+            }
+            #endif
+        }
+    }
+}
+
+// MARK: - 坐标转换工具
+fileprivate class CoordinateTransform {
+    private static let a = 6378245.0
+    private static let ee = 0.00669342162296594323
+    
+    /// WGS-84 转 GCJ-02
+    static func wgs84ToGcj02(latitude: Double, longitude: Double) -> CLLocationCoordinate2D {
+        if isOutOfChina(latitude: latitude, longitude: longitude) {
+            return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        }
+        
+        var dLat = transformLat(x: longitude - 105.0, y: latitude - 35.0)
+        var dLon = transformLon(x: longitude - 105.0, y: latitude - 35.0)
+        
+        let radLat = latitude / 180.0 * Double.pi
+        var magic = sin(radLat)
+        magic = 1 - ee * magic * magic
+        let sqrtMagic = sqrt(magic)
+        
+        dLat = (dLat * 180.0) / ((a * (1 - ee)) / (magic * sqrtMagic) * Double.pi)
+        dLon = (dLon * 180.0) / (a / sqrtMagic * cos(radLat) * Double.pi)
+        
+        let mgLat = latitude + dLat
+        let mgLon = longitude + dLon
+        
+        return CLLocationCoordinate2D(latitude: mgLat, longitude: mgLon)
+    }
+    
+    /// GCJ-02 转 WGS-84
+    static func gcj02ToWgs84(latitude: Double, longitude: Double) -> CLLocationCoordinate2D {
+        if isOutOfChina(latitude: latitude, longitude: longitude) {
+            return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        }
+        
+        let coord = wgs84ToGcj02(latitude: latitude, longitude: longitude)
+        let lontitude = longitude * 2 - coord.longitude
+        let latitude = latitude * 2 - coord.latitude
+        
+        return CLLocationCoordinate2D(latitude: latitude, longitude: lontitude)
+    }
+    
+    private static func transformLat(x: Double, y: Double) -> Double {
+        var ret = -100.0 + 2.0 * x + 3.0 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * sqrt(abs(x))
+        ret += (20.0 * sin(6.0 * x * Double.pi) + 20.0 * sin(2.0 * x * Double.pi)) * 2.0 / 3.0
+        ret += (20.0 * sin(y * Double.pi) + 40.0 * sin(y / 3.0 * Double.pi)) * 2.0 / 3.0
+        ret += (160.0 * sin(y / 12.0 * Double.pi) + 320 * sin(y * Double.pi / 30.0)) * 2.0 / 3.0
+        return ret
+    }
+    
+    private static func transformLon(x: Double, y: Double) -> Double {
+        var ret = 300.0 + x + 2.0 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * sqrt(abs(x))
+        ret += (20.0 * sin(6.0 * x * Double.pi) + 20.0 * sin(2.0 * x * Double.pi)) * 2.0 / 3.0
+        ret += (20.0 * sin(x * Double.pi) + 40.0 * sin(x / 3.0 * Double.pi)) * 2.0 / 3.0
+        ret += (150.0 * sin(x / 12.0 * Double.pi) + 300.0 * sin(x / 30.0 * Double.pi)) * 2.0 / 3.0
+        return ret
+    }
+    
+    private static func isOutOfChina(latitude: Double, longitude: Double) -> Bool {
+        return longitude < 72.004 || longitude > 137.8347 || latitude < 0.8293 || latitude > 55.8271
     }
 } 

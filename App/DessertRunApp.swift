@@ -19,6 +19,9 @@ struct DessertRunApp: App {
     /// 注册AppDelegate
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     
+    /// 场景管理
+    @Environment(\.scenePhase) private var scenePhase
+    
     init() {
         // 强制屏幕旋转为竖屏
         AppDelegate.lockOrientation(.portrait)
@@ -34,55 +37,36 @@ struct DessertRunApp: App {
                     AppDelegate.lockOrientation(.portrait)
                 }
         }
-    }
-}
-
-// 用于锁定屏幕方向的AppDelegate
-class AppDelegate: NSObject, UIApplicationDelegate {
-    static var orientationLock = UIInterfaceOrientationMask.portrait
-    
-    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
-        // 应用启动时锁定为竖屏
-        AppDelegate.lockOrientation(.portrait)
-        
-        // 应用启动时主动请求必要的权限
-        requestPermissions()
-        
-        return true
-    }
-    
-    func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
-        return AppDelegate.orientationLock
-    }
-    
-    /// 请求应用所需的权限
-    private func requestPermissions() {
-        // 请求位置权限
-        let locationManager = CLLocationManager()
-        locationManager.requestWhenInUseAuthorization()
-        
-        // 请求通知权限
-        Task {
-            _ = await UNUserNotificationCenter.requestPermission()
+        .onChange(of: scenePhase) { newPhase in
+            handleScenePhaseChange(newPhase)
         }
-        
-        print("已请求应用所需的基本权限")
     }
     
-    /// 设置屏幕方向锁定的辅助方法
-    static func lockOrientation(_ orientation: UIInterfaceOrientationMask) {
-        // 设置支持的方向
-        AppDelegate.orientationLock = orientation
-        
-        // 尝试使用现代API更新屏幕方向
-        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
-            // 使用现代API请求几何更新
-            windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
-            
-            // 通知所有视图控制器更新其支持的方向
-            if let window = windowScene.windows.first {
-                window.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
+    // 处理应用状态变化
+    private func handleScenePhaseChange(_ phase: ScenePhase) {
+        switch phase {
+        case .active:
+            print("应用进入前台")
+            // 如果有活动的运动会话，恢复动画和UI更新
+            if let session = appState.activeWorkoutSession, session.state == .active {
+                session.resumeAnimations()
+                print("恢复运动会话的UI更新和动画")
             }
+            
+        case .background:
+            print("应用进入后台")
+            // 如果有活动的运动会话，暂停动画但继续收集数据
+            if let session = appState.activeWorkoutSession, session.state == .active {
+                session.suspendAnimations()
+                print("暂停运动会话的UI更新和动画，但保持数据收集")
+            }
+            
+        case .inactive:
+            print("应用处于非活动状态")
+            // 通常在应用切换时触发，可能不需要特殊处理
+            
+        @unknown default:
+            print("未知的应用状态")
         }
     }
 }

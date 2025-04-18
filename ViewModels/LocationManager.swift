@@ -104,6 +104,9 @@ class LocationManager: NSObject, ObservableObject, LocationManaging {
     /// 是否初始化完成
     private(set) var isInitialized: Bool = false
     
+    /// 添加一个属性来跟踪当前模式
+    private var isInBackgroundMode = false
+    
     /// 初始化位置管理器
     override init() {
         super.init()
@@ -228,6 +231,38 @@ class LocationManager: NSObject, ObservableObject, LocationManaging {
     /// 获取位置权限状态
     var authorizationStatus: CLAuthorizationStatus {
         return manager.authorizationStatus
+    }
+    
+    // 添加后台模式支持方法
+    /// 进入后台模式，暂停UI更新但继续收集位置数据
+    func pauseUIUpdates() {
+        print("【LocationManager】暂停UI更新，但继续收集位置数据")
+        
+        // 确保后台位置更新已启用
+        if manager.authorizationStatus == .authorizedAlways || manager.authorizationStatus == .authorizedWhenInUse {
+            manager.allowsBackgroundLocationUpdates = true
+            manager.pausesLocationUpdatesAutomatically = false
+            
+            // 可以降低位置精度以节省电量
+            if #available(iOS 14.0, *) {
+                // iOS 14+可以使用精度降级
+                manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+            }
+        }
+        
+        // 标记我们处于后台模式
+        isInBackgroundMode = true
+    }
+    
+    /// 恢复前台模式，恢复UI更新
+    func resumeUIUpdates() {
+        print("【LocationManager】恢复UI更新和位置高精度收集")
+        
+        // 恢复高精度位置更新
+        manager.desiredAccuracy = kCLLocationAccuracyBest
+        
+        // 标记我们不再处于后台模式
+        isInBackgroundMode = false
     }
 }
 

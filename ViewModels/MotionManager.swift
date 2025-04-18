@@ -56,6 +56,33 @@ class MotionManager: NSObject, ObservableObject, MotionManaging {
     
     let pedometerUpdatePublisher = PassthroughSubject<PedometerData, Never>()
     
+    // 添加后台模式支持
+    /// 进入后台模式，暂停UI更新但继续收集运动数据
+    func pauseUIUpdates() {
+        print("【MotionManager】暂停UI更新，但继续收集运动数据")
+        
+        // 这里我们仍然继续收集传感器数据，但停止更新UI
+        // 可以减少更新频率以节省电池
+        cmMotionManager.deviceMotionUpdateInterval = 0.5  // 降低更新频率
+        
+        // 标记我们处于后台模式
+        isInBackgroundMode = true
+    }
+    
+    /// 恢复前台模式，恢复UI更新
+    func resumeUIUpdates() {
+        print("【MotionManager】恢复UI更新和正常频率的数据收集")
+        
+        // 恢复正常更新频率
+        cmMotionManager.deviceMotionUpdateInterval = 0.1
+        
+        // 标记我们不再处于后台模式
+        isInBackgroundMode = false
+    }
+    
+    // 添加一个属性来跟踪当前模式
+    private var isInBackgroundMode = false
+    
     // MARK: - 初始化
     override init() {
         super.init()
@@ -190,12 +217,17 @@ class MotionManager: NSObject, ObservableObject, MotionManaging {
                 
                 // 更新卡路里（基于步数和距离的估算）
                 // 平均1公里消耗约60卡路里
+                let oldCalories = self.totalCalories
                 if let distance = data.distance {
                     self.totalCalories = distance.doubleValue * 0.06
                 } else {
                     // 如果没有距离数据，粗略估算
                     self.totalCalories = Double(self.totalSteps) * 0.04
                 }
+                
+                // 添加调试信息
+                let newCalories = self.totalCalories - oldCalories
+                print("【调试-真实数据】步数:\(data.numberOfSteps.intValue), 距离:\(String(format: "%.2f", data.distance?.doubleValue ?? 0))米, 新增卡路里:\(String(format: "%.2f", newCalories))卡, 总计:\(String(format: "%.2f", self.totalCalories))卡")
                 
                 // 创建并发布计步器数据更新
                 let pedometerData = self.convertToPedometerData(data)

@@ -159,4 +159,10 @@ protocol MotionManaging: AnyObject {
     
     /// 停止追踪
     func stopTracking()
+    
+    /// 进入后台模式，暂停UI更新但继续收集数据
+    func pauseUIUpdates()
+    
+    /// 恢复前台模式，恢复UI更新
+    func resumeUIUpdates()
 } 
