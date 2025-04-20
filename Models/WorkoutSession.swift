@@ -95,6 +95,9 @@ class WorkoutSession: ObservableObject {
     // MARK: - 记录上次的步数，用于检测步数变化
     private var lastRecordedSteps: Int?
     
+    // MARK: - 添加暂停时间相关属性
+    private var pauseStartTime: Date?
+    
     // MARK: - 初始化
     init(targetDessert: DessertItem, exerciseType: ExerciseType) {
         self.targetDessert = targetDessert
@@ -165,13 +168,19 @@ class WorkoutSession: ObservableObject {
     
     /// 暂停运动
     func pauseWorkout() {
-        guard state == .active else { return }
+        // 确保已经开始并且处于活动状态
+        guard startTime != nil && state == .active else { return }
+        
+        print("【调试-暂停】开始暂停运动，当前卡路里:\(String(format: "%.2f", burnedCalories))卡")
+        
+        // 更新最终数据
+        updateWorkoutData()
         
         // 设置状态为暂停
         state = .paused
         
-        // 记录暂停时间
-        lastPausedTime = Date()
+        // 计算当前暂停时间
+        pauseStartTime = Date()
         
         // 暂停位置追踪
         if exerciseType.requiresGPS {
@@ -181,21 +190,36 @@ class WorkoutSession: ObservableObject {
         // 暂停运动追踪
         motionManager?.pauseTracking()
         
-        print("运动会话已暂停")
+        // 保存暂停前的步数状态，确保恢复后不计算暂停期间的步数
+        if let motionData = motionManager?.currentPedometer {
+            lastRecordedSteps = motionData.numberOfSteps
+            print("【调试-暂停】记录暂停时步数:\(lastRecordedSteps ?? 0)")
+        }
+        
+        print("【调试-暂停】运动会话已暂停，当前卡路里:\(String(format: "%.2f", burnedCalories))卡")
     }
     
     /// 恢复运动
     func resumeWorkout() {
-        guard state == .paused else { return }
+        // 确保已经开始并且处于暂停状态
+        guard startTime != nil && state == .paused else { return }
         
-        // 如果有上次暂停时间，计算暂停持续时间
-        if let pausedTime = lastPausedTime {
-            totalPausedTime += Date().timeIntervalSince(pausedTime)
-            lastPausedTime = nil
+        print("【调试-恢复】开始恢复运动，当前卡路里:\(String(format: "%.2f", burnedCalories))卡")
+        
+        // 如果有暂停时间，计算暂停持续时间
+        if let pauseStart = pauseStartTime {
+            let pauseDuration = Date().timeIntervalSince(pauseStart)
+            totalPausedTime += pauseDuration
+            pauseStartTime = nil
+            print("【调试-恢复】暂停持续了\(String(format: "%.2f", pauseDuration))秒，总暂停时间:\(String(format: "%.2f", totalPausedTime))秒")
         }
         
         // 设置状态为活动
         state = .active
+        
+        // 重置最后更新时间为当前时间，确保暂停期间的运动不被计入
+        lastDataUpdateTime = Date()
+        print("【调试-恢复】重置最后更新时间为当前时间:\(lastDataUpdateTime!)")
         
         // 恢复位置追踪
         if exerciseType.requiresGPS {
@@ -205,7 +229,7 @@ class WorkoutSession: ObservableObject {
         // 恢复运动追踪
         motionManager?.resumeTracking()
         
-        print("运动会话已恢复")
+        print("【调试-恢复】运动会话已恢复，当前卡路里:\(String(format: "%.2f", burnedCalories))卡")
     }
     
     /// 完成运动
@@ -254,8 +278,11 @@ class WorkoutSession: ObservableObject {
     
     /// 更新运动数据
     func updateWorkoutData() {
-        // 确保运动会话在活动状态
-        guard state == .active else { return }
+        // 确保运动会话在活动状态，如果是暂停状态则不做任何更新
+        guard state == .active else {
+            print("【调试-更新】运动会话处于非活动状态(state=\(state))，跳过数据更新")
+            return
+        }
         
         // 记录当前时间
         let now = Date()
@@ -264,6 +291,9 @@ class WorkoutSession: ObservableObject {
         var timeElapsed: TimeInterval = 0
         if let lastTime = lastDataUpdateTime {
             timeElapsed = now.timeIntervalSince(lastTime)
+            print("【调试-更新】距离上次更新经过了\(String(format: "%.2f", timeElapsed))秒")
+        } else {
+            print("【调试-更新】首次更新，没有上次更新时间")
         }
         
         // 更新最后更新时间
@@ -272,6 +302,9 @@ class WorkoutSession: ObservableObject {
         // 计算累计运行时间（仅在活动状态下且时间间隔合理时累加）
         if timeElapsed > 0 && timeElapsed < 5.0 { // 防止异常大的时间间隔
             totalElapsedSeconds += timeElapsed
+            print("【调试-更新】累计运行时间增加\(String(format: "%.2f", timeElapsed))秒，总计\(String(format: "%.2f", totalElapsedSeconds))秒")
+        } else if timeElapsed >= 5.0 {
+            print("【调试-更新】时间间隔异常大(\(String(format: "%.2f", timeElapsed))秒)，不计入累计时间")
         }
         
         // 根据运动类型处理不同的数据更新逻辑
@@ -358,21 +391,42 @@ class WorkoutSession: ObservableObject {
         if useSimulatedData {
             // 使用MET值模拟数据
             if timeElapsed > 0 {
-                // 基于MET值和用户体重计算卡路里
-                let metValue = exerciseType.metValue
-                let weight = UserDefaults.standard.double(forKey: "userWeight")
-                let userWeight = weight > 0 ? weight : 60.0
-                let caloriesPerSecond = (metValue * 3.5 * userWeight) / 200.0
-                burnedCalories += caloriesPerSecond * timeElapsed
-                
                 // 模拟距离计算，基于运动类型的典型速度
                 let typicalSpeedMPS = getTypicalSpeed(for: exerciseType)
-                distanceInMeters += typicalSpeedMPS * timeElapsed
+                let distanceDelta = typicalSpeedMPS * timeElapsed
+                distanceInMeters += distanceDelta
                 
-                print("【调试-卡路里】模拟数据 - 增加\(String(format: "%.2f", caloriesPerSecond * timeElapsed))卡路里，总计\(String(format: "%.2f", burnedCalories))卡")
+                // 对GPS运动类型(散步、跑步等)，根据距离计算卡路里
+                if exerciseType.requiresGPS {
+                    // 使用根据距离计算卡路里的方法
+                    let caloriesAdded = calculateCaloriesFromDistance(distance: distanceDelta, exerciseType: exerciseType)
+                    burnedCalories += caloriesAdded
+                    
+                    print("【调试-卡路里】模拟数据(基于距离) - 距离增加:\(String(format: "%.2f", distanceDelta))米")
+                    print("【调试-卡路里】卡路里增加:\(String(format: "%.2f", caloriesAdded))卡，总计:\(String(format: "%.2f", burnedCalories))卡")
+                } else {
+                    // 非GPS运动类型，仍使用MET和时间计算
+                    let originalMet = exerciseType.metValue
+                    let weight = UserDefaults.standard.double(forKey: "userWeight")
+                    let userWeight = weight > 0 ? weight : 60.0
+                    
+                    // 使用标准MET公式：热量消耗（kcal/秒）= MET值 × 体重（kg）÷ 3600
+                    let caloriesPerSecond = originalMet * userWeight / 3600.0
+                    let caloriesAdded = caloriesPerSecond * timeElapsed
+                    burnedCalories += caloriesAdded
+                    
+                    print("【调试-卡路里】模拟数据(基于时间) - MET:\(originalMet), 体重:\(userWeight)kg")
+                    print("【调试-卡路里】正确公式：MET×体重÷3600，每秒消耗:\(String(format: "%.5f", caloriesPerSecond))卡，增加\(String(format: "%.2f", caloriesAdded))卡路里，总计\(String(format: "%.2f", burnedCalories))卡")
+                }
+                
+                print("【调试-统一】当前总卡路里:\(String(format: "%.2f", burnedCalories))卡，目标卡路里:\(String(format: "%.2f", targetCalories))卡，完成比例:\(String(format: "%.2f", (burnedCalories / targetCalories) * 100))%")
             }
         } else {
             // 使用实际位置数据
+            var gpsDistanceDelta: Double = 0
+            var hasValidGPSMovement = false
+            
+            // 提取并处理GPS信息
             if let newLocation = locationManager?.currentLocation, 
                !locationHistory.isEmpty,
                let lastLoc = locationHistory.last?.coordinate {
@@ -380,83 +434,147 @@ class WorkoutSession: ObservableObject {
                 let locationDelta = CLLocation(latitude: lastLoc.latitude, longitude: lastLoc.longitude)
                     .distance(from: CLLocation(latitude: newCoordinate.latitude, longitude: newCoordinate.longitude))
                 
-                // 只有当检测到实际移动时才更新卡路里
-                if locationDelta > 0.5 { // 至少移动0.5米才计算
-                    // 更新总距离，但要排除异常值
-                    if locationDelta < 100 { // 假设用户不会在一秒内移动超过100米
-                        distanceInMeters += locationDelta
-                        
-                        // 更新卡路里消耗
-                        if timeElapsed > 0 {
-                            // 基于MET值、距离和用户体重计算卡路里
-                            let metValue = exerciseType.metValue
-                            let weight = UserDefaults.standard.double(forKey: "userWeight")
-                            let userWeight = weight > 0 ? weight : 60.0
-                            let caloriesPerSecond = (metValue * 3.5 * userWeight) / 200.0
-                            let caloriesAdded = caloriesPerSecond * timeElapsed
-                            burnedCalories += caloriesAdded
-                            
-                            print("【调试-卡路里】GPS移动\(String(format: "%.2f", locationDelta))米 - 增加\(String(format: "%.2f", caloriesAdded))卡路里，总计\(String(format: "%.2f", burnedCalories))卡")
-                        }
-                    }
-                } else {
-                    // 如果GPS没有显示移动，检查是否有步数变化
-                    if let motionData = motionManager?.currentPedometer {
-                        // 检查是否有步数数据变化
-                        let currentSteps = motionData.numberOfSteps
-                        if let lastSteps = lastRecordedSteps {
-                            let stepsDelta = currentSteps - lastSteps
-                            if stepsDelta > 0 && timeElapsed > 0 {
-                                // 基于MET值和步数变化计算卡路里
-                                let metValue = exerciseType.metValue
-                                let weight = UserDefaults.standard.double(forKey: "userWeight")
-                                let userWeight = weight > 0 ? weight : 60.0
-                                let caloriesPerSecond = (metValue * 3.5 * userWeight) / 200.0
-                                let caloriesAdded = caloriesPerSecond * timeElapsed
-                                burnedCalories += caloriesAdded
-                                
-                                print("【调试-卡路里】检测到\(stepsDelta)步变化 - 增加\(String(format: "%.2f", caloriesAdded))卡路里，总计\(String(format: "%.2f", burnedCalories))卡")
-                            } else {
-                                print("【调试-卡路里】没有检测到移动或步数变化，不增加卡路里")
-                            }
-                        }
-                        lastRecordedSteps = currentSteps
-                    } else {
-                        print("【调试-卡路里】没有检测到移动，没有步数数据，不增加卡路里")
-                    }
+                // 只有当检测到实际移动且值合理时
+                if locationDelta > 0.5 && locationDelta < 100 { // 至少移动0.5米且不超过100米
+                    gpsDistanceDelta = locationDelta
+                    hasValidGPSMovement = true
                 }
-            } else if let motionData = motionManager?.currentPedometer {
-                // 没有GPS数据但有步数数据
+            }
+            
+            // 获取并处理步数信息
+            var stepsDelta = 0
+            var stepBasedDistance: Double = 0
+            let averageStepLength = getAverageStepLength() // 根据用户高度或设置获取平均步长
+            
+            if let motionData = motionManager?.currentPedometer {
                 let currentSteps = motionData.numberOfSteps
                 if let lastSteps = lastRecordedSteps {
-                    let stepsDelta = currentSteps - lastSteps
-                    if stepsDelta > 0 && timeElapsed > 0 {
-                        // 基于MET值和步数变化计算卡路里
-                        let metValue = exerciseType.metValue
+                    stepsDelta = currentSteps - lastSteps
+                    if stepsDelta > 0 {
+                        // 将步数转换为距离（米）
+                        stepBasedDistance = Double(stepsDelta) * averageStepLength
+                        print("【调试-步数】检测到\(stepsDelta)步，转换为\(String(format: "%.2f", stepBasedDistance))米")
+                    } else if stepsDelta < 0 {
+                        print("【调试-步数】检测到步数减少，可能是计步器重置：上次\(lastSteps)，当前\(currentSteps)")
+                        stepsDelta = 0
+                    }
+                } else {
+                    print("【调试-步数】首次获取步数，当前步数为\(currentSteps)")
+                }
+                lastRecordedSteps = currentSteps
+            }
+            
+            // 融合GPS和步数数据计算最终距离
+            var finalDistanceDelta = 0.0
+            
+            if hasValidGPSMovement && stepsDelta > 0 {
+                // 同时有GPS和步数数据，进行加权融合
+                // GPS信号强度越好，GPS权重越高
+                let gpsConfidence = min(1.0, max(0.3, getGPSConfidence())) // 0.3-1.0之间
+                let stepConfidence = 1.0 - gpsConfidence // 步数可信度为GPS可信度的补集
+                
+                // 加权平均
+                finalDistanceDelta = gpsDistanceDelta * gpsConfidence + stepBasedDistance * stepConfidence
+                print("【调试-距离】GPS数据(\(String(format: "%.2f", gpsDistanceDelta))米)和步数数据(\(stepsDelta)步，约\(String(format: "%.2f", stepBasedDistance))米)融合 - 最终增加\(String(format: "%.2f", finalDistanceDelta))米")
+            } else if hasValidGPSMovement {
+                // 只有GPS数据
+                finalDistanceDelta = gpsDistanceDelta
+                print("【调试-距离】仅GPS数据 - 增加\(String(format: "%.2f", finalDistanceDelta))米")
+            } else if stepsDelta > 0 {
+                // 只有步数数据 - 现在也计算距离
+                // 在GPS未变化但有步数的情况下，我们依然根据步数计算距离
+                finalDistanceDelta = stepBasedDistance
+                print("【调试-距离】仅步数数据(\(stepsDelta)步) - 增加\(String(format: "%.2f", finalDistanceDelta))米")
+            } else {
+                print("【调试-距离】无移动，不增加距离")
+            }
+            
+            // 更新总距离
+            if finalDistanceDelta > 0 {
+                distanceInMeters += finalDistanceDelta
+                
+                // 对GPS运动类型(散步、跑步等)，根据距离计算卡路里
+                if exerciseType.requiresGPS {
+                    // 使用根据距离计算卡路里的方法
+                    let caloriesAdded = calculateCaloriesFromDistance(distance: finalDistanceDelta, exerciseType: exerciseType)
+                    burnedCalories += caloriesAdded
+                    
+                    print("【调试-卡路里】基于距离计算 - 增加\(String(format: "%.2f", finalDistanceDelta))米")
+                    print("【调试-卡路里】卡路里增加:\(String(format: "%.2f", caloriesAdded))卡，总计:\(String(format: "%.2f", burnedCalories))卡")
+                } else {
+                    // 非GPS运动类型，仍使用MET和时间计算
+                    if timeElapsed > 0 {
+                        let originalMet = exerciseType.metValue
                         let weight = UserDefaults.standard.double(forKey: "userWeight")
                         let userWeight = weight > 0 ? weight : 60.0
-                        let caloriesPerSecond = (metValue * 3.5 * userWeight) / 200.0
+                        
+                        // 使用标准MET公式：热量消耗（kcal/秒）= MET值 × 体重（kg）÷ 3600
+                        let caloriesPerSecond = originalMet * userWeight / 3600.0
                         let caloriesAdded = caloriesPerSecond * timeElapsed
                         burnedCalories += caloriesAdded
                         
-                        print("【调试-卡路里】仅步数数据，检测到\(stepsDelta)步变化 - 增加\(String(format: "%.2f", caloriesAdded))卡路里，总计\(String(format: "%.2f", burnedCalories))卡")
-                    } else {
-                        print("【调试-卡路里】没有位置变化或步数变化，不增加卡路里")
+                        print("【调试-卡路里】基于时间计算 - MET:\(originalMet), 体重:\(userWeight)kg")
+                        print("【调试-卡路里】正确公式：MET×体重÷3600，每秒消耗:\(String(format: "%.5f", caloriesPerSecond))卡，增加\(String(format: "%.2f", caloriesAdded))卡路里，总计\(String(format: "%.2f", burnedCalories))卡")
                     }
                 }
-                lastRecordedSteps = currentSteps
+                
+                print("【调试-统一】当前总卡路里:\(String(format: "%.2f", burnedCalories))卡，目标卡路里:\(String(format: "%.2f", targetCalories))卡，完成比例:\(String(format: "%.2f", (burnedCalories / targetCalories) * 100))%")
             } else {
-                print("【调试-卡路里】无GPS数据且无步数数据，不增加卡路里")
+                print("【调试-卡路里】没有检测到移动，不增加卡路里")
             }
         }
     }
     
+    /// 获取平均步长（米）
+    private func getAverageStepLength() -> Double {
+        // 可以根据用户身高或自定义设置计算
+        // 默认值：男性约0.78米，女性约0.70米
+        let defaultStepLength = 0.75 // 默认平均步长（米）
+        
+        // 从用户设置获取身高
+        let height = UserDefaults.standard.double(forKey: "userHeight") // 单位：厘米
+        if height > 0 {
+            // 根据身高估算步长：身高的约0.43倍（经验值）
+            return height * 0.0043 // 转换为米
+        }
+        
+        return defaultStepLength
+    }
+    
+    /// 获取GPS信号可信度（0-1）
+    private func getGPSConfidence() -> Double {
+        guard let location = locationManager?.currentLocation else {
+            return 0.3 // 无GPS数据时的默认值
+        }
+        
+        // 根据精度估算GPS可信度
+        // horizontalAccuracy越小表示精度越高
+        let accuracy = location.horizontalAccuracy
+        
+        if accuracy <= 0 {
+            return 0.3 // 无效精度
+        } else if accuracy < 5 {
+            return 0.9 // 非常精确 (<=5米)
+        } else if accuracy < 10 {
+            return 0.8 // 很精确 (5-10米)
+        } else if accuracy < 20 {
+            return 0.7 // 相当精确 (10-20米)
+        } else if accuracy < 50 {
+            return 0.6 // 一般精确 (20-50米)
+        } else if accuracy < 100 {
+            return 0.5 // 不太精确 (50-100米)
+        } else {
+            return 0.4 // 很不精确 (>100米)
+        }
+    }
+    
+    /// 获取运动类型的典型速度（米/秒）
     private func getTypicalSpeed(for exerciseType: ExerciseType) -> Double {
         switch exerciseType {
         case .running:
             return 2.7 // ~10km/h
         case .walking:
-            return 1.4 // ~5km/h
+            return 1.25 // ~4.5km/h (用户指定的默认散步速度)
         case .dogWalking:
             return 1.1 // ~4km/h
         default:
@@ -464,16 +582,57 @@ class WorkoutSession: ObservableObject {
         }
     }
     
+    /// 获取实际的MET消耗系数，考虑实际消耗情况进行调整
+    private func getAdjustedMETValue(for exerciseType: ExerciseType) -> Double {
+        // 根据用户要求，不再调整MET值，直接返回原始值
+        return exerciseType.metValue
+    }
+    
+    /// 根据距离计算卡路里消耗（用于GPS运动类型）
+    private func calculateCaloriesFromDistance(distance: Double, exerciseType: ExerciseType) -> Double {
+        // 获取用户体重
+        let weight = UserDefaults.standard.double(forKey: "userWeight")
+        let userWeight = weight > 0 ? weight : 60.0
+        
+        // 基于运动类型和距离计算卡路里
+        // 不同运动类型每公里消耗的卡路里不同
+        let caloriesPerKm: Double
+        switch exerciseType {
+        case .walking:
+            // 散步每公里约消耗体重*0.5卡路里
+            caloriesPerKm = userWeight * 0.5
+        case .running:
+            // 跑步每公里约消耗体重*1.0卡路里
+            caloriesPerKm = userWeight * 1.0
+        case .dogWalking:
+            // 遛狗每公里约消耗体重*0.6卡路里
+            caloriesPerKm = userWeight * 0.6
+        default:
+            // 其他GPS运动类型
+            caloriesPerKm = userWeight * 0.7
+        }
+        
+        // 距离单位是米，转换为公里进行计算
+        let distanceInKm = distance / 1000.0
+        let calories = distanceInKm * caloriesPerKm
+        
+        return calories
+    }
+    
     /// 完成百分比 (0-100)
     var completionPercentage: Double {
+        let result: Double
         switch exerciseType {
         case .running, .walking, .dogWalking:
             // GPS运动类型：基于目标卡路里
-            return min(1.0, burnedCalories / targetCalories)
+            result = min(1.0, burnedCalories / targetCalories)
+            print("【调试-百分比】GPS运动类型 - 当前卡路里:\(String(format: "%.2f", burnedCalories))卡，目标:\(String(format: "%.2f", targetCalories))卡，完成比例:\(String(format: "%.2f", result * 100))%")
         default:
             // 非GPS运动类型：基于目标时间
-            return min(1.0, totalElapsedSeconds / Double(targetTimeInMinutes * 60))
+            result = min(1.0, totalElapsedSeconds / Double(targetTimeInMinutes * 60))
+            print("【调试-百分比】非GPS运动类型 - 当前时间:\(String(format: "%.2f", totalElapsedSeconds))秒，目标:\(targetTimeInMinutes * 60)秒，完成比例:\(String(format: "%.2f", result * 100))%")
         }
+        return result
     }
     
     /// 是否处于活动状态
@@ -542,12 +701,6 @@ class WorkoutSession: ObservableObject {
             
             // 运动追踪继续运行
             motionManager?.pauseUIUpdates()
-            
-            // 通知订阅者暂停所有动画和视图更新
-            let notificationName = Notification.Name("SuspendWorkoutAnimations")
-            NotificationCenter.default.post(name: notificationName, object: nil)
-            
-            print("【后台模式】已切换到后台数据收集模式，UI更新已暂停")
         }
     }
     
