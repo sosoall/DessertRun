@@ -32,20 +32,19 @@ struct DailyWorkoutRecord: Identifiable {
     /// 消耗的总卡路里
     let totalCalories: Double
     
-    /// 获得的甜品券数量
-    let vouchersEarned: Int
+    /// 获得的甜品券数量（在MVP版本中不使用）
+    let vouchersEarned: Int = 0
     
-    /// 运动会话ID列表
-    let workoutSessionIds: [UUID]
+    /// 运动记录ID列表
+    let workoutRecordIds: [UUID]
     
     /// 初始化
-    init(date: Date, totalMinutes: Int, totalDistance: Double, totalCalories: Double, vouchersEarned: Int, workoutSessionIds: [UUID]) {
+    init(date: Date, totalMinutes: Int, totalDistance: Double, totalCalories: Double, workoutRecordIds: [UUID]) {
         self.date = date
         self.totalMinutes = totalMinutes
         self.totalDistance = totalDistance
         self.totalCalories = totalCalories
-        self.vouchersEarned = vouchersEarned
-        self.workoutSessionIds = workoutSessionIds
+        self.workoutRecordIds = workoutRecordIds
     }
     
     /// 获取格式化的日期字符串
@@ -82,28 +81,23 @@ struct DailyWorkoutRecord: Identifiable {
     }
 }
 
-/// 日历视图用的运动记录模型 - 包含完整的会话和甜品券对象
+/// 日历视图用的运动记录模型 - 包含完整的记录对象
 struct CalendarWorkoutRecord: Identifiable {
     let id = UUID()
     let date: Date
-    let sessions: [DessertRun.WorkoutSession]
-    let dessertVouchers: [DessertRun.DessertVoucher]
+    let records: [WorkoutRecord]
     
     // 快速访问器
-    var totalDuration: Int {
-        return Int(sessions.reduce(0) { $0 + $1.totalElapsedSeconds })
-    }
-    
-    var totalDistance: Double {
-        sessions.reduce(0.0) { $0 + $1.distanceInMeters }
+    var totalDuration: Double {
+        return records.reduce(0) { $0 + $1.duration }
     }
     
     var totalBurnedCalories: Double {
-        sessions.reduce(0.0) { $0 + $1.burnedCalories }
+        records.reduce(0.0) { $0 + $1.caloriesBurned }
     }
     
     var mainDessert: DessertItem? {
-        dessertVouchers.first?.dessert
+        records.first?.dessert
     }
 }
 
@@ -111,7 +105,7 @@ struct CalendarWorkoutRecord: Identifiable {
 struct WorkoutStats {
     var totalMinutes: Int
     var totalDistance: Double
-    var vouchersEarned: Int
+    var recordsCount: Int
 }
 
 /// 运动统计管理器
@@ -139,7 +133,7 @@ class WorkoutStatsManager {
     /// 计算指定周期的累计统计数据
     /// - Parameter period: 统计周期
     /// - Returns: 汇总统计数据
-    func calculateStats(for period: StatsPeriod) -> (totalMinutes: Int, totalDistance: Double, totalCalories: Double, vouchersEarned: Int) {
+    func calculateStats(for period: StatsPeriod) -> (totalMinutes: Int, totalDistance: Double, totalCalories: Double, recordsCount: Int) {
         // 在实际实现中，这里应该从数据库或API获取数据，然后计算统计值
         // 目前返回模拟数据
         switch period {
@@ -170,8 +164,7 @@ class WorkoutStatsManager {
                 totalMinutes: Int.random(in: 20...60),
                 totalDistance: Double.random(in: 1000...3000),
                 totalCalories: Double.random(in: 150...350),
-                vouchersEarned: Int.random(in: 0...2),
-                workoutSessionIds: [UUID()]
+                workoutRecordIds: [UUID()]
             )
         }
         
@@ -213,8 +206,7 @@ class WorkoutStatsManager {
                         totalMinutes: Int.random(in: 20...60),
                         totalDistance: Double.random(in: 1000...3000),
                         totalCalories: Double.random(in: 150...350),
-                        vouchersEarned: Int.random(in: 0...2),
-                        workoutSessionIds: [UUID()]
+                        workoutRecordIds: [UUID()]
                     )
                     records.append(record)
                 }
@@ -229,14 +221,12 @@ class WorkoutStatsManager {
     /// 将DailyWorkoutRecord转换为CalendarWorkoutRecord
     /// - Parameters:
     ///   - record: 数据记录
-    ///   - sessions: 会话记录
-    ///   - vouchers: 甜品券
+    ///   - workoutRecords: 运动记录
     /// - Returns: 日历视图用的记录
-    func convertToCalendarRecord(from record: DailyWorkoutRecord, sessions: [DessertRun.WorkoutSession], vouchers: [DessertRun.DessertVoucher]) -> CalendarWorkoutRecord {
+    func convertToCalendarRecord(from record: DailyWorkoutRecord, workoutRecords: [WorkoutRecord]) -> CalendarWorkoutRecord {
         return CalendarWorkoutRecord(
             date: record.date,
-            sessions: sessions,
-            dessertVouchers: vouchers
+            records: workoutRecords
         )
     }
 } 

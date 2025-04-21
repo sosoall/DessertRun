@@ -16,6 +16,9 @@ struct ExerciseTypeRow: View {
     /// 环境消失事件
     @Environment(\.dismiss) private var dismiss
     
+    /// 导航到打卡页面
+    @State private var navigateToWorkoutCheckIn = false
+    
     /// 运动类型
     let exerciseType: ExerciseType
     
@@ -25,31 +28,23 @@ struct ExerciseTypeRow: View {
     /// 是否选中
     @State private var isSelected: Bool = false
     
-    /// 开始运动
-    private func startExercise() {
-        guard let selectedDessert = selectedDessert else { return }
+    /// 选择运动类型
+    private func selectExerciseType() {
+        guard selectedDessert != nil else { return }
         
         self.isSelected = true
         
-        // 创建新的运动会话
-        let workoutSession = WorkoutSession(
-            targetDessert: selectedDessert,
-            exerciseType: exerciseType
-        )
-        
         // 更新应用状态
         appState.selectedExerciseType = exerciseType
-        appState.activeWorkoutSession = workoutSession
-        appState.isInWorkoutMode = true
         
-        // 延迟关闭当前视图，确保动画完成
+        // 延迟导航，确保动画完成
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            dismiss()
+            navigateToWorkoutCheckIn = true
         }
     }
     
     var body: some View {
-        Button(action: startExercise) {
+        Button(action: selectExerciseType) {
             HStack {
                 // 单选按钮
                 ZStack {
@@ -130,6 +125,9 @@ struct ExerciseTypeRow: View {
             .padding(.vertical, 4)
         }
         .buttonStyle(PlainButtonStyle())
+        .navigationDestination(isPresented: $navigateToWorkoutCheckIn) {
+            WorkoutCheckInView()
+        }
     }
 }
 

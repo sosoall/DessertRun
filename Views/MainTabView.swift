@@ -39,7 +39,7 @@ struct MainTabView: View {
                 case 1:
                     // 统计标签
                     NavigationStack {
-                        StatsHomeView()
+                        StatsView(viewModel: StatsViewModel(appState: appState))
                     }
                 case 2:
                     // 个人信息标签
@@ -55,7 +55,6 @@ struct MainTabView: View {
             if shouldReset {
                 print("【调试】MainTabView检测到导航重置请求")
                 print("【调试】当前TabIndex: \(appState.selectedTabIndex)")
-                print("【调试】当前运动状态: isInWorkoutMode=\(appState.isInWorkoutMode)")
                 
                 // 不需要额外的状态重置逻辑，finishWorkout已经处理了所有状态重置
                 // 这里只需监听重置标志，用于触发视图刷新

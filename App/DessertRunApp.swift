@@ -47,19 +47,11 @@ struct DessertRunApp: App {
         switch phase {
         case .active:
             print("应用进入前台")
-            // 如果有活动的运动会话，恢复动画和UI更新
-            if let session = appState.activeWorkoutSession, session.state == .active {
-                session.resumeAnimations()
-                print("恢复运动会话的UI更新和动画")
-            }
+            // MVP版本不再需要处理运动会话的恢复
             
         case .background:
             print("应用进入后台")
-            // 如果有活动的运动会话，暂停动画但继续收集数据
-            if let session = appState.activeWorkoutSession, session.state == .active {
-                session.suspendAnimations()
-                print("暂停运动会话的UI更新和动画，但保持数据收集")
-            }
+            // MVP版本不再需要处理运动会话的暂停
             
         case .inactive:
             print("应用处于非活动状态")

@@ -27,8 +27,8 @@ struct DessertToExerciseTransition: View {
     /// 全局坐标空间名称
     let globalCoordinateSpaceName = "DessertTransitionCoordinateSpace"
     
-    /// 导航到运动页面
-    @State private var navigateToWorkout = false
+    /// 导航到打卡页面
+    @State private var navigateToCheckIn = false
     
     /// 计算甜品图片的位置
     private var currentPosition: CGRect {
@@ -138,12 +138,9 @@ struct DessertToExerciseTransition: View {
             .edgesIgnoringSafeArea(.bottom) // 忽略底部安全区域，避免出现白条
             .coordinateSpace(name: globalCoordinateSpaceName)
             .environmentObject(animationState) // 确保所有子视图都能访问animationState
-            .navigationDestination(isPresented: $navigateToWorkout) {
-                WorkoutView()
-                    .onAppear {
-                        // 进入运动模式 - 使用AppState而不是animationState
-                        appState.isInWorkoutMode = true
-                    }
+            .navigationDestination(isPresented: $navigateToCheckIn) {
+                // 导航到运动打卡页面（而非原来的WorkoutView）
+                WorkoutCheckInView()
             }
         }
     }
@@ -265,9 +262,9 @@ struct DessertToExerciseTransition: View {
     /// 单个运动类型行视图
     private func exerciseRowView(for exerciseType: ExerciseType) -> some View {
         Button(action: {
-            // 选择运动类型并导航到运动页面 - 使用AppState而不是animationState
+            // 选择运动类型并导航到打卡页面
             appState.selectedExerciseType = exerciseType
-            navigateToWorkout = true
+            navigateToCheckIn = true
         }) {
             HStack(spacing: 0) {
                 // 左侧圆形图标区域
@@ -326,11 +323,21 @@ struct DessertToExerciseTransition: View {
                 
                 Spacer()
                 
-                // 右侧箭头
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(Color(hex: "BBBBBB"))
-                    .padding(.trailing, 20)
+                // 右侧按钮文本（从箭头修改为文字）
+                Text("选择此运动")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule()
+                            .fill(LinearGradient(
+                                gradient: Gradient(colors: getGradientColors(for: exerciseType)),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ))
+                    )
+                    .padding(.trailing, 15)
             }
             .frame(height: 90)
             .background(
@@ -347,7 +354,7 @@ struct DessertToExerciseTransition: View {
                         path.addLine(to: CGPoint(x: 350, y: 0))
                         path.addLine(to: CGPoint(x: 350, y: 40))
                         path.closeSubpath()
-    }
+                    }
                     .fill(
                         LinearGradient(
                             gradient: Gradient(colors: [
