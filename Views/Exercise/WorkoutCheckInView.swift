@@ -322,19 +322,22 @@ struct WorkoutCheckInView: View {
         var record = WorkoutRecord(
             dessert: dessert,
             exerciseType: exerciseType,
+            completionDate: Date(),
             duration: durationInMinutes,
             caloriesBurned: caloriesBurned
         )
         
         // 上传运动截图
-        exerciseImagePicker.saveOrUploadImage { url in
-            if let url = url {
+        exerciseImagePicker.saveOrUploadImage { urlString in
+            if let urlString = urlString, let url = URL(string: urlString) {
                 record.exerciseImageURL = url
                 
                 // 上传美食照片（如果有）
                 if let _ = dessertImagePicker.selectedImage {
-                    dessertImagePicker.saveOrUploadImage { dessertURL in
-                        record.dessertImageURL = dessertURL
+                    dessertImagePicker.saveOrUploadImage { dessertURLString in
+                        if let dessertURLString = dessertURLString {
+                            record.dessertImageURL = URL(string: dessertURLString)
+                        }
                         
                         // 添加备注（如果有）
                         record.notes = notes.isEmpty ? nil : notes

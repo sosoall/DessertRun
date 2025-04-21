@@ -7,6 +7,7 @@ struct StatsView: View {
     @State private var showYearView: Bool = false
     @State private var selectedMonth: Date = Date()
     @State private var selectedWeek: Date = Date()
+    @State private var foodRecordViewType: FoodRecordViewType = .month
     
     enum StatTab: String, CaseIterable, Identifiable {
         case month = "月"
@@ -15,11 +16,17 @@ struct StatsView: View {
         var id: String { self.rawValue }
     }
     
+    enum FoodRecordViewType {
+        case year
+        case month
+        case week
+    }
+    
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                // 美食打卡卡片
-                dessertCollectionCard
+                // 美食记录卡片
+                foodRecordCard
                     .padding(.horizontal)
                 
                 // 运动记录部分
@@ -104,101 +111,142 @@ struct StatsView: View {
         }
     }
     
-    // 美食打卡卡片
-    private var dessertCollectionCard: some View {
-        VStack(spacing: 16) {
-            // 标题和切换按钮
-            HStack {
-                Text("美食打卡")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                
-                Spacer()
-                
-                // 年月切换按钮
-                Button(action: {
-                    showYearView.toggle()
-                }) {
-                    Image(systemName: showYearView ? "calendar" : "calendar.badge.clock")
-                        .font(.system(size: 18))
-                        .foregroundColor(.primary)
+    // 美食记录卡片
+    private var foodRecordCard: some View {
+        VStack(spacing: 24) {
+            // 标题和时间选择器
+            VStack(spacing: 8) {
+                HStack {
+                    Text("美食记录")
+                        .font(.system(size: 22, weight: .semibold))
+                    
+                    Spacer()
                 }
-            }
-            
-            // 分隔线
-            Divider()
-            
-            // 最努力的美食部分 - 展示前三多的美食
-            VStack(alignment: .leading, spacing: 12) {
-                Text("最为之努力的美食")
-                    .font(.subheadline)
-                    .foregroundColor(.gray)
                 
-                if let topDesserts = getTopDesserts(count: 3) {
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                        ForEach(topDesserts, id: \.id) { dessert in
-                            VStack {
-                                Image(dessert.imageName)
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(width: 70, height: 70)
-                                    .cornerRadius(10)
-                                    .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
-                                
-                                Text(dessert.name)
-                                    .font(.caption)
-                                    .fontWeight(.medium)
-                                    .multilineTextAlignment(.center)
-                                    .lineLimit(1)
-                                
-                                Text("打卡\(dessert.count)次")
-                                    .font(.caption2)
-                                    .foregroundColor(.orange)
+                // 年月选择器和切换按钮
+                HStack {
+                    // 显示当前年份或月份
+                    HStack(spacing: 4) {
+                        Button(action: {
+                            if foodRecordViewType == .year {
+                                viewModel.goToPreviousYear()
+                            } else {
+                                viewModel.goToPreviousMonth()
                             }
-                            .padding(8)
-                            .background(Color(UIColor.systemGray5).opacity(0.5))
-                            .cornerRadius(12)
+                        }) {
+                            Image(systemName: "chevron.left")
+                                .foregroundColor(.gray)
+                        }
+                        
+                        Text(foodRecordViewType == .year ? viewModel.currentYearName : viewModel.currentMonthName)
+                            .font(.system(size: 16, weight: .medium))
+                            .frame(width: 100)
+                        
+                        Button(action: {
+                            if foodRecordViewType == .year {
+                                viewModel.goToNextYear()
+                            } else {
+                                viewModel.goToNextMonth()
+                            }
+                        }) {
+                            Image(systemName: "chevron.right")
+                                .foregroundColor(.gray)
                         }
                     }
-                } else {
-                    Text("暂无收集记录")
-                        .foregroundColor(.gray)
-                        .padding()
+                    
+                    Spacer()
+                    
+                    // 年月切换分段控件
+                    HStack(spacing: 2) {
+                        Button(action: {
+                            foodRecordViewType = .month
+                        }) {
+                            Text("月")
+                                .font(.system(size: 14))
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 6)
+                                .background(foodRecordViewType == .month ? Color.orange : Color.gray.opacity(0.2))
+                                .foregroundColor(foodRecordViewType == .month ? .white : .black)
+                                .cornerRadius(8)
+                        }
+                        
+                        Button(action: {
+                            foodRecordViewType = .year
+                        }) {
+                            Text("年")
+                                .font(.system(size: 14))
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 6)
+                                .background(foodRecordViewType == .year ? Color.orange : Color.gray.opacity(0.2))
+                                .foregroundColor(foodRecordViewType == .year ? .white : .black)
+                                .cornerRadius(8)
+                        }
+                    }
+                    .background(Color.gray.opacity(0.1))
+                    .cornerRadius(8)
                 }
             }
-            .padding(.bottom, 8)
             
-            // 本月数据统计
-            HStack(spacing: 16) {
-                // 本月收集美食
-                VStack(alignment: .center, spacing: 8) {
-                    Text("本月收集美食")
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
-                    
-                    Text("\(viewModel.monthlyClearedDesserts)个")
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundColor(.primary)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
-                .background(Color(UIColor.systemGray5))
-                .cornerRadius(12)
+            // 美食排行榜和记录卡片
+            VStack(spacing: 20) {
+                foodRankingCard
                 
-                // 运动目标达成
-                VStack(alignment: .center, spacing: 8) {
-                    Text("达成运动目标")
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
-                    
-                    Text("\(viewModel.monthlyDeficitDays)天")
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundColor(Color.green)
+                // 数据统计卡片行
+                HStack(spacing: 16) {
+                    foodCheckInCountCard
+                    foodVarietyCard
                 }
-                .frame(maxWidth: .infinity)
+            }
+        }
+    }
+    
+    // 美食排行榜卡片
+    private var foodRankingCard: some View {
+        VStack(spacing: 0) {
+            // 美食排行榜水平布局
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 24) {
+                    if let topDesserts = foodRecordViewType == .year ? 
+                        viewModel.getYearlyTopDesserts(count: 4) : 
+                        viewModel.getMonthlyTopDesserts(count: 4) {
+                            
+                        ForEach(Array(topDesserts.enumerated()), id: \.element.id) { index, dessert in
+                            VStack(spacing: 8) {
+                                ZStack(alignment: .top) {
+                                    VStack {
+                                        Spacer()
+                                        Image(dessert.getFullImageName(for: .regular))
+                                            .resizable()
+                                            .scaledToFit()
+                                            .frame(height: index == 0 ? 120 : 75)
+                                            .cornerRadius(8)
+                                    }
+                                    .frame(height: 120)
+                                    
+                                    if index == 0 {
+                                        Image("crown")
+                                            .resizable()
+                                            .renderingMode(.original)
+                                            .scaledToFit()
+                                            .frame(width: 40, height: 40)
+                                            .offset(x: 10, y: -15)
+                                    }
+                                }
+                                
+                                Text("打卡\(dessert.count)次")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.black)
+                            }
+                        }
+                    } else {
+                        Text("暂无记录")
+                            .font(.system(size: 14))
+                            .foregroundColor(.gray)
+                            .padding()
+                    }
+                }
                 .padding(.vertical, 16)
-                .background(Color(UIColor.systemGray5))
-                .cornerRadius(12)
+                .padding(.horizontal, 16)
             }
             
             // 查看全部记录按钮
@@ -206,25 +254,102 @@ struct StatsView: View {
                 showWorkoutHistory = true
             }) {
                 HStack {
-                    Text("查看全部记录")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
+                    HStack(spacing: 8) {
+                        Image(systemName: "square.grid.2x2.fill")
+                            .font(.system(size: 14))
+                            .foregroundColor(.white)
+                        
+                        Text("查看全部记录")
+                            .font(.system(size: 16))
+                            .foregroundColor(.white)
+                    }
                     
                     Spacer()
                     
                     Image(systemName: "chevron.right")
-                        .font(.caption)
+                        .font(.system(size: 14))
+                        .foregroundColor(.white)
                 }
-                .padding()
-                .background(Color(UIColor.systemGray5))
-                .cornerRadius(10)
-                .foregroundColor(.primary)
+                .padding(.vertical, 12)
+                .padding(.horizontal, 16)
+                .background(
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            Color(hex: "#FFA800").opacity(1),
+                            Color(hex: "#FF5E57").opacity(1)
+                        ]),
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color(hex: "#FE2D55"), lineWidth: 1)
+                )
+                .cornerRadius(8)
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
         }
-        .padding(20)
         .background(Color.white)
         .cornerRadius(16)
-        .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
+        .shadow(color: Color.black.opacity(0.05), radius: 3, x: 0, y: 2)
+    }
+    
+    // 美食打卡次数卡片
+    private var foodCheckInCountCard: some View {
+        HStack(spacing: 12) {
+            Image("Number_of_check_in")
+                .resizable()
+                .renderingMode(.original)
+                .scaledToFit()
+                .frame(width: 24, height: 24)
+            
+            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                Text("\(foodRecordViewType == .year ? viewModel.yearlyFoodCheckInCount : viewModel.monthlyFoodCheckInCount)")
+                    .font(.system(size: 20, weight: .semibold))
+                    .minimumScaleFactor(0.8)
+                    .lineLimit(1)
+                
+                Text("次美食打卡")
+                    .font(.system(size: 13))
+                    .foregroundColor(.gray)
+                    .lineLimit(1)
+            }
+        }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.1), radius: 2, x: 2, y: 2)
+    }
+    
+    // 美食种类卡片
+    private var foodVarietyCard: some View {
+        HStack(spacing: 12) {
+            Image("Number_of_sort")
+                .resizable()
+                .renderingMode(.original)
+                .scaledToFit()
+                .frame(width: 24, height: 24)
+            
+            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                Text("\(foodRecordViewType == .year ? viewModel.yearlyUniqueDessertTypes : viewModel.monthlyUniqueDessertTypes)")
+                    .font(.system(size: 20, weight: .semibold))
+                    .minimumScaleFactor(0.8)
+                    .lineLimit(1)
+                
+                Text("种美食")
+                    .font(.system(size: 13))
+                    .foregroundColor(.gray)
+                    .lineLimit(1)
+            }
+        }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.1), radius: 2, x: 2, y: 2)
     }
     
     // 月视图日历
@@ -235,37 +360,42 @@ struct StatsView: View {
                 .padding(.horizontal)
             
             // 日历颜色图例
-            HStack(spacing: 20) {
-                // 有打卡但未达成目标
-                HStack(spacing: 4) {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(UIColor.systemGray5))
-                        .frame(width: 14, height: 14)
-                    
-                    Text("未达成目标")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                }
-                
-                // 达成目标
-                HStack(spacing: 4) {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.green.opacity(0.2))
-                        .frame(width: 14, height: 14)
-                    
-                    Text("已达成目标")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                }
-            }
-            .padding(.horizontal)
-            .padding(.top, 4)
+            calendarLegendView
             
             // 月度汇总
             monthlySummaryView
                 .padding(.horizontal)
                 .padding(.top, 8)
         }
+    }
+    
+    // 日历图例视图
+    private var calendarLegendView: some View {
+        HStack(spacing: 20) {
+            // 有打卡但未达成目标
+            HStack(spacing: 4) {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color(UIColor.systemGray5))
+                    .frame(width: 14, height: 14)
+                
+                Text("未达成目标")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
+            
+            // 达成目标
+            HStack(spacing: 4) {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.green.opacity(0.2))
+                    .frame(width: 14, height: 14)
+                
+                Text("已达成目标")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
+        }
+        .padding(.horizontal)
+        .padding(.top, 4)
     }
     
     // 月度汇总
@@ -312,51 +442,56 @@ struct StatsView: View {
                 .padding(.horizontal)
             
             // 图例
-            HStack(spacing: 24) {
-                // 消耗热量图例
-                HStack(spacing: 6) {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.green.opacity(0.7))
-                        .frame(width: 14, height: 14)
-                    
-                    Text("消耗热量")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                }
-                
-                // 运动目标图例
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(Color.orange.opacity(0.7))
-                        .frame(width: 10, height: 10)
-                    
-                    Text("运动目标")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                }
-                
-                // 达成目标图例
-                HStack(spacing: 6) {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.green.opacity(0.2))
-                        .frame(width: 14, height: 14)
-                    
-                    Text("达成目标")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                }
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-            .background(Color(UIColor.systemGray6).opacity(0.7))
-            .cornerRadius(8)
-            .padding(.horizontal)
+            weeklyChartLegendView
             
             // 周度汇总
             weeklySummaryView
                 .padding(.horizontal)
                 .padding(.top, 8)
         }
+    }
+    
+    // 周度图表图例
+    private var weeklyChartLegendView: some View {
+        HStack(spacing: 24) {
+            // 消耗热量图例
+            HStack(spacing: 6) {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.green.opacity(0.7))
+                    .frame(width: 14, height: 14)
+                
+                Text("消耗热量")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
+            
+            // 运动目标图例
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(Color.orange.opacity(0.7))
+                    .frame(width: 10, height: 10)
+                
+                Text("运动目标")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
+            
+            // 达成目标图例
+            HStack(spacing: 6) {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.green.opacity(0.2))
+                    .frame(width: 14, height: 14)
+                
+                Text("达成目标")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(Color(UIColor.systemGray6).opacity(0.7))
+        .cornerRadius(8)
+        .padding(.horizontal)
     }
     
     // 周度汇总
@@ -449,7 +584,7 @@ struct StatsView: View {
         private let weekdayLabels = ["日", "一", "二", "三", "四", "五", "六"]
         
         var body: some View {
-            VStack(spacing: 12) {
+            VStack(spacing: 8) {
                 // 星期标题行
                 HStack {
                     ForEach(weekdayLabels, id: \.self) { day in
@@ -462,9 +597,9 @@ struct StatsView: View {
                 }
                 
                 // 日期网格
-                VStack(spacing: 10) {
+                VStack(spacing: 4) {
                     ForEach(0..<totalRows, id: \.self) { row in
-                        HStack(spacing: 0) {
+                        HStack(spacing: 2) {
                             ForEach(0..<daysInWeek, id: \.self) { col in
                                 let index = row * daysInWeek + col
                                 if index < dateItems.count {
@@ -492,24 +627,38 @@ struct StatsView: View {
         let item: CalendarDateItem
         
         var body: some View {
-            VStack(spacing: 4) {
+            VStack(spacing: 2) {
                 // 日期
-                Text("\(item.day)")
-                    .font(.system(size: 15, weight: item.isToday ? .bold : .regular))
-                    .foregroundColor(item.isToday ? .white : (item.isCurrentMonth ? .primary : .gray.opacity(0.6)))
-                    .frame(width: 32, height: 32)
-                    .background(
-                        Circle()
-                            .fill(item.isToday ? Color.blue : Color.clear)
-                    )
+                dayTextView
                 
-                // 显示消耗的卡路里
+                // 显示消耗的卡路里或占位符
+                calorieIndicatorView
+            }
+            .padding(.vertical, 2)
+            .frame(height: 54)
+        }
+        
+        // 日期文本视图
+        private var dayTextView: some View {
+            Text("\(item.day)")
+                .font(.system(size: 15, weight: item.isToday ? .bold : .regular))
+                .foregroundColor(item.isToday ? .white : (item.isCurrentMonth ? .primary : .gray.opacity(0.6)))
+                .frame(width: 28, height: 28)
+                .background(
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(item.isToday ? Color.blue : Color.clear)
+                )
+        }
+        
+        // 卡路里指示器视图
+        private var calorieIndicatorView: some View {
+            Group {
                 if item.hasData {
                     Text("\(Int(item.burnedCalories))")
-                        .font(.system(size: 12))
+                        .font(.system(size: 11))
                         .foregroundColor(.green)
-                        .padding(4)
-                        .frame(minWidth: 40)
+                        .padding(2)
+                        .frame(minWidth: 36)
                         .background(
                             RoundedRectangle(cornerRadius: 4)
                                 .fill(item.isGoalAchieved ? Color.green.opacity(0.2) : Color(UIColor.systemGray5))
@@ -519,15 +668,13 @@ struct StatsView: View {
                     Circle()
                         .fill(Color.gray.opacity(0.3))
                         .frame(width: 4, height: 4)
-                        .padding(.top, 10)
+                        .padding(.top, 8)
                 } else {
                     // 占位，保持高度一致
                     Color.clear
-                        .frame(height: 20)
+                        .frame(height: 18)
                 }
             }
-            .padding(.vertical, 4)
-            .frame(height: 60)
         }
     }
     
@@ -538,37 +685,7 @@ struct StatsView: View {
         var body: some View {
             VStack(spacing: 16) {
                 // 图表部分
-                HStack(alignment: .bottom, spacing: 8) {
-                    ForEach(dataPoints) { point in
-                        VStack(spacing: 4) {
-                            // 目标点标记
-                            Circle()
-                                .fill(Color.orange.opacity(0.7))
-                                .frame(width: 8, height: 8)
-                                .offset(y: -getHeight(for: point.targetCalories) + 4)
-                                .zIndex(1)
-                            
-                            // 消耗热量柱
-                            Capsule()
-                                .fill(Color.green.opacity(0.7))
-                                .frame(width: 20, height: getHeight(for: point.burnedCalories))
-                                .background(
-                                    Capsule()
-                                        .fill(point.isGoalAchieved ? Color.green.opacity(0.2) : Color.clear)
-                                        .frame(width: 30, height: getHeight(for: point.burnedCalories) + 10)
-                                )
-                            
-                            // 星期标签
-                            Text(point.weekday)
-                                .font(.caption2)
-                                .foregroundColor(.gray)
-                                .padding(.top, 6)
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                }
-                .frame(maxHeight: 180)
-                .padding(.top, 20)
+                chartBarsView
                 
                 // 中心线
                 Rectangle()
@@ -579,6 +696,46 @@ struct StatsView: View {
             .padding(16)
             .background(Color.white)
             .cornerRadius(14)
+        }
+        
+        // 柱状图部分
+        private var chartBarsView: some View {
+            HStack(alignment: .bottom, spacing: 8) {
+                ForEach(dataPoints) { point in
+                    singleBarView(for: point)
+                }
+            }
+            .frame(maxHeight: 180)
+            .padding(.top, 20)
+        }
+        
+        // 单个柱状图
+        private func singleBarView(for point: WeeklyDataPoint) -> some View {
+            VStack(spacing: 4) {
+                // 目标点标记
+                Circle()
+                    .fill(Color.orange.opacity(0.7))
+                    .frame(width: 8, height: 8)
+                    .offset(y: -getHeight(for: point.targetCalories) + 4)
+                    .zIndex(1)
+                
+                // 消耗热量柱
+                Capsule()
+                    .fill(Color.green.opacity(0.7))
+                    .frame(width: 20, height: getHeight(for: point.burnedCalories))
+                    .background(
+                        Capsule()
+                            .fill(point.isGoalAchieved ? Color.green.opacity(0.2) : Color.clear)
+                            .frame(width: 30, height: getHeight(for: point.burnedCalories) + 10)
+                    )
+                
+                // 星期标签
+                Text(point.weekday)
+                    .font(.caption2)
+                    .foregroundColor(.gray)
+                    .padding(.top, 6)
+            }
+            .frame(maxWidth: .infinity)
         }
         
         // 计算柱状图高度
@@ -626,53 +783,6 @@ struct StatsView: View {
         }
         
         return "\(startFormatter.string(from: weekStartDate))-\(endFormatter.string(from: weekEndDate))"
-    }
-    
-    // 获取前n多的美食
-    private func getTopDesserts(count: Int) -> [TopDessertItem]? {
-        if viewModel.filteredWorkoutRecords.isEmpty {
-            return nil
-        }
-        
-        // 统计每个甜品出现的次数和热量值
-        var dessertInfo: [Int: (count: Int, calories: Double, name: String, imageName: String)] = [:]
-        
-        for record in viewModel.filteredWorkoutRecords {
-            let dessertId = record.dessert.id
-            let calories = Double(record.dessert.calories) ?? 0
-            
-            if let existing = dessertInfo[dessertId] {
-                dessertInfo[dessertId] = (
-                    existing.count + 1,
-                    existing.calories,
-                    record.dessert.name,
-                    record.dessert.imageName
-                )
-            } else {
-                dessertInfo[dessertId] = (
-                    1,
-                    calories,
-                    record.dessert.name,
-                    record.dessert.imageName
-                )
-            }
-        }
-        
-        // 按出现次数排序
-        let sortedDesserts = dessertInfo.sorted { $0.value.count > $1.value.count }
-        
-        // 返回前n个
-        return sortedDesserts.prefix(count).map { entry in
-            let (dessertId, info) = entry
-            return TopDessertItem(
-                id: String(dessertId),
-                name: info.name,
-                imageName: info.imageName,
-                calories: info.calories,
-                count: info.count,
-                totalCalories: info.calories * Double(info.count)
-            )
-        }
     }
     
     // 生成月日历数据
@@ -834,6 +944,11 @@ struct TopDessertItem: Identifiable {
     let calories: Double
     let count: Int
     let totalCalories: Double
+    
+    // 获取完整图片名称
+    func getFullImageName(for style: FoodImageStyle = .regular) -> String {
+        return "\(imageName)_regular"
+    }
 }
 
 // 打卡历史记录视图
@@ -851,7 +966,7 @@ struct WorkoutHistoryView: View {
                 }
                 .padding()
             }
-            .navigationTitle("美食打卡记录")
+            .navigationTitle("美食记录")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {

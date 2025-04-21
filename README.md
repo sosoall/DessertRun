@@ -288,6 +288,43 @@ DessertRun/
 - 点击券查看详情并支持券的核销操作
 - 对无券状态提供友好的空状态视图
 
+## 模型文件汇总
+
+### WorkoutRecord（新创建）
+核心功能：记录单次运动信息，包含甜品、运动类型、完成日期、时长、消耗卡路里等
+提供格式化方法和计算属性，如判断是否达成目标
+支持分享功能和Codable接口
+
+### DessertItem
+核心功能：管理甜品数据，包含ID、名称、图片、卡路里等信息
+提供不同图片风格的访问方法和格式化功能
+支持分类筛选和相关甜品推荐
+
+### ExerciseType
+核心功能：定义运动类型枚举，如跑步、散步、遛狗等
+提供图标、描述、MET值等相关参数
+支持卡路里计算和完成时间/距离估计
+
+### WorkoutStats
+核心功能：提供统计和历史记录功能
+支持日历视图显示和月度/周度统计数据
+
+### TransitionAnimationState
+核心功能：管理UI转场动画，特别是甜品选择后的动画效果
+提供不同动画阶段和位置计算
+
+### BubbleState
+核心功能：管理气泡UI的状态，包括位置、大小等信息
+定义不同区域的气泡行为
+
+### 模型间关系
+WorkoutRecord 依赖 DessertItem 和 ExerciseType，记录用户选择的甜品和运动信息
+WorkoutStats 引用 WorkoutRecord，提供统计和历史查询功能
+TransitionAnimationState 引用 DessertItem，处理甜品选择后的UI动画
+StatsViewModel 使用 WorkoutRecord 集合进行数据统计和展示
+这些模型文件构成了应用的数据层，其中WorkoutRecord.swift作为连接甜品和运动的关键模型，原来是空文件，现在已完成实现。
+
+
 ## 主要页面设计与实现
 
 ### 1. 底部标签栏

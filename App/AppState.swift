@@ -109,7 +109,14 @@ class AppState: ObservableObject {
     
     /// 加载示例运动记录数据
     private func loadSampleWorkoutRecords() {
-        let sampleRecords = WorkoutRecordData.getSampleRecords()
+        // 创建一些示例运动记录
+        var sampleRecords: [WorkoutRecord] = []
+        
+        // 添加10条示例记录
+        for _ in 1...10 {
+            sampleRecords.append(WorkoutRecord.createSample())
+        }
+        
         workoutRecords.append(contentsOf: sampleRecords)
     }
 }

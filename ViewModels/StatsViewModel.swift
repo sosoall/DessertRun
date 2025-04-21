@@ -8,8 +8,14 @@ class StatsViewModel: ObservableObject {
     /// 当前选定的月份
     @Published var selectedMonth: Date = Date()
     
-    /// 筛选后的运动记录
+    /// 当前选定的年份
+    @Published var selectedYear: Date = Date()
+    
+    /// 筛选后的运动记录（月视图）
     @Published var filteredWorkoutRecords: [WorkoutRecord] = []
+    
+    /// 筛选后的运动记录（年视图）
+    @Published var yearlyFilteredWorkoutRecords: [WorkoutRecord] = []
     
     /// 是否显示月份选择器
     @Published var showMonthPicker: Bool = false
@@ -40,6 +46,7 @@ class StatsViewModel: ObservableObject {
         appState.$workoutRecords
             .sink { [weak self] records in
                 self?.filterRecordsByMonth()
+                self?.filterRecordsByYear()
             }
             .store(in: &cancellables)
         
@@ -49,9 +56,17 @@ class StatsViewModel: ObservableObject {
                 self?.filterRecordsByMonth()
             }
             .store(in: &cancellables)
+            
+        // 订阅年份变化
+        $selectedYear
+            .sink { [weak self] _ in
+                self?.filterRecordsByYear()
+            }
+            .store(in: &cancellables)
         
         // 初始筛选
         filterRecordsByMonth()
+        filterRecordsByYear()
         
         // 异步加载模拟数据，避免在视图更新周期内修改状态
         DispatchQueue.main.async { [weak self] in
@@ -62,11 +77,43 @@ class StatsViewModel: ObservableObject {
     
     // MARK: - 计算属性
     
+    /// 总的美食打卡次数
+    var totalFoodCheckInCount: Int {
+        return appState.workoutRecords.count
+    }
+    
+    /// 全年的美食打卡次数
+    var yearlyFoodCheckInCount: Int {
+        return yearlyFilteredWorkoutRecords.count
+    }
+    
+    /// 全月的美食打卡次数 
+    var monthlyFoodCheckInCount: Int {
+        return filteredWorkoutRecords.count
+    }
+    
+    /// 美食种类数量（月度）
+    var monthlyUniqueDessertTypes: Int {
+        return Set(filteredWorkoutRecords.map { $0.dessert.id }).count
+    }
+    
+    /// 美食种类数量（年度）
+    var yearlyUniqueDessertTypes: Int {
+        return Set(yearlyFilteredWorkoutRecords.map { $0.dessert.id }).count
+    }
+    
     /// 当前月份名称（中文）
     var currentMonthName: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy年M月"
         return formatter.string(from: selectedMonth)
+    }
+    
+    /// 当前年份名称（中文）
+    var currentYearName: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy年"
+        return formatter.string(from: selectedYear)
     }
     
     /// 当月的总运动时长（分钟）
@@ -100,10 +147,29 @@ class StatsViewModel: ObservableObject {
         }
     }
     
+    /// 切换到上一年
+    func goToPreviousYear() {
+        if let newDate = Calendar.current.date(byAdding: .year, value: -1, to: selectedYear) {
+            selectedYear = newDate
+        }
+    }
+    
+    /// 切换到下一年
+    func goToNextYear() {
+        if let newDate = Calendar.current.date(byAdding: .year, value: 1, to: selectedYear) {
+            selectedYear = newDate
+        }
+    }
+    
     /// 设置当前月份
     func setMonth(_ date: Date) {
         selectedMonth = date
         showMonthPicker = false
+    }
+    
+    /// 设置当前年份
+    func setYear(_ date: Date) {
+        selectedYear = date
     }
     
     /// 根据月份筛选记录
@@ -126,9 +192,87 @@ class StatsViewModel: ObservableObject {
         calculateStats()
     }
     
+    /// 根据年份筛选记录
+    private func filterRecordsByYear() {
+        let calendar = Calendar.current
+        let yearComponents = calendar.dateComponents([.year], from: selectedYear)
+        guard let startOfYear = calendar.date(from: yearComponents),
+              let startOfNextYear = calendar.date(byAdding: .year, value: 1, to: startOfYear) else {
+            yearlyFilteredWorkoutRecords = []
+            return
+        }
+        
+        // 筛选本年记录
+        yearlyFilteredWorkoutRecords = appState.workoutRecords.filter { record in
+            return record.completionDate >= startOfYear && record.completionDate < startOfNextYear
+        }
+    }
+    
+    /// 获取月度美食排行榜
+    func getMonthlyTopDesserts(count: Int) -> [TopDessertItem]? {
+        return getTopDessertsFromRecords(records: filteredWorkoutRecords, count: count)
+    }
+    
+    /// 获取年度美食排行榜
+    func getYearlyTopDesserts(count: Int) -> [TopDessertItem]? {
+        return getTopDessertsFromRecords(records: yearlyFilteredWorkoutRecords, count: count)
+    }
+    
+    /// 从记录中获取排名前几的美食
+    private func getTopDessertsFromRecords(records: [WorkoutRecord], count: Int) -> [TopDessertItem]? {
+        if records.isEmpty {
+            return nil
+        }
+        
+        // 统计每个甜品出现的次数和热量值
+        var dessertInfo: [Int: (count: Int, calories: Double, name: String, imageName: String)] = [:]
+        
+        for record in records {
+            let dessertId = record.dessert.id
+            let calories = Double(record.dessert.calories) ?? 0
+            
+            if let existing = dessertInfo[dessertId] {
+                dessertInfo[dessertId] = (
+                    existing.count + 1,
+                    existing.calories,
+                    record.dessert.name,
+                    record.dessert.imageName
+                )
+            } else {
+                dessertInfo[dessertId] = (
+                    1,
+                    calories,
+                    record.dessert.name,
+                    record.dessert.imageName
+                )
+            }
+        }
+        
+        // 按出现次数排序
+        let sortedDesserts = dessertInfo.sorted { $0.value.count > $1.value.count }
+        
+        // 返回前n个
+        return sortedDesserts.prefix(count).map { entry in
+            let (dessertId, info) = entry
+            return TopDessertItem(
+                id: String(dessertId),
+                name: info.name,
+                imageName: info.imageName,
+                calories: info.calories,
+                count: info.count,
+                totalCalories: info.calories * Double(info.count)
+            )
+        }
+    }
+    
     /// 重置月份为当前月
     func resetToCurrentMonth() {
         selectedMonth = Date()
+    }
+    
+    /// 重置年份为当前年
+    func resetToCurrentYear() {
+        selectedYear = Date()
     }
     
     /// 根据日期获取该日的记录
@@ -232,11 +376,43 @@ class StatsViewModel: ObservableObject {
             mockRecords.append(record)
         }
         
+        // 额外添加去年的记录（为了有年度数据）
+        for monthOffset in (1...12).reversed() {
+            let pastDate = calendar.date(byAdding: .month, value: -monthOffset, to: today)!
+            
+            // 每个月添加几条记录
+            let recordsCount = Int.random(in: 3...8)
+            
+            for _ in 0..<recordsCount {
+                // 随机调整日期在当月范围内
+                let dayOffset = Int.random(in: 1...28)
+                let recordDate = calendar.date(bySetting: .day, value: dayOffset, of: pastDate)!
+                
+                // 随机选择甜品和运动
+                let dessert = desserts.randomElement()!
+                let exerciseType = exerciseTypes.randomElement()!
+                let duration = Double.random(in: 20...60)
+                let targetCalories = Double(dessert.calories) ?? 300
+                let caloriesBurned = targetCalories * Double.random(in: 0.8...1.3)
+                
+                let record = WorkoutRecord(
+                    dessert: dessert,
+                    exerciseType: exerciseType,
+                    completionDate: recordDate,
+                    duration: duration,
+                    caloriesBurned: caloriesBurned
+                )
+                
+                mockRecords.append(record)
+            }
+        }
+        
         // 保存模拟数据
         appState.workoutRecords = mockRecords
         
-        // 筛选当月记录
+        // 筛选记录
         filterRecordsByMonth()
+        filterRecordsByYear()
     }
     
     /// 计算统计数据
