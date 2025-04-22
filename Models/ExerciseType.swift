@@ -103,10 +103,10 @@ enum ExerciseType: Int, Identifiable, Equatable, CaseIterable {
     
     /// 每分钟消耗的卡路里数（基于MET值和标准体重70公斤计算）
     var caloriesPerMinute: Double {
-        // 卡路里/分钟 = MET值 * 体重(kg) * 1.05 / 60
+        // 卡路里/分钟 = MET值 * 体重(kg) / 60
         // 使用标准体重70公斤计算
         let weight = 70.0
-        return metValue * weight * 1.05 / 60
+        return metValue * weight / 60
     }
     
     /// 计算完成运动所需的距离（仅适用于跑步）

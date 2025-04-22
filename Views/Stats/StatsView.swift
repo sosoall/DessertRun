@@ -126,33 +126,9 @@ struct StatsView: View {
                 // 年月选择器和切换按钮
                 HStack {
                     // 显示当前年份或月份
-                    HStack(spacing: 4) {
-                        Button(action: {
-                            if foodRecordViewType == .year {
-                                viewModel.goToPreviousYear()
-                            } else {
-                                viewModel.goToPreviousMonth()
-                            }
-                        }) {
-                            Image(systemName: "chevron.left")
-                                .foregroundColor(.gray)
-                        }
-                        
-                        Text(foodRecordViewType == .year ? viewModel.currentYearName : viewModel.currentMonthName)
-                            .font(.system(size: 16, weight: .medium))
-                            .frame(width: 100)
-                        
-                        Button(action: {
-                            if foodRecordViewType == .year {
-                                viewModel.goToNextYear()
-                            } else {
-                                viewModel.goToNextMonth()
-                            }
-                        }) {
-                            Image(systemName: "chevron.right")
-                                .foregroundColor(.gray)
-                        }
-                    }
+                    Text(foodRecordViewType == .year ? viewModel.currentYearName : viewModel.currentMonthName)
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundColor(.black)
                     
                     Spacer()
                     

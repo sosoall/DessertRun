@@ -27,8 +27,20 @@ struct DessertToExerciseTransition: View {
     /// 全局坐标空间名称
     let globalCoordinateSpaceName = "DessertTransitionCoordinateSpace"
     
-    /// 导航到打卡页面
-    @State private var navigateToCheckIn = false
+    /// 选中的运动类型
+    @State private var selectedExercise: ExerciseType? = nil
+    
+    /// 展开的运动类型ID
+    @State private var expandedExerciseID: Int? = nil
+    
+    /// 运动时长（分钟）
+    @State private var exerciseDuration: Double = 30
+    
+    /// 运动距离（米）
+    @State private var exerciseDistance: Double = 2000
+    
+    /// 展示成功提示
+    @State private var showingSuccessAlert: Bool = false
     
     /// 计算甜品图片的位置
     private var currentPosition: CGRect {
@@ -104,6 +116,77 @@ struct DessertToExerciseTransition: View {
         return 0
     }
     
+    /// 计算建议的运动时长（分钟）
+    private func suggestedDuration(for exerciseType: ExerciseType) -> Double {
+        let targetCalories = calories
+        
+        // 使用ExerciseType中的方法计算时间
+        let hours = exerciseType.calculateExerciseTime(calories: targetCalories)
+        
+        // 转换为分钟
+        let minutes = hours * 60
+        
+        // 向上取整到最接近的5分钟
+        return ceil(minutes / 5) * 5
+    }
+    
+    /// 计算建议的运动距离（米）
+    private func suggestedDistance(for exerciseType: ExerciseType) -> Double {
+        let targetCalories = calories
+        
+        // 使用ExerciseType中的方法计算距离（公里）
+        let distanceInKm = exerciseType.calculateRunningDistance(calories: targetCalories)
+        
+        // 转换为米并向上取整到最接近的100米
+        return ceil(distanceInKm * 1000 / 100) * 100
+    }
+    
+    /// 提交运动记录
+    private func submitWorkout() {
+        guard let dessert = animationState.selectedDessert,
+              let exerciseType = selectedExercise else {
+            return
+        }
+        
+        // 计算消耗的卡路里
+        var caloriesBurned: Double = 0
+        
+        if exerciseType.usesDistance {
+            // 基于距离计算卡路里
+            caloriesBurned = exerciseType.calculateCaloriesForDistance(
+                distance: exerciseDistance,
+                weight: 65 // 使用默认体重65kg
+            )
+        } else {
+            // 基于时间计算卡路里
+            caloriesBurned = exerciseType.calculateCaloriesForTime(
+                minutes: exerciseDuration,
+                weight: 65 // 使用默认体重65kg
+            )
+        }
+        
+        // 创建运动记录
+        let record = WorkoutRecord(
+            dessert: dessert,
+            exerciseType: exerciseType,
+            completionDate: Date(),
+            duration: exerciseDuration,
+            caloriesBurned: caloriesBurned,
+            distance: exerciseType.usesDistance ? exerciseDistance : nil
+        )
+        
+        // 添加记录到应用状态
+        appState.addWorkoutRecord(record)
+        
+        // 显示成功提示
+        showingSuccessAlert = true
+        
+        // 延迟1.5秒后关闭面板
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            animationState.dismissPanel()
+        }
+    }
+    
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .bottom) { // 使用ZStack的底部对齐
@@ -138,9 +221,13 @@ struct DessertToExerciseTransition: View {
             .edgesIgnoringSafeArea(.bottom) // 忽略底部安全区域，避免出现白条
             .coordinateSpace(name: globalCoordinateSpaceName)
             .environmentObject(animationState) // 确保所有子视图都能访问animationState
-            .navigationDestination(isPresented: $navigateToCheckIn) {
-                // 导航到运动打卡页面（而非原来的WorkoutView）
-                WorkoutCheckInView()
+            .alert("打卡成功", isPresented: $showingSuccessAlert) {
+                Button("确定", role: .cancel) { }
+            } message: {
+                if let dessert = animationState.selectedDessert, 
+                   let exercise = selectedExercise {
+                    Text("成功记录 \(dessert.name) 和 \(exercise.name) 运动！")
+                }
             }
         }
     }
@@ -205,7 +292,7 @@ struct DessertToExerciseTransition: View {
             titleView
             
             // 请选择运动类型标题
-            Text("请选择运动类型")
+            Text("请选择运动打卡")
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundColor(Color(hex: "757575"))
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -261,172 +348,278 @@ struct DessertToExerciseTransition: View {
     
     /// 单个运动类型行视图
     private func exerciseRowView(for exerciseType: ExerciseType) -> some View {
-        Button(action: {
-            // 选择运动类型并导航到打卡页面
-            appState.selectedExerciseType = exerciseType
-            navigateToCheckIn = true
-        }) {
-            HStack(spacing: 0) {
-                // 左侧圆形图标区域
-                ZStack {
-                    // 渐变背景圆
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                gradient: Gradient(colors: getGradientColors(for: exerciseType)),
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 70, height: 70)
-                        .shadow(color: getGradientColors(for: exerciseType)[0].opacity(0.5), radius: 8, x: 2, y: 4)
-                    
-                    // 白色内圆
-                    Circle()
-                        .fill(Color.white.opacity(0.25))
-                        .frame(width: 50, height: 50)
-                    
-                    // 图标
-                    Image(systemName: exerciseType.iconName)
-                        .font(.system(size: 28, weight: .semibold))
-                        .foregroundColor(.white)
-                        .shadow(color: Color.black.opacity(0.1), radius: 1, x: 1, y: 1)
-                }
-                .padding(.leading, 5)
-                
-                // 中间文本内容
-                VStack(alignment: .leading, spacing: 6) {
-                    // 运动名称
-                    Text(exerciseType.name)
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(.black)
-                    
-                    HStack(spacing: 5) {
-                        // 时间/距离图标
-                        Image(systemName: exerciseType.usesDistance ? "figure.walk" : "clock.fill")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(Color(hex: "666666"))
-                        
-                        // 时间/距离文本
-                        Text(exerciseType.getEstimatedCompletion(calories: calories))
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(Color(hex: "666666"))
-                    }
-                    .padding(.vertical, 4)
-                    .padding(.horizontal, 8)
-                    .background(
-                        Capsule()
-                            .fill(Color(hex: "F3F3F3"))
-                    )
-                }
-                .padding(.leading, 12)
-                
-                Spacer()
-                
-                // 右侧按钮文本（从箭头修改为文字）
-                Text("选择此运动")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(
-                        Capsule()
-                            .fill(LinearGradient(
-                                gradient: Gradient(colors: getGradientColors(for: exerciseType)),
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ))
-                    )
-                    .padding(.trailing, 15)
+        // 提前计算所需的提示文本
+        let requiredValueText: String
+        if let dessert = animationState.selectedDessert {
+            if exerciseType.usesDistance {
+                let distance = suggestedDistance(for: exerciseType)
+                requiredValueText = "约\(String(format: "%.1f", distance / 1000))公里"
+            } else {
+                let duration = suggestedDuration(for: exerciseType)
+                requiredValueText = "约\(Int(duration))分钟"
             }
-            .frame(height: 90)
-            .background(
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(Color.white)
-                    .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 5)
-            )
-            .overlay(
-                // 为卡片添加几何装饰
-                ZStack {
-                    // 右上角三角形装饰
-                    Path { path in
-                        path.move(to: CGPoint(x: 280, y: 0))
-                        path.addLine(to: CGPoint(x: 350, y: 0))
-                        path.addLine(to: CGPoint(x: 350, y: 40))
-                        path.closeSubpath()
-                    }
-                    .fill(
-                        LinearGradient(
-                            gradient: Gradient(colors: [
-                                getGradientColors(for: exerciseType)[0].opacity(0.05),
-                                getGradientColors(for: exerciseType)[1].opacity(0.1)
-                            ]),
-                            startPoint: .topTrailing,
-                            endPoint: .bottomLeading
-                        )
-                    )
-                    
-                    // 左下角弧形装饰
-                    Path { path in
-                        path.move(to: CGPoint(x: 80, y: 90))
-                        path.addArc(center: CGPoint(x: 40, y: 60),
-                                   radius: 40,
-                                   startAngle: .degrees(90),
-                                   endAngle: .degrees(180),
-                                   clockwise: false)
-                        path.addLine(to: CGPoint(x: 0, y: 90))
-                        path.closeSubpath()
-                    }
-                    .fill(
-                        LinearGradient(
-                            gradient: Gradient(colors: [
-                                getGradientColors(for: exerciseType)[0].opacity(0.08),
-                                getGradientColors(for: exerciseType)[1].opacity(0.12)
-                            ]),
-                            startPoint: .bottomLeading,
-                            endPoint: .topTrailing
-                        )
-                    )
-                }
-                .mask(
-                    RoundedRectangle(cornerRadius: 20)
-                        .fill(Color.white)
-                )
-            )
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
+        } else {
+            requiredValueText = "选择甜品计算所需运动量"
         }
-        .buttonStyle(CustomScaleButtonStyle())
+        
+        return VStack(spacing: 0) {
+            // 主要卡片
+            Button(action: {
+                if expandedExerciseID == exerciseType.rawValue {
+                    // 如果已经展开，则关闭
+                    expandedExerciseID = nil
+                    selectedExercise = nil
+                } else {
+                    // 展开此运动类型
+                    expandedExerciseID = exerciseType.rawValue
+                    selectedExercise = exerciseType
+                    
+                    // 设置默认值为建议的时长/距离
+                    if exerciseType.usesDistance {
+                        exerciseDistance = suggestedDistance(for: exerciseType)
+                    } else {
+                        exerciseDuration = suggestedDuration(for: exerciseType)
+                    }
+                }
+            }) {
+                HStack(spacing: 0) {
+                    // 直接显示彩色图标，不使用圆圈
+                    Image(systemName: exerciseType.iconName)
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundColor(exerciseType.backgroundColor)
+                        .padding(.leading, 20)
+                    
+                    // 中间文本内容
+                    VStack(alignment: .leading, spacing: 4) {
+                        // 运动名称
+                        Text(exerciseType.name)
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundColor(.black)
+                        
+                        // 使用提前计算好的文本
+                        Text(requiredValueText)
+                            .font(.system(size: 14))
+                            .foregroundColor(.gray)
+                    }
+                    .padding(.leading, 16)
+                    
+                    Spacer()
+                    
+                    // 右侧按钮文本
+                    if expandedExerciseID == exerciseType.rawValue {
+                        Image(systemName: "chevron.up")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.gray)
+                            .padding(.trailing, 20)
+                    } else {
+                        Text("打卡")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(
+                                Capsule()
+                                    .fill(exerciseType.backgroundColor)
+                            )
+                            .padding(.trailing, 16)
+                    }
+                }
+                .frame(height: 80)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color.white)
+                        .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
+                )
+            }
+            .buttonStyle(CustomScaleButtonStyle())
+            
+            // 展开的配置区域
+            if expandedExerciseID == exerciseType.rawValue {
+                expandedExerciseOptions(for: exerciseType)
+                    .padding(.top, 2)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: expandedExerciseID)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 6)
+    }
+    
+    /// 展开的运动选项
+    private func expandedExerciseOptions(for exerciseType: ExerciseType) -> some View {
+        // 提前计算预估卡路里和消耗数量
+        let dessertName = animationState.selectedDessert?.name ?? ""
+        
+        // 使用ExerciseType中的方法计算卡路里
+        // 距离模式的计算
+        let estimatedCaloriesForDistance = exerciseType.usesDistance ? 
+            exerciseType.metValue * (exerciseDistance / 1000) * 70 : 0.0
+        let foodCountForDistance = calories > 0 ? estimatedCaloriesForDistance / calories : 0
+        let foodMessageForDistance = "预计消耗\(String(format: "%.1f", foodCountForDistance))个\(dessertName)"
+        
+        // 时间模式的计算
+        let estimatedCaloriesForTime = !exerciseType.usesDistance ? 
+            exerciseType.caloriesPerMinute * exerciseDuration : 0.0
+        let foodCountForTime = calories > 0 ? estimatedCaloriesForTime / calories : 0
+        let foodMessageForTime = "预计消耗\(String(format: "%.1f", foodCountForTime))个\(dessertName)"
+        
+        return VStack(spacing: 20) {
+            if let dessert = animationState.selectedDessert {
+                if exerciseType.usesDistance {
+                    // 距离选择
+                    VStack(alignment: .center, spacing: 8) {
+                        Text("运动距离")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.black)
+                        
+                        HStack {
+                            Button(action: {
+                                exerciseDistance = max(100, exerciseDistance - 500)
+                            }) {
+                                Image(systemName: "minus")
+                                    .font(.system(size: 18, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .frame(width: 36, height: 36)
+                                    .background(Circle().fill(Color(hex: "#F3F3F3")))
+                                    .overlay(
+                                        Circle().stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                                    )
+                            }
+                            
+                            Spacer()
+                            
+                            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                                Text("\(String(format: "%.1f", exerciseDistance / 1000))")
+                                    .font(.system(size: 28, weight: .bold))
+                                
+                                Text("公里")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(.black)
+                                    .padding(.leading, 2)
+                            }
+                            
+                            Spacer()
+                            
+                            Button(action: {
+                                exerciseDistance += 500
+                            }) {
+                                Image(systemName: "plus")
+                                    .font(.system(size: 18, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .frame(width: 36, height: 36)
+                                    .background(exerciseType.backgroundColor)
+                            }
+                        }
+                        .padding(.horizontal, 32)
+                        
+                        Text(foodMessageForDistance)
+                            .font(.system(size: 15))
+                            .foregroundColor(.gray)
+                            .padding(.top, 8)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 16)
+                } else {
+                    // 时长选择
+                    VStack(alignment: .center, spacing: 8) {
+                        Text("运动时长")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.black)
+                        
+                        HStack {
+                            Button(action: {
+                                exerciseDuration = max(5, exerciseDuration - 5)
+                            }) {
+                                Image(systemName: "minus")
+                                    .font(.system(size: 18, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .frame(width: 36, height: 36)
+                                    .background(Circle().fill(Color(hex: "#F3F3F3")))
+                                    .overlay(
+                                        Circle().stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                                    )
+                            }
+                            
+                            Spacer()
+                            
+                            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                                Text("\(Int(exerciseDuration))")
+                                    .font(.system(size: 28, weight: .bold))
+                                
+                                Text("分钟")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(.black)
+                                    .padding(.leading, 2)
+                            }
+                            
+                            Spacer()
+                            
+                            Button(action: {
+                                exerciseDuration += 5
+                            }) {
+                                Image(systemName: "plus")
+                                    .font(.system(size: 18, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .frame(width: 36, height: 36)
+                                    .background(exerciseType.backgroundColor)
+                            }
+                        }
+                        .padding(.horizontal, 32)
+                        
+                        Text(foodMessageForTime)
+                            .font(.system(size: 15))
+                            .foregroundColor(.gray)
+                            .padding(.top, 8)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 16)
+                }
+            } else {
+                // 添加一个默认的视图，以确保始终返回View
+                Text("请选择甜品")
+                    .foregroundColor(.gray)
+                    .padding()
+            }
+            
+            // 打卡按钮 - 移除颜色
+            Button(action: {
+                submitWorkout()
+            }) {
+                Text("完成打卡")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundColor(.black)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 50)
+                    .background(
+                        RoundedRectangle(cornerRadius: 25)
+                            .fill(Color(hex: "#F0F0F0"))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 25)
+                                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                            )
+                    )
+            }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 20)
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(hex: "#F8F8F8"))
+                .shadow(color: Color.black.opacity(0.05), radius: 6, x: 0, y: 3)
+        )
     }
     
     /// 获取运动类型专属渐变色
     private func getGradientColors(for exerciseType: ExerciseType) -> [Color] {
-        switch exerciseType {
-        case .houseCleaning:
-            return [Color(hex: "825AE2"), Color(hex: "5D42B5")]
-        case .dogWalking:
-            return [Color(hex: "FF9F2F"), Color(hex: "F27121")]
-        case .walking:
-            return [Color(hex: "56E38A"), Color(hex: "39B574")]
-        case .running:
-            return [Color(hex: "FF6928"), Color(hex: "FF3F1A")]
-        case .homeWorkout:
-            return [Color(hex: "FF4B91"), Color(hex: "E61E5A")]
-        case .hiitWorkout:
-            return [Color(hex: "FF2D55"), Color(hex: "D81547")]
-        case .stairClimbing:
-            return [Color(hex: "4CD964"), Color(hex: "2CA94C")]
-        default:
-            return [Color(hex: "8A2387"), Color(hex: "E94057")]
-            }
-        }
+        return [exerciseType.backgroundColor, exerciseType.backgroundColor]
+    }
 }
 
 // MARK: - 自定义按钮样式
 struct CustomScaleButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
             .opacity(configuration.isPressed ? 0.9 : 1.0)
             .animation(.spring(response: 0.3, dampingFraction: 0.6), value: configuration.isPressed)
     }
@@ -490,5 +683,52 @@ extension ExerciseType {
         default:
             return [Color(hex: "8A2387"), Color(hex: "E94057")]
         }
+    }
+}
+
+// 在ExerciseType扩展中添加新的方法
+extension ExerciseType {
+    /// 获取每分钟每公斤体重消耗的卡路里
+    func getCaloriesPerMinutePerKg() -> Double {
+        switch self {
+        case .houseCleaning:
+            return 0.05
+        case .dogWalking:
+            return 0.06
+        case .walking:
+            return 0.07
+        case .running:
+            return 0.12
+        case .homeWorkout:
+            return 0.08
+        case .hiitWorkout:
+            return 0.14
+        case .stairClimbing:
+            return 0.11
+        }
+    }
+    
+    /// 计算指定时间消耗的卡路里
+    func calculateCaloriesForTime(minutes: Double, weight: Double = 65.0) -> Double {
+        return minutes * getCaloriesPerMinutePerKg() * weight
+    }
+    
+    /// 获取每公里每公斤体重消耗的卡路里
+    func getCaloriesPerKmPerKg() -> Double {
+        switch self {
+        case .walking:
+            return 0.8
+        case .running:
+            return 1.2
+        default:
+            return 1.0
+        }
+    }
+    
+    /// 计算指定距离消耗的卡路里
+    func calculateCaloriesForDistance(distance: Double, weight: Double = 65.0) -> Double {
+        // 距离转换为公里
+        let distanceInKm = distance / 1000.0
+        return distanceInKm * getCaloriesPerKmPerKg() * weight
     }
 } 
