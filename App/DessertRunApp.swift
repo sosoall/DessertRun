@@ -31,7 +31,7 @@ struct DessertRunApp: App {
         WindowGroup {
             MainTabView()
                 .environmentObject(appState)
-                .background(Color.white) // 确保整个应用的背景是纯白色
+                // 移除整个应用的背景色设置
                 // 强制竖屏显示
                 .onAppear {
                     AppDelegate.lockOrientation(.portrait)

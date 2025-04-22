@@ -362,7 +362,7 @@ struct DessertToExerciseTransition: View {
         
         return VStack(spacing: 0) {
             // 主要卡片
-            Button(action: {
+        Button(action: {
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                     if expandedExerciseID == exerciseType.rawValue {
                         // 如果已经展开，则关闭
@@ -381,21 +381,21 @@ struct DessertToExerciseTransition: View {
                         }
                     }
                 }
-            }) {
-                HStack(spacing: 0) {
+        }) {
+            HStack(spacing: 0) {
                     // 直接显示彩色图标，不使用圆圈
                     Image(systemName: exerciseType.iconName)
                         .font(.system(size: 24, weight: .semibold))
                         .foregroundColor(exerciseType.backgroundColor)
                         .padding(.leading, 20)
-                    
-                    // 中间文本内容
+                
+                // 中间文本内容
                     VStack(alignment: .leading, spacing: 4) {
-                        // 运动名称
-                        Text(exerciseType.name)
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundColor(.black)
-                        
+                    // 运动名称
+                    Text(exerciseType.name)
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(.black)
+                    
                         // 使用提前计算好的文本
                         Text(requiredValueText)
                             .font(.system(size: 14))
@@ -417,8 +417,8 @@ struct DessertToExerciseTransition: View {
                             .foregroundColor(.white)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
-                            .background(
-                                Capsule()
+                    .background(
+                        Capsule()
                                     .fill(exerciseType.backgroundColor)
                             )
                             .padding(.trailing, 16)
@@ -617,7 +617,7 @@ struct DessertToExerciseTransition: View {
     /// 获取运动类型专属渐变色
     private func getGradientColors(for exerciseType: ExerciseType) -> [Color] {
         return [exerciseType.backgroundColor, exerciseType.backgroundColor]
-    }
+        }
 }
 
 // MARK: - 自定义按钮样式

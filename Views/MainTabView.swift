@@ -21,7 +21,7 @@ struct MainTabView: View {
     ]
     
     var body: some View {
-        // 使用自定义TabBar容器
+        // 使用自定义TabBar容器但确保没有额外的背景设置
         CustomTabViewContainer(
             selectedTab: $appState.selectedTabIndex,
             tabItems: tabItems
@@ -56,6 +56,7 @@ struct MainTabView: View {
                     EmptyView()
                 }
             }
+            // 确保内容没有背景色设置
         }
         .onChange(of: appState.shouldResetNavigation) { shouldReset in
             if shouldReset {
