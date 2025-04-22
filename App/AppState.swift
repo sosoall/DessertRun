@@ -28,7 +28,7 @@ class AppState: ObservableObject {
     
     // MARK: - 导航状态
     
-    /// 当前选中的主标签索引（0：运动，1：统计，2：我的）
+    /// 当前选中的主标签索引（0：运动，1：甜品打卡，2：运动记录，3：我的）
     @Published var selectedTabIndex = 0
     
     /// 用于标记是否需要重置导航状态
@@ -36,6 +36,9 @@ class AppState: ObservableObject {
     
     /// 统计页面当前选中的分段（0：运动日历，1：甜品券）
     @Published var statsSelectedSegment = 0
+    
+    /// 标记是否刚完成打卡（用于动画）
+    @Published var justCompletedWorkout = false
     
     // MARK: - 运动相关状态
     

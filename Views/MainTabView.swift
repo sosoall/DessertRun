@@ -14,9 +14,10 @@ struct MainTabView: View {
     
     // 标签项配置
     private let tabItems = [
-        TabItem(title: "运动", icon: "figure.run", selectedIcon: "figure.run.circle.fill"),
-        TabItem(title: "统计", icon: "chart.bar", selectedIcon: "chart.bar.fill"),
-        TabItem(title: "我的", icon: "person", selectedIcon: "person.fill")
+        TabItem(title: "运动", icon: "figure.run", selectedIcon: "figure.run"),
+        TabItem(title: "甜品打卡", icon: "birthday.cake", selectedIcon: "birthday.cake"),
+        TabItem(title: "运动记录", icon: "chart.bar", selectedIcon: "chart.bar"),
+        TabItem(title: "我的", icon: "person", selectedIcon: "person")
     ]
     
     var body: some View {
@@ -37,11 +38,16 @@ struct MainTabView: View {
                         })
                     }
                 case 1:
-                    // 统计标签
+                    // 甜品打卡标签
                     NavigationStack {
-                        StatsView(viewModel: StatsViewModel(appState: appState))
+                        FoodCheckInView(viewModel: StatsViewModel(appState: appState))
                     }
                 case 2:
+                    // 运动记录标签
+                    NavigationStack {
+                        ExerciseRecordView(viewModel: StatsViewModel(appState: appState))
+                    }
+                case 3:
                     // 个人信息标签
                     NavigationStack {
                         ProfileHomeView()

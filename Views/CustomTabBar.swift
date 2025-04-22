@@ -50,59 +50,35 @@ struct CustomTabBar: View {
         return max(0, safeAreaBottom)
     }
     
-    // 计算是否需要额外的Home指示器填充
-    private var hasHomeIndicator: Bool {
-        return bottomSafeAreaPadding > 0
-    }
-    
-    // 计算偏移量
-    private var tabBarOffset: CGFloat {
-        if isHidden {
-            // 固定向下偏移量，避免复杂计算可能导致的非法值
-            return 200 // 足够大的值确保完全隐藏
-        } else {
-            return 0
-        }
-    }
-    
     var body: some View {
-        VStack(spacing: 0) {
-            // 分隔线
-            Divider()
-                .opacity(0.2)
-            
-            // 标签按钮
-            HStack(spacing: 0) {
-                ForEach(Array(tabItems.enumerated()), id: \.element.id) { index, item in
-                    Button(action: {
-                        if selectedTab != index {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                selectedTab = index
-                            }
+        HStack(spacing: 0) {
+            ForEach(Array(tabItems.enumerated()), id: \.element.id) { index, item in
+                Button(action: {
+                    if selectedTab != index {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            selectedTab = index
                         }
-                    }) {
-                        VStack(spacing: 4) {
-                            Image(systemName: selectedTab == index ? item.selectedIcon : item.icon)
-                                .font(.system(size: 22))
-                            
-                            Text(item.title)
-                                .font(.system(size: 10))
-                        }
+                    }
+                }) {
+                    // 只显示图标，移除文本
+                    Image(systemName: selectedTab == index ? item.selectedIcon : item.icon)
+                        .font(.system(size: 24)) // 放大图标
                         .foregroundColor(selectedTab == index ? accentColor : Color.gray)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                    }
+                        .padding(.vertical, 12)
                 }
             }
-            .frame(height: 49) // 恢复原来的高度
-            .padding(.bottom, 12) // 减少固定底部间距
-            .background(Color.white)
-            
-            // 不再使用单独的Rectangle填充安全区域，直接给整个TabBar添加底部安全区域填充
         }
-        .padding(.bottom, safeAreaBottom + 5) // 减少额外填充
-        .background(Color.white)
-        .offset(y: tabBarOffset)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 24)
+                .fill(Color.white)
+                .shadow(color: Color.black.opacity(0.15), radius: 8, x: 0, y: 4)
+        )
+        .padding(.horizontal, 24)
+        .padding(.bottom, bottomSafeAreaPadding + 10) // 添加安全区域填充和底部间距
+        .opacity(isHidden ? 0 : 1) // 使用透明度控制显示/隐藏
         .animation(.easeInOut(duration: 0.3), value: isHidden)
         // 获取安全区域底部高度
         .background(
@@ -163,8 +139,8 @@ struct CustomTabViewContainer<Content: View>: View {
         if appState.shouldHideTabBar {
             return 0
         } else {
-            // 减少内容区域底部间距
-            return 62 + safeAreaBottom // 固定值：TabBar高度 + 安全区域
+            // 为悬浮TabBar增加额外的底部间距
+            return 80 + safeAreaBottom // 悬浮TabBar高度 + 安全区域
         }
     }
     
@@ -183,6 +159,7 @@ struct CustomTabViewContainer<Content: View>: View {
                 isHidden: appState.shouldHideTabBar,
                 accentColor: accentColor
             )
+            .padding(.bottom, 15) // 距离底部安全区域的额外间隔
         }
         .background(Color.white)
         // 获取安全区域底部高度

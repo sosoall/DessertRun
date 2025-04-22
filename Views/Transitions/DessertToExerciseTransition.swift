@@ -178,12 +178,18 @@ struct DessertToExerciseTransition: View {
         // 添加记录到应用状态
         appState.addWorkoutRecord(record)
         
-        // 显示成功提示
-        showingSuccessAlert = true
+        // 设置刚完成打卡标记，用于触发动画
+        appState.justCompletedWorkout = true
         
-        // 延迟1.5秒后关闭面板
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            animationState.dismissPanel()
+        // 关闭面板
+        animationState.dismissPanel()
+        
+        // 短暂延迟后切换到甜品打卡标签页
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            withAnimation(.easeInOut(duration: 0.3)) {
+                // 将TabBar切换到甜品打卡标签（索引为1）
+                appState.selectedTabIndex = 1
+            }
         }
     }
     
@@ -221,14 +227,6 @@ struct DessertToExerciseTransition: View {
             .edgesIgnoringSafeArea(.bottom) // 忽略底部安全区域，避免出现白条
             .coordinateSpace(name: globalCoordinateSpaceName)
             .environmentObject(animationState) // 确保所有子视图都能访问animationState
-            .alert("打卡成功", isPresented: $showingSuccessAlert) {
-                Button("确定", role: .cancel) { }
-            } message: {
-                if let dessert = animationState.selectedDessert, 
-                   let exercise = selectedExercise {
-                    Text("成功记录 \(dessert.name) 和 \(exercise.name) 运动！")
-                }
-            }
         }
     }
     
@@ -365,20 +363,22 @@ struct DessertToExerciseTransition: View {
         return VStack(spacing: 0) {
             // 主要卡片
             Button(action: {
-                if expandedExerciseID == exerciseType.rawValue {
-                    // 如果已经展开，则关闭
-                    expandedExerciseID = nil
-                    selectedExercise = nil
-                } else {
-                    // 展开此运动类型
-                    expandedExerciseID = exerciseType.rawValue
-                    selectedExercise = exerciseType
-                    
-                    // 设置默认值为建议的时长/距离
-                    if exerciseType.usesDistance {
-                        exerciseDistance = suggestedDistance(for: exerciseType)
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                    if expandedExerciseID == exerciseType.rawValue {
+                        // 如果已经展开，则关闭
+                        expandedExerciseID = nil
+                        selectedExercise = nil
                     } else {
-                        exerciseDuration = suggestedDuration(for: exerciseType)
+                        // 展开此运动类型
+                        expandedExerciseID = exerciseType.rawValue
+                        selectedExercise = exerciseType
+                        
+                        // 设置默认值为建议的时长/距离
+                        if exerciseType.usesDistance {
+                            exerciseDistance = suggestedDistance(for: exerciseType)
+                        } else {
+                            exerciseDuration = suggestedDuration(for: exerciseType)
+                        }
                     }
                 }
             }) {
@@ -437,8 +437,10 @@ struct DessertToExerciseTransition: View {
             if expandedExerciseID == exerciseType.rawValue {
                 expandedExerciseOptions(for: exerciseType)
                     .padding(.top, 2)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: expandedExerciseID)
+                    .transition(.asymmetric(
+                        insertion: .scale(scale: 0.95).combined(with: .opacity).animation(.spring(response: 0.4, dampingFraction: 0.7)),
+                        removal: .opacity.animation(.easeOut(duration: 0.25))
+                    ))
             }
         }
         .padding(.horizontal, 16)
@@ -450,17 +452,19 @@ struct DessertToExerciseTransition: View {
         // 提前计算预估卡路里和消耗数量
         let dessertName = animationState.selectedDessert?.name ?? ""
         
-        // 使用ExerciseType中的方法计算卡路里
+        // 获取推荐运动时长和距离
+        let suggestedDurationValue = suggestedDuration(for: exerciseType)
+        let suggestedDistanceValue = suggestedDistance(for: exerciseType)
+        
+        // 使用实际运动时长/推荐运动时长的比值计算消耗美食个数
         // 距离模式的计算
-        let estimatedCaloriesForDistance = exerciseType.usesDistance ? 
-            exerciseType.metValue * (exerciseDistance / 1000) * 70 : 0.0
-        let foodCountForDistance = calories > 0 ? estimatedCaloriesForDistance / calories : 0
+        let foodCountForDistance = exerciseType.usesDistance ? 
+            exerciseDistance / suggestedDistanceValue : 0
         let foodMessageForDistance = "预计消耗\(String(format: "%.1f", foodCountForDistance))个\(dessertName)"
         
         // 时间模式的计算
-        let estimatedCaloriesForTime = !exerciseType.usesDistance ? 
-            exerciseType.caloriesPerMinute * exerciseDuration : 0.0
-        let foodCountForTime = calories > 0 ? estimatedCaloriesForTime / calories : 0
+        let foodCountForTime = !exerciseType.usesDistance ? 
+            exerciseDuration / suggestedDurationValue : 0
         let foodMessageForTime = "预计消耗\(String(format: "%.1f", foodCountForTime))个\(dessertName)"
         
         return VStack(spacing: 20) {
@@ -581,23 +585,24 @@ struct DessertToExerciseTransition: View {
                     .padding()
             }
             
-            // 打卡按钮 - 移除颜色
+            // 打卡按钮 - 恢复颜色
             Button(action: {
                 submitWorkout()
             }) {
                 Text("完成打卡")
                     .font(.system(size: 17, weight: .bold))
-                    .foregroundColor(.black)
+                    .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .frame(height: 50)
                     .background(
-                        RoundedRectangle(cornerRadius: 25)
-                            .fill(Color(hex: "#F0F0F0"))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 25)
-                                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                            )
+                        LinearGradient(
+                            gradient: Gradient(colors: [Color(hex: "#FF5E57"), Color(hex: "#FF2D55")]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                        .cornerRadius(25)
                     )
+                    .shadow(color: Color(hex: "#FF2D55").opacity(0.3), radius: 6, x: 0, y: 3)
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 20)

@@ -248,8 +248,15 @@ class StatsViewModel: ObservableObject {
             }
         }
         
-        // 按出现次数排序
-        let sortedDesserts = dessertInfo.sorted { $0.value.count > $1.value.count }
+        // 按出现次数排序，次数相同时按照id大小排序（确保排行榜稳定性）
+        let sortedDesserts = dessertInfo.sorted { 
+            if $0.value.count == $1.value.count {
+                // 次数相同时，按ID排序
+                return $0.key < $1.key
+            }
+            // 按次数降序排序
+            return $0.value.count > $1.value.count
+        }
         
         // 返回前n个
         return sortedDesserts.prefix(count).map { entry in
@@ -295,6 +302,24 @@ class StatsViewModel: ObservableObject {
             return 30 // 默认返回30天
         }
         return range.count
+    }
+    
+    // MARK: - 记录排序方法
+    
+    /// 获取按时间倒序排列的记录（月视图）
+    func getSortedRecords() -> [WorkoutRecord] {
+        return filteredWorkoutRecords.sorted { record1, record2 in
+            // 比较时间戳，精确到秒级的倒序排列（最新的记录在前）
+            return record1.completionDate.timeIntervalSince1970 > record2.completionDate.timeIntervalSince1970
+        }
+    }
+    
+    /// 获取按时间倒序排列的年度记录
+    func getSortedYearlyRecords() -> [WorkoutRecord] {
+        return yearlyFilteredWorkoutRecords.sorted { record1, record2 in
+            // 比较时间戳，精确到秒级的倒序排列（最新的记录在前）
+            return record1.completionDate.timeIntervalSince1970 > record2.completionDate.timeIntervalSince1970
+        }
     }
     
     // MARK: - 私有方法
