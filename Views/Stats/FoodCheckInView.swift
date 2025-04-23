@@ -3,15 +3,9 @@ import SwiftUI
 /// 甜品打卡标签页
 struct FoodCheckInView: View {
     @ObservedObject var viewModel: StatsViewModel
-    @State private var foodRecordViewType: FoodRecordViewType = .month
     @State private var newRecordId: String? = nil
     @State private var showNewRecordAnimation: Bool = false
     @EnvironmentObject var appState: AppState
-    
-    enum FoodRecordViewType {
-        case year
-        case month
-    }
     
     var body: some View {
         ScrollView {
@@ -30,7 +24,7 @@ struct FoodCheckInView: View {
         .background(Color(UIColor.systemGray6))
         .onAppear {
             // 仅当刚完成打卡时才显示动画（通过检查应用状态中的标记来判断）
-            if appState.justCompletedWorkout, let latestRecord = viewModel.getSortedRecords().first {
+            if appState.justCompletedWorkout, let latestRecord = viewModel.getSortedAllRecords().first {
                 // 将新记录ID存入状态变量
                 newRecordId = "\(latestRecord.id)"
                 
@@ -55,52 +49,13 @@ struct FoodCheckInView: View {
     // 美食记录卡片
     private var foodRecordCard: some View {
         VStack(spacing: 24) {
-            // 标题和时间选择器
+            // 标题
             VStack(spacing: 8) {
                 HStack {
                     Text("美食记录")
                         .font(.system(size: 22, weight: .semibold))
                     
                     Spacer()
-                }
-                
-                // 年月选择器和切换按钮
-                HStack {
-                    // 显示当前年份或月份
-                    Text(foodRecordViewType == .year ? viewModel.currentYearName : viewModel.currentMonthName)
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(.black)
-                    
-                    Spacer()
-                    
-                    // 年月切换分段控件
-                    HStack(spacing: 2) {
-                        Button(action: {
-                            foodRecordViewType = .month
-                        }) {
-                            Text("月")
-                                .font(.system(size: 14))
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 6)
-                                .background(foodRecordViewType == .month ? Color.orange : Color.gray.opacity(0.2))
-                                .foregroundColor(foodRecordViewType == .month ? .white : .black)
-                                .cornerRadius(8)
-                        }
-                        
-                        Button(action: {
-                            foodRecordViewType = .year
-                        }) {
-                            Text("年")
-                                .font(.system(size: 14))
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 6)
-                                .background(foodRecordViewType == .year ? Color.orange : Color.gray.opacity(0.2))
-                                .foregroundColor(foodRecordViewType == .year ? .white : .black)
-                                .cornerRadius(8)
-                        }
-                    }
-                    .background(Color.gray.opacity(0.1))
-                    .cornerRadius(8)
                 }
             }
             
@@ -123,9 +78,7 @@ struct FoodCheckInView: View {
             // 美食排行榜水平布局
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 24) {
-                    if let topDesserts = foodRecordViewType == .year ? 
-                        viewModel.getYearlyTopDesserts(count: 4) : 
-                        viewModel.getMonthlyTopDesserts(count: 4) {
+                    if let topDesserts = viewModel.getAllTopDesserts(count: 4) {
                             
                         ForEach(Array(topDesserts.enumerated()), id: \.element.id) { index, dessert in
                             VStack(spacing: 8) {
@@ -181,7 +134,7 @@ struct FoodCheckInView: View {
                 .frame(width: 24, height: 24)
             
             HStack(alignment: .firstTextBaseline, spacing: 2) {
-                Text("\(foodRecordViewType == .year ? viewModel.yearlyFoodCheckInCount : viewModel.monthlyFoodCheckInCount)")
+                Text("\(viewModel.totalFoodCheckInCount)")
                     .font(.system(size: 20, weight: .semibold))
                     .minimumScaleFactor(0.8)
                     .lineLimit(1)
@@ -209,7 +162,7 @@ struct FoodCheckInView: View {
                 .frame(width: 24, height: 24)
             
             HStack(alignment: .firstTextBaseline, spacing: 2) {
-                Text("\(foodRecordViewType == .year ? viewModel.yearlyUniqueDessertTypes : viewModel.monthlyUniqueDessertTypes)")
+                Text("\(viewModel.allUniqueDessertTypes)")
                     .font(.system(size: 20, weight: .semibold))
                     .minimumScaleFactor(0.8)
                     .lineLimit(1)
@@ -238,48 +191,19 @@ struct FoodCheckInView: View {
             }
             .padding(.top, 8)
             
-            // 打卡记录列表
-            if foodRecordViewType == .year {
-                foodRecordsForYear
-            } else {
-                foodRecordsForMonth
-            }
+            // 所有打卡记录
+            allFoodRecords
         }
     }
     
-    // 月度美食打卡记录
-    private var foodRecordsForMonth: some View {
+    // 所有美食打卡记录
+    private var allFoodRecords: some View {
         VStack(spacing: 16) {
-            if viewModel.filteredWorkoutRecords.isEmpty {
+            if appState.workoutRecords.isEmpty {
                 emptyRecordsView
             } else {
-                // 获取按时间倒序排列的记录
-                let sortedRecords = viewModel.getSortedRecords()
-                
-                ForEach(Array(sortedRecords.enumerated()), id: \.element.id) { index, record in
-                    // 检查是否是新记录
-                    let isNewRecord = newRecordId == "\(record.id)" && index == 0
-                    
-                    if isNewRecord && showNewRecordAnimation {
-                        // 为新记录显示动画效果，只有从顶部出现的动画
-                        FoodRecordCard(record: record)
-                            .transition(.move(edge: .top).combined(with: .opacity))
-                    } else {
-                        FoodRecordCard(record: record)
-                    }
-                }
-            }
-        }
-    }
-    
-    // 年度美食打卡记录
-    private var foodRecordsForYear: some View {
-        VStack(spacing: 16) {
-            if viewModel.yearlyFilteredWorkoutRecords.isEmpty {
-                emptyRecordsView
-            } else {
-                // 获取按时间倒序排列的年度记录
-                let sortedRecords = viewModel.getSortedYearlyRecords()
+                // 获取按时间倒序排列的所有记录
+                let sortedRecords = viewModel.getSortedAllRecords()
                 
                 ForEach(Array(sortedRecords.enumerated()), id: \.element.id) { index, record in
                     // 检查是否是新记录

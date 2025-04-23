@@ -3,7 +3,7 @@ import SwiftUI
 /// 月视图日历组件
 struct MonthCalendarView: View {
     @ObservedObject var viewModel: StatsViewModel
-    @State private var selectedMonth: Date = Date()
+    @State private var selectedMonth: Date
     
     // 颜色定义
     private let pinkColor = Color(hex: "FE2D55") // 运动量super！颜色
@@ -13,34 +13,42 @@ struct MonthCalendarView: View {
     // 一周的天数
     private let daysOfWeek = ["日", "一", "二", "三", "四", "五", "六"]
     
+    // 初始化方法
+    init(viewModel: StatsViewModel) {
+        self.viewModel = viewModel
+        self._selectedMonth = State(initialValue: viewModel.selectedMonth)
+    }
+    
     var body: some View {
         VStack(spacing: 16) {
             // 月份切换
             HStack(alignment: .center) {
-                Button(action: {
-                    viewModel.goToPreviousMonth()
-                    selectedMonth = viewModel.selectedMonth
-                }) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 20))
-                        .foregroundColor(.gray)
+                Spacer()
+                
+                HStack(spacing: 4) {
+                    Button(action: {
+                        viewModel.goToPreviousMonth()
+                        selectedMonth = viewModel.selectedMonth
+                    }) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 20))
+                            .foregroundColor(.gray)
+                    }
+                    
+                    Text(monthYearString(from: selectedMonth))
+                        .font(.system(size: 16, weight: .medium))
+                    
+                    Button(action: {
+                        viewModel.goToNextMonth()
+                        selectedMonth = viewModel.selectedMonth
+                    }) {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 20))
+                            .foregroundColor(.gray)
+                    }
                 }
                 
                 Spacer()
-                
-                Text(monthYearString(from: selectedMonth))
-                    .font(.system(size: 20, weight: .medium))
-                
-                Spacer()
-                
-                Button(action: {
-                    viewModel.goToNextMonth()
-                    selectedMonth = viewModel.selectedMonth
-                }) {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 20))
-                        .foregroundColor(.gray)
-                }
             }
             .padding(.horizontal, 20)
             .padding(.top, 12)

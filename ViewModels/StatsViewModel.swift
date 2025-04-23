@@ -48,6 +48,9 @@ class StatsViewModel: ObservableObject {
     @Published var weeklyConsumedCalories: Double = 0
     @Published var weeklyBurnedCalories: Double = 0
     
+    // MARK: - 选择的日期
+    @Published var selectedDay: Date = Date()
+    
     // MARK: - 初始化方法
     
     /// 初始化
@@ -114,6 +117,11 @@ class StatsViewModel: ObservableObject {
         return Set(yearlyFilteredWorkoutRecords.map { $0.dessert.id }).count
     }
     
+    /// 所有美食种类数量
+    var allUniqueDessertTypes: Int {
+        return Set(appState.workoutRecords.map { $0.dessert.id }).count
+    }
+    
     /// 当前月份名称（中文）
     var currentMonthName: String {
         let formatter = DateFormatter()
@@ -133,14 +141,36 @@ class StatsViewModel: ObservableObject {
         filteredWorkoutRecords.reduce(0) { $0 + $1.duration }
     }
     
+    /// 当年的总运动时长（分钟）
+    var totalDurationThisYear: Double {
+        yearlyFilteredWorkoutRecords.reduce(0) { $0 + $1.duration }
+    }
+    
     /// 当月的总消耗卡路里
     var totalCaloriesThisMonth: Double {
         filteredWorkoutRecords.reduce(0) { $0 + $1.caloriesBurned }
     }
     
+    /// 当年的总消耗卡路里
+    var totalCaloriesThisYear: Double {
+        yearlyFilteredWorkoutRecords.reduce(0) { $0 + $1.caloriesBurned }
+    }
+    
     /// 当月的运动次数
     var workoutCountThisMonth: Int {
         filteredWorkoutRecords.count
+    }
+    
+    /// 当年的运动次数
+    var workoutCountThisYear: Int {
+        yearlyFilteredWorkoutRecords.count
+    }
+    
+    /// 当年的总运动距离（米）
+    var totalDistanceThisYear: Double {
+        yearlyFilteredWorkoutRecords.reduce(0.0) { total, record in
+            total + (record.distance ?? 0)
+        }
     }
     
     // MARK: - 方法
@@ -346,6 +376,19 @@ class StatsViewModel: ObservableObject {
         }
     }
     
+    /// 获取按时间倒序排列的所有记录
+    func getSortedAllRecords() -> [WorkoutRecord] {
+        return appState.workoutRecords.sorted { record1, record2 in
+            // 比较时间戳，精确到秒级的倒序排列（最新的记录在前）
+            return record1.completionDate.timeIntervalSince1970 > record2.completionDate.timeIntervalSince1970
+        }
+    }
+    
+    /// 获取所有美食排行榜
+    func getAllTopDesserts(count: Int) -> [TopDessertItem]? {
+        return getTopDessertsFromRecords(records: appState.workoutRecords, count: count)
+    }
+    
     // MARK: - 私有方法
     
     /// 加载模拟数据
@@ -501,5 +544,18 @@ class StatsViewModel: ObservableObject {
         }
         
         weeklyDeficitDays = weeklyDeficitDatesSet.count
+    }
+    
+    // MARK: - 年份选择
+    func incrementYear() {
+        selectedYear = Calendar.current.date(byAdding: .year, value: 1, to: selectedYear) ?? selectedYear
+    }
+    
+    func decrementYear() {
+        selectedYear = Calendar.current.date(byAdding: .year, value: -1, to: selectedYear) ?? selectedYear
+    }
+    
+    func resetYear() {
+        selectedYear = Date()
     }
 } 
