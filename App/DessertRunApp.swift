@@ -22,6 +22,9 @@ struct DessertRunApp: App {
     /// 场景管理
     @Environment(\.scenePhase) private var scenePhase
     
+    /// 登录模态显示控制
+    @State private var showLoginView = false
+    
     init() {
         // 强制屏幕旋转为竖屏
         AppDelegate.lockOrientation(.portrait)
@@ -29,15 +32,27 @@ struct DessertRunApp: App {
     
     var body: some Scene {
         WindowGroup {
-            MainTabView()
-                .environmentObject(appState)
-                // 移除整个应用的背景色设置
-                // 强制竖屏显示
-                .onAppear {
-                    AppDelegate.lockOrientation(.portrait)
-                }
+            ZStack {
+                MainTabView()
+                    .environmentObject(appState)
+                    // 强制竖屏显示
+                    .onAppear {
+                        AppDelegate.lockOrientation(.portrait)
+                        
+                        // 如果未登录，显示登录视图
+                        if !appState.isLoggedIn {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                showLoginView = true
+                            }
+                        }
+                    }
+            }
+            .fullScreenCover(isPresented: $showLoginView) {
+                LoginView()
+                    .environmentObject(appState)
+            }
         }
-        .onChange(of: scenePhase) { newPhase in
+        .onChange(of: scenePhase) { (oldPhase, newPhase) in
             handleScenePhaseChange(newPhase)
         }
     }

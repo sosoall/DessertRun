@@ -110,12 +110,32 @@ struct ProfileHomeView: View {
                     Text(appState.userProfile.name)
                         .font(.title2)
                         .fontWeight(.bold)
-                    Text("甜品爱好者")
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
-                    Text("已连续运动3天")
-                        .font(.caption)
-                        .foregroundColor(Color(hex: "FE2D55"))
+                    
+                    // 显示性别和运动习惯
+                    HStack(spacing: 8) {
+                        Text(appState.userProfile.gender.rawValue)
+                            .font(.caption)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
+                            .background(Color(hex: "FE2D55").opacity(0.8))
+                            .cornerRadius(10)
+                        
+                        Text(appState.userProfile.exerciseLevel.rawValue)
+                            .font(.caption)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
+                            .background(Color(hex: "FF9901").opacity(0.8))
+                            .cornerRadius(10)
+                    }
+                    
+                    // 身高体重信息
+                    if let height = appState.userProfile.height, let weight = appState.userProfile.weight {
+                        Text("\(Int(height))cm / \(String(format: "%.1f", weight))kg")
+                            .font(.caption)
+                            .foregroundColor(Color(hex: "666666"))
+                    }
                 } else {
                     Text("未登录")
                         .font(.title2)
@@ -130,13 +150,15 @@ struct ProfileHomeView: View {
             
             // 编辑按钮
             if appState.isLoggedIn {
-                Image(systemName: "pencil")
-                    .font(.title3)
-                    .foregroundColor(Color(hex: "FE2D55"))
-                    .frame(width: 40, height: 40)
-                    .background(Color.white)
-                    .clipShape(Circle())
-                    .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+                NavigationLink(destination: ProfileEditView()) {
+                    Image(systemName: "pencil")
+                        .font(.title3)
+                        .foregroundColor(Color(hex: "FE2D55"))
+                        .frame(width: 40, height: 40)
+                        .background(Color.white)
+                        .clipShape(Circle())
+                        .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+                }
             }
         }
         .padding()
@@ -218,24 +240,27 @@ struct ProfileHomeView: View {
             
             VStack(spacing: 0) {
                 ForEach(0..<settingItems.count, id: \.self) { index in
-                    HStack {
-                        // 图标
-                        Image(systemName: settingItems[index].icon)
-                            .foregroundColor(settingItems[index].color)
-                            .frame(width: 30, height: 30)
-                        
-                        // 标题
-                        Text(settingItems[index].title)
-                            .font(.body)
-                        
-                        Spacer()
-                        
-                        // 箭头
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.gray)
+                    NavigationLink(destination: getSettingsDestination(for: index)) {
+                        HStack {
+                            // 图标
+                            Image(systemName: settingItems[index].icon)
+                                .foregroundColor(settingItems[index].color)
+                                .frame(width: 30, height: 30)
+                            
+                            // 标题
+                            Text(settingItems[index].title)
+                                .font(.body)
+                                .foregroundColor(Color(hex: "333333"))
+                            
+                            Spacer()
+                            
+                            // 箭头
+                            Image(systemName: "chevron.right")
+                                .foregroundColor(.gray)
+                        }
+                        .padding()
+                        .background(Color.white)
                     }
-                    .padding()
-                    .background(Color.white)
                     
                     if index < settingItems.count - 1 {
                         Divider()
@@ -247,6 +272,36 @@ struct ProfileHomeView: View {
             .cornerRadius(16)
             .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
             .padding(.horizontal)
+        }
+    }
+    
+    // 根据索引获取对应的设置目标页面
+    @ViewBuilder
+    private func getSettingsDestination(for index: Int) -> some View {
+        switch index {
+        case 0: // 通知设置
+            Text("通知设置页面")
+                .navigationTitle("通知设置")
+        case 1: // 健康数据授权
+            Text("健康数据授权页面")
+                .navigationTitle("健康数据授权")
+        case 2: // 位置服务
+            Text("位置服务页面")
+                .navigationTitle("位置服务")
+        case 3: // 数据同步
+            Text("数据同步页面")
+                .navigationTitle("数据同步")
+        case 4: // 应用设置
+            Text("应用设置页面")
+                .navigationTitle("应用设置")
+        case 5: // 帮助与反馈
+            Text("帮助与反馈页面")
+                .navigationTitle("帮助与反馈")
+        case 6: // 关于我们
+            AboutView()
+                .navigationTitle("关于我们")
+        default:
+            EmptyView()
         }
     }
 }

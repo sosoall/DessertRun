@@ -72,6 +72,107 @@ class AppState: ObservableObject {
         // 不自动加载示例数据，由StatsViewModel负责加载
     }
     
+    // MARK: - 用户认证方法
+    
+    /// 模拟一键登录/注册
+    func quickLogin(phoneNumber: String, completion: @escaping (Bool) -> Void) {
+        // 模拟网络延迟
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            // 检查是否为首次登录 - 使用真实存储模拟
+            // 在实际应用中，这里应该调用服务器API检查用户是否存在
+            let isFirstLogin = !UserDefaults.standard.bool(forKey: "hasCompletedUserSetup")
+            
+            // 创建新的用户资料或更新现有资料
+            if isFirstLogin {
+                // 创建新用户（首次登录）
+                let userId = UUID().uuidString
+                self.userProfile = UserProfile(
+                    id: userId,
+                    name: "新用户\(Int.random(in: 1000...9999))",
+                    avatarName: "person.fill"
+                )
+                self.userProfile.phoneNumber = phoneNumber
+                
+                // 记录此次登录的电话号码
+                UserDefaults.standard.set(phoneNumber, forKey: "lastLoginPhone")
+            } else {
+                // 更新现有用户（非首次登录）
+                self.userProfile.phoneNumber = phoneNumber
+                
+                // 可能的话，从UserDefaults中加载一些基本信息
+                if let name = UserDefaults.standard.string(forKey: "userName") {
+                    self.userProfile.name = name
+                }
+                
+                // 如果有保存的性别数据，恢复它
+                if let genderRawValue = UserDefaults.standard.string(forKey: "userGender"),
+                   let gender = Gender.allCases.first(where: { $0.rawValue == genderRawValue }) {
+                    self.userProfile.gender = gender
+                }
+                
+                // 如果有保存的身高和体重数据，恢复它们
+                self.userProfile.height = UserDefaults.standard.double(forKey: "userHeight")
+                self.userProfile.weight = UserDefaults.standard.double(forKey: "userWeight")
+                
+                // 如果有保存的运动习惯数据，恢复它
+                if let levelRawValue = UserDefaults.standard.string(forKey: "userExerciseLevel"),
+                   let level = ExerciseLevel.allCases.first(where: { $0.rawValue == levelRawValue }) {
+                    self.userProfile.exerciseLevel = level
+                }
+            }
+            
+            // 更新登录状态
+            self.isLoggedIn = true
+            
+            // 返回结果，首次登录需要收集用户信息
+            completion(isFirstLogin)
+            
+            // 提供反馈
+            print("【调试】用户登录状态：\(isFirstLogin ? "首次登录" : "非首次登录")")
+        }
+    }
+    
+    /// 注销登录
+    func logout() {
+        // 清除用户登录状态
+        isLoggedIn = false
+        
+        // 在真实应用中，这里应该清除令牌和敏感信息
+    }
+    
+    /// 更新用户信息
+    func updateUserProfile(name: String? = nil, gender: Gender? = nil, height: Double? = nil, 
+                         weight: Double? = nil, exerciseLevel: ExerciseLevel? = nil) {
+        // 更新非空字段
+        if let name = name { 
+            userProfile.name = name 
+            UserDefaults.standard.set(name, forKey: "userName")
+        }
+        
+        if let gender = gender { 
+            userProfile.gender = gender 
+            UserDefaults.standard.set(gender.rawValue, forKey: "userGender")
+        }
+        
+        if let height = height { 
+            userProfile.height = height 
+            UserDefaults.standard.set(height, forKey: "userHeight")
+        }
+        
+        if let weight = weight { 
+            userProfile.weight = weight 
+            UserDefaults.standard.set(weight, forKey: "userWeight")
+        }
+        
+        if let exerciseLevel = exerciseLevel { 
+            userProfile.exerciseLevel = exerciseLevel 
+            UserDefaults.standard.set(exerciseLevel.rawValue, forKey: "userExerciseLevel")
+        }
+        
+        // 在真实应用中，这里应该同步到后端服务器
+        print("【调试】用户资料已更新: \(userProfile.name)")
+    }
+    
     // MARK: - 状态重置
     
     /// 重置运动状态
@@ -118,10 +219,37 @@ enum AppScreen {
 }
 
 /// 用户资料结构
-struct UserProfile {
+struct UserProfile: Codable {
     var id: String
     var name: String
     var avatarName: String
+    var phoneNumber: String?
+    var gender: Gender
+    var height: Double?  // 厘米
+    var weight: Double?  // 公斤
+    var exerciseLevel: ExerciseLevel
+    var registerDate: Date
+    
+    init(id: String, name: String, avatarName: String) {
+        self.id = id
+        self.name = name
+        self.avatarName = avatarName
+        self.gender = .other
+        self.exerciseLevel = .beginner
+        self.registerDate = Date()
+    }
+}
+
+enum Gender: String, Codable, CaseIterable {
+    case male = "男"
+    case female = "女"
+    case other = "不愿透露"
+}
+
+enum ExerciseLevel: String, Codable, CaseIterable {
+    case beginner = "初学者"
+    case intermediate = "有经验"
+    case advanced = "专业人士"
 }
 
 // MARK: - 以下是被移除的功能，保留注释以便未来恢复
