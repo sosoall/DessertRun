@@ -35,75 +35,55 @@ struct TopDessertItem: Identifiable {
     }
 }
 
-/// 主统计页面 - 包含甜品打卡和运动记录两个标签页
+/// 统计视图，包含食物统计和运动记录
 struct StatsView: View {
-    @ObservedObject var viewModel: StatsViewModel
-    @State private var selectedTab = 0
+    @EnvironmentObject var appState: AppState
+    @StateObject private var viewModel: StatsViewModel
+    
+    init() {
+        // 注意：StatsViewModel不使用@StateObject初始化的原因是需要传入AppState
+        // 我们在body中访问AppState，所以需要先对ViewModel进行初始化
+        self._viewModel = StateObject(wrappedValue: StatsViewModel(appState: AppState.shared))
+    }
     
     var body: some View {
         VStack(spacing: 0) {
-            // 顶部标签选择器
-            HStack(spacing: 0) {
-                // 甜品打卡标签
-                Button(action: {
-                    withAnimation {
-                        selectedTab = 0
-                    }
-                }) {
-                    Text("甜品打卡")
-                        .font(.system(size: 16, weight: selectedTab == 0 ? .bold : .medium))
-                        .foregroundColor(selectedTab == 0 ? .black : .gray)
-                        .padding(.vertical, 12)
-                        .frame(maxWidth: .infinity)
-                }
-                .background(
-                    VStack {
-                        Spacer()
-                        Rectangle()
-                            .fill(selectedTab == 0 ? Color.orange : Color.clear)
-                            .frame(height: 3)
-                    }
-                )
-                
-                // 运动记录标签
-                Button(action: {
-                    withAnimation {
-                        selectedTab = 1
-                    }
-                }) {
-                    Text("运动记录")
-                        .font(.system(size: 16, weight: selectedTab == 1 ? .bold : .medium))
-                        .foregroundColor(selectedTab == 1 ? .black : .gray)
-                        .padding(.vertical, 12)
-                        .frame(maxWidth: .infinity)
-                }
-                .background(
-                    VStack {
-                        Spacer()
-                        Rectangle()
-                            .fill(selectedTab == 1 ? Color.orange : Color.clear)
-                            .frame(height: 3)
-                    }
-                )
+            // 页面标题栏 - 运动记录/美食统计切换
+            VStack {
+                // 这里保留为将来可能添加的标题栏内容
             }
-            .background(Color.white)
+            .frame(height: 0) // 暂时不显示额外的标题栏
             
-            // 标签页内容
-            TabView(selection: $selectedTab) {
-                // 甜品打卡标签页
-                FoodCheckInView(viewModel: viewModel)
-                    .tag(0)
-                
+            // 标签页视图
+            TabView {
                 // 运动记录标签页
                 ExerciseRecordView(viewModel: viewModel)
+                    .tabItem {
+                        Image(systemName: "figure.walk")
+                        Text("运动记录")
+                    }
+                    .tag(0)
+                
+                // 美食记录标签页
+                FoodCheckInView(viewModel: viewModel)
+                    .tabItem {
+                        Image(systemName: "fork.knife")
+                        Text("美食记录")
+                    }
                     .tag(1)
             }
-            .tabViewStyle(.page(indexDisplayMode: .never))
+            .accentColor(Color(hex: "FE2D55"))
         }
-        .edgesIgnoringSafeArea(.bottom)
+        .background(Color(UIColor.systemGray6))
+        .onAppear {
+            // 初始化操作（如有必要）
+        }
     }
 }
 
-#Preview {
-    StatsView(viewModel: StatsViewModel(appState: AppState.shared))
+struct StatsView_Previews: PreviewProvider {
+    static var previews: some View {
+        StatsView()
+            .environmentObject(AppState.shared)
+    }
 } 

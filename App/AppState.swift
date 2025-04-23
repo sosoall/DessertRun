@@ -69,8 +69,7 @@ class AppState: ObservableObject {
     
     /// 初始化
     private init() {
-        // 加载示例运动记录数据
-        loadSampleWorkoutRecords()
+        // 不自动加载示例数据，由StatsViewModel负责加载
     }
     
     // MARK: - 状态重置
@@ -108,19 +107,6 @@ class AppState: ObservableObject {
             // 导航到个人资料页面
             selectedTabIndex = 2
         }
-    }
-    
-    /// 加载示例运动记录数据
-    private func loadSampleWorkoutRecords() {
-        // 创建一些示例运动记录
-        var sampleRecords: [WorkoutRecord] = []
-        
-        // 添加10条示例记录
-        for _ in 1...10 {
-            sampleRecords.append(WorkoutRecord.createSample())
-        }
-        
-        workoutRecords.append(contentsOf: sampleRecords)
     }
 }
 

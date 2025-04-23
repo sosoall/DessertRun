@@ -6,10 +6,22 @@ class StatsViewModel: ObservableObject {
     // MARK: - 发布属性
     
     /// 当前选定的月份
-    @Published var selectedMonth: Date = Date()
+    @Published var selectedMonth: Date = {
+        var components = DateComponents()
+        components.year = 2025
+        components.month = 4
+        components.day = 1
+        return Calendar.current.date(from: components) ?? Date()
+    }()
     
     /// 当前选定的年份
-    @Published var selectedYear: Date = Date()
+    @Published var selectedYear: Date = {
+        var components = DateComponents()
+        components.year = 2025
+        components.month = 1
+        components.day = 1
+        return Calendar.current.date(from: components) ?? Date()
+    }()
     
     /// 筛选后的运动记录（月视图）
     @Published var filteredWorkoutRecords: [WorkoutRecord] = []
@@ -175,17 +187,18 @@ class StatsViewModel: ObservableObject {
     /// 根据月份筛选记录
     private func filterRecordsByMonth() {
         let calendar = Calendar.current
-        let components = calendar.dateComponents([.year, .month], from: selectedMonth)
         
-        guard let startOfMonth = calendar.date(from: components),
-              let startOfNextMonth = calendar.date(byAdding: .month, value: 1, to: startOfMonth) else {
-            filteredWorkoutRecords = []
-            return
-        }
+        // 获取选中月份的年月组件
+        let monthComponents = calendar.dateComponents([.year, .month], from: selectedMonth)
         
         // 筛选本月记录
         filteredWorkoutRecords = appState.workoutRecords.filter { record in
-            return record.completionDate >= startOfMonth && record.completionDate < startOfNextMonth
+            // 获取记录的年月组件
+            let recordComponents = calendar.dateComponents([.year, .month], from: record.completionDate)
+            
+            // 比较年月是否相同
+            return recordComponents.year == monthComponents.year &&
+                   recordComponents.month == monthComponents.month
         }
         
         // 计算统计数据
@@ -195,16 +208,17 @@ class StatsViewModel: ObservableObject {
     /// 根据年份筛选记录
     private func filterRecordsByYear() {
         let calendar = Calendar.current
+        
+        // 获取选中年份的年组件
         let yearComponents = calendar.dateComponents([.year], from: selectedYear)
-        guard let startOfYear = calendar.date(from: yearComponents),
-              let startOfNextYear = calendar.date(byAdding: .year, value: 1, to: startOfYear) else {
-            yearlyFilteredWorkoutRecords = []
-            return
-        }
         
         // 筛选本年记录
         yearlyFilteredWorkoutRecords = appState.workoutRecords.filter { record in
-            return record.completionDate >= startOfYear && record.completionDate < startOfNextYear
+            // 获取记录的年组件
+            let recordComponents = calendar.dateComponents([.year], from: record.completionDate)
+            
+            // 比较年是否相同
+            return recordComponents.year == yearComponents.year
         }
     }
     
@@ -285,8 +299,18 @@ class StatsViewModel: ObservableObject {
     /// 根据日期获取该日的记录
     func getRecordsForDate(_ date: Date) -> [WorkoutRecord] {
         let calendar = Calendar.current
-        return filteredWorkoutRecords.filter { record in
-            calendar.isDate(record.completionDate, inSameDayAs: date)
+        
+        // 获取日期的年、月、日组件
+        let dateComponents = calendar.dateComponents([.year, .month, .day], from: date)
+        
+        return appState.workoutRecords.filter { record in
+            // 获取记录日期的年、月、日组件
+            let recordComponents = calendar.dateComponents([.year, .month, .day], from: record.completionDate)
+            
+            // 比较年、月、日是否相同
+            return dateComponents.year == recordComponents.year &&
+                   dateComponents.month == recordComponents.month &&
+                   dateComponents.day == recordComponents.day
         }
     }
     
@@ -334,102 +358,63 @@ class StatsViewModel: ObservableObject {
         }
         
         let calendar = Calendar.current
-        let today = Date()
         
-        // 生成过去30天的随机记录
-        var mockRecords: [WorkoutRecord] = []
-        let desserts = DessertData.getSampleDesserts()
-        let exerciseTypes = ExerciseType.allCases
+        // 创建固定日期 - 2025年3月和4月的特定日期
+        var targetDates: [Date] = []
         
-        // 日期有一定规律，部分日期有多个记录
-        // 为每周选择5天记录 (更丰富的数据)
-        for dayOffset in (1...30).reversed() {
-            if dayOffset % 7 == 0 || dayOffset % 7 == 6 { // 周六日概率低一些
-                if Int.random(in: 0...2) > 0 { continue }
-            }
-            
-            let recordDate = calendar.date(byAdding: .day, value: -dayOffset, to: today)!
-            
-            // 每天1-3条记录
-            let recordsCount = Int.random(in: 1...3)
-            
-            for _ in 0..<recordsCount {
-                // 随机选择甜品和运动
-                let dessert = desserts.randomElement()!
-                let exerciseType = exerciseTypes.randomElement()!
-                
-                // 运动时长 20-60分钟
-                let duration = Double.random(in: 20...60)
-                
-                // 消耗的卡路里
-                // 有70%概率达成目标
-                let targetCalories = Double(dessert.calories) ?? 300
-                let caloriesBurned = Double.random(in: 0...1) < 0.7 ?
-                    targetCalories * Double.random(in: 1.0...1.5) : // 达成目标
-                    targetCalories * Double.random(in: 0.5...0.95)  // 未达成目标
-                
-                // 创建记录
-                let record = WorkoutRecord(
-                    dessert: dessert,
-                    exerciseType: exerciseType,
-                    completionDate: recordDate,
-                    duration: duration,
-                    caloriesBurned: caloriesBurned
-                )
-                
-                mockRecords.append(record)
+        // 指定2025年3月的日期
+        for day in [5, 9, 15, 22, 28] {
+            var components = DateComponents()
+            components.year = 2025
+            components.month = 3
+            components.day = day
+            if let date = calendar.date(from: components) {
+                targetDates.append(date)
             }
         }
         
-        // 添加今天的记录
-        let todayRecordsCount = Int.random(in: 1...2)
-        for _ in 0..<todayRecordsCount {
-            let dessert = desserts.randomElement()!
-            let exerciseType = exerciseTypes.randomElement()!
-            let duration = Double.random(in: 20...60)
-            let targetCalories = Double(dessert.calories) ?? 300
-            let caloriesBurned = targetCalories * Double.random(in: 1.0...1.3) // 今天都达成目标
+        // 指定2025年4月的日期
+        for day in [3, 8, 12, 18, 24] {
+            var components = DateComponents()
+            components.year = 2025
+            components.month = 4
+            components.day = day
+            if let date = calendar.date(from: components) {
+                targetDates.append(date)
+            }
+        }
+        
+        // 获取样本甜品和运动类型
+        let desserts = DessertData.getSampleDesserts()
+        let exerciseTypes = ExerciseType.allCases
+        
+        // 创建10天的模拟数据，每天使用不同的甜品和运动类型
+        var mockRecords: [WorkoutRecord] = []
+        
+        for (index, date) in targetDates.enumerated() {
+            // 每天使用不同的甜品和运动类型
+            let dessert = desserts[index % desserts.count]
+            let exerciseType = exerciseTypes[index % exerciseTypes.count]
             
+            // 运动时长 20-60分钟
+            let duration = Double(30 + index * 3) // 递增时长
+            
+            // 消耗的卡路里
+            let targetCalories = Double(dessert.calories) ?? 300
+            let caloriesBurned = index % 3 == 0 ?
+                targetCalories * 0.8 : // 未达成目标
+                targetCalories * 1.2   // 达成目标
+            
+            // 创建记录
             let record = WorkoutRecord(
                 dessert: dessert,
                 exerciseType: exerciseType,
-                completionDate: today,
+                completionDate: date,
                 duration: duration,
                 caloriesBurned: caloriesBurned
             )
             
             mockRecords.append(record)
-        }
-        
-        // 额外添加去年的记录（为了有年度数据）
-        for monthOffset in (1...12).reversed() {
-            let pastDate = calendar.date(byAdding: .month, value: -monthOffset, to: today)!
-            
-            // 每个月添加几条记录
-            let recordsCount = Int.random(in: 3...8)
-            
-            for _ in 0..<recordsCount {
-                // 随机调整日期在当月范围内
-                let dayOffset = Int.random(in: 1...28)
-                let recordDate = calendar.date(bySetting: .day, value: dayOffset, of: pastDate)!
-                
-                // 随机选择甜品和运动
-                let dessert = desserts.randomElement()!
-                let exerciseType = exerciseTypes.randomElement()!
-                let duration = Double.random(in: 20...60)
-                let targetCalories = Double(dessert.calories) ?? 300
-                let caloriesBurned = targetCalories * Double.random(in: 0.8...1.3)
-                
-                let record = WorkoutRecord(
-                    dessert: dessert,
-                    exerciseType: exerciseType,
-                    completionDate: recordDate,
-                    duration: duration,
-                    caloriesBurned: caloriesBurned
-                )
-                
-                mockRecords.append(record)
-            }
         }
         
         // 保存模拟数据
@@ -451,23 +436,30 @@ class StatsViewModel: ObservableObject {
         
         // 计算月度减脂成功天数（每天消耗热量大于等于摄入热量）
         var deficitDaysSet = Set<DateComponents>()
-        for record in filteredWorkoutRecords {
-            let dateComponents = calendar.dateComponents([.year, .month, .day], from: record.completionDate)
-            
-            // 获取当天所有记录
-            let sameDay = filteredWorkoutRecords.filter {
-                calendar.isDate($0.completionDate, inSameDayAs: record.completionDate)
-            }
-            
-            // 计算当天热量差
-            let dayBurned = sameDay.reduce(0) { $0 + $1.caloriesBurned }
-            let dayConsumed = sameDay.reduce(0) { $0 + (Double($1.dessert.calories) ?? 0) }
-            
-            // 如果消耗大于等于摄入，认为当天减脂成功
-            if dayBurned >= dayConsumed {
-                deficitDaysSet.insert(dateComponents)
+        
+        // 获取月内所有不同的日期
+        let daysInMonth = Set(filteredWorkoutRecords.map { 
+            calendar.dateComponents([.year, .month, .day], from: $0.completionDate) 
+        })
+        
+        // 对每个不同的日期进行处理
+        for dayComponents in daysInMonth {
+            // 如果能生成日期对象
+            if let dayDate = calendar.date(from: dayComponents) {
+                // 获取当天所有记录
+                let dayRecords = getRecordsForDate(dayDate)
+                
+                // 计算当天热量差
+                let dayBurned = dayRecords.reduce(0.0) { $0 + $1.caloriesBurned }
+                let dayConsumed = dayRecords.reduce(0.0) { $0 + (Double($1.dessert.calories) ?? 0) }
+                
+                // 如果消耗大于等于摄入，认为当天减脂成功
+                if dayBurned >= dayConsumed && dayConsumed > 0 {
+                    deficitDaysSet.insert(dayComponents)
+                }
             }
         }
+        
         monthlyDeficitDays = deficitDaysSet.count
         
         // 周度统计 - 获取本周日期范围
@@ -478,36 +470,36 @@ class StatsViewModel: ObservableObject {
         }
         
         // 筛选本周记录
-        let weeklyRecords = filteredWorkoutRecords.filter { record in
-            guard let endOfWeek = calendar.date(byAdding: .day, value: 7, to: startOfWeek) else {
-                return false
-            }
-            return record.completionDate >= startOfWeek && record.completionDate < endOfWeek
+        let weekRecords = appState.workoutRecords.filter { record in
+            record.completionDate >= startOfWeek && record.completionDate < Date()
         }
         
-        // 计算周度消耗和摄入
-        weeklyConsumedCalories = weeklyRecords.reduce(0) { $0 + (Double($1.dessert.calories) ?? 0) }
-        weeklyBurnedCalories = weeklyRecords.reduce(0) { $0 + $1.caloriesBurned }
+        // 周度消耗和摄入
+        weeklyConsumedCalories = weekRecords.reduce(0) { $0 + (Double($1.dessert.calories) ?? 0) }
+        weeklyBurnedCalories = weekRecords.reduce(0) { $0 + $1.caloriesBurned }
         
-        // 计算周度减脂成功天数
-        var weeklyDeficitDaysSet = Set<DateComponents>()
-        for record in weeklyRecords {
-            let dateComponents = calendar.dateComponents([.year, .month, .day], from: record.completionDate)
-            
-            // 获取当天所有记录
-            let sameDay = weeklyRecords.filter {
-                calendar.isDate($0.completionDate, inSameDayAs: record.completionDate)
-            }
-            
-            // 计算当天热量差
-            let dayBurned = sameDay.reduce(0) { $0 + $1.caloriesBurned }
-            let dayConsumed = sameDay.reduce(0) { $0 + (Double($1.dessert.calories) ?? 0) }
-            
-            // 如果消耗大于等于摄入，认为当天减脂成功
-            if dayBurned >= dayConsumed {
-                weeklyDeficitDaysSet.insert(dateComponents)
+        // 计算周度减脂天数
+        var weeklyDeficitDatesSet = Set<DateComponents>()
+        
+        // 获取周内所有不同的日期
+        let daysInWeek = Set(weekRecords.map { 
+            calendar.dateComponents([.year, .month, .day], from: $0.completionDate) 
+        })
+        
+        // 对每个不同的日期进行处理
+        for dayComponents in daysInWeek {
+            if let dayDate = calendar.date(from: dayComponents) {
+                let dayRecords = getRecordsForDate(dayDate)
+                
+                let dayBurned = dayRecords.reduce(0.0) { $0 + $1.caloriesBurned }
+                let dayConsumed = dayRecords.reduce(0.0) { $0 + (Double($1.dessert.calories) ?? 0) }
+                
+                if dayBurned >= dayConsumed && dayConsumed > 0 {
+                    weeklyDeficitDatesSet.insert(dayComponents)
+                }
             }
         }
-        weeklyDeficitDays = weeklyDeficitDaysSet.count
+        
+        weeklyDeficitDays = weeklyDeficitDatesSet.count
     }
 } 
