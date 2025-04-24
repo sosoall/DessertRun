@@ -12,15 +12,29 @@ struct ProfileHomeView: View {
     // 全局应用状态
     @EnvironmentObject var appState: AppState
     
+    // 认证服务
+    @StateObject private var authService = AuthService.shared
+    
+    // 显示登录页的状态
+    @State private var showLoginView = false
+    
+    // 确认退出登录对话框状态
+    @State private var showLogoutConfirm = false
+    
     // 设置项列表
     private let settingItems: [(icon: String, title: String, color: Color)] = [
+        ("person.text.rectangle.fill", "账户安全设置", Color.blue),
+        ("lock.shield.fill", "隐私设置", Color.green),
         ("bell.fill", "通知设置", Color.orange),
-        ("heart.fill", "健康数据授权", Color.red),
-        ("location.fill", "位置服务", Color.blue),
-        ("cloud.fill", "数据同步", Color.purple),
-        ("gear", "应用设置", Color.gray),
-        ("questionmark.circle.fill", "帮助与反馈", Color.green),
-        ("info.circle.fill", "关于我们", Color.blue)
+        ("heart.fill", "健康数据集成", Color.red)
+    ]
+    
+    // 关于项列表
+    private let aboutItems: [(icon: String, title: String, color: Color)] = [
+        ("doc.text.fill", "隐私政策", Color.purple),
+        ("doc.plaintext.fill", "协议条款", Color.purple),
+        ("info.circle.fill", "关于DessertRun", Color.blue),
+        ("questionmark.circle.fill", "反馈与建议", Color.green)
     ]
     
     var body: some View {
@@ -29,25 +43,19 @@ struct ProfileHomeView: View {
                 // 用户资料卡片
                 userProfileCard
                 
-                // 分割线
-                Divider()
-                    .padding(.horizontal)
+                // 用户信息部分
+                userInfoSection
                 
-                // 运动成就
-                achievementSection
-                
-                // 分割线
-                Divider()
-                    .padding(.horizontal)
-                
-                // 设置列表
+                // 设置部分
                 settingsSection
                 
-                // 退出登录按钮
-                if appState.isLoggedIn {
+                // 关于部分
+                aboutSection
+                
+                // 退出登录或登录按钮
+                if authService.isLoggedIn {
                     Button(action: {
-                        // 退出登录逻辑
-                        appState.isLoggedIn = false
+                        showLogoutConfirm = true
                     }) {
                         Text("退出登录")
                             .font(.headline)
@@ -61,8 +69,7 @@ struct ProfileHomeView: View {
                     .padding(.top, 10)
                 } else {
                     Button(action: {
-                        // 登录逻辑
-                        appState.isLoggedIn = true
+                        showLoginView = true
                     }) {
                         Text("登录/注册")
                             .font(.headline)
@@ -76,6 +83,21 @@ struct ProfileHomeView: View {
                     .padding(.top, 10)
                 }
                 
+                // 开发测试功能
+                #if DEBUG
+                if authService.isLoggedIn {
+                    Button(action: {
+                        authService.clearTestUserData()
+                        appState.updateLoginStatus()
+                    }) {
+                        Text("清除测试数据")
+                            .font(.footnote)
+                            .foregroundColor(.gray)
+                            .padding(.vertical, 8)
+                    }
+                }
+                #endif
+                
                 Spacer()
                     .frame(height: 30)
             }
@@ -83,13 +105,25 @@ struct ProfileHomeView: View {
         }
         .background(Color(hex: "fae8c8").ignoresSafeArea())
         .navigationBarHidden(true)
+        .fullScreenCover(isPresented: $showLoginView) {
+            LoginView()
+        }
+        .alert("确认退出登录", isPresented: $showLogoutConfirm) {
+            Button("取消", role: .cancel) { }
+            Button("确认退出", role: .destructive) {
+                authService.logout()
+                appState.updateLoginStatus()
+            }
+        } message: {
+            Text("退出登录后需要重新登录才能使用个人功能")
+        }
     }
     
     // 用户资料卡片
     var userProfileCard: some View {
         HStack(spacing: 16) {
             // 头像
-            if appState.isLoggedIn {
+            if authService.isLoggedIn {
                 Image(systemName: appState.userProfile.avatarName)
                     .font(.system(size: 60))
                     .foregroundColor(Color(hex: "FE2D55"))
@@ -106,14 +140,16 @@ struct ProfileHomeView: View {
             
             // 用户信息
             VStack(alignment: .leading, spacing: 4) {
-                if appState.isLoggedIn {
+                if authService.isLoggedIn {
                     Text(appState.userProfile.name)
                         .font(.title2)
                         .fontWeight(.bold)
+                    if let phoneNumber = authService.currentUser?.phoneNumber {
+                        Text(phoneNumber)
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
+                    }
                     Text("甜品爱好者")
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
-                    Text("已连续运动3天")
                         .font(.caption)
                         .foregroundColor(Color(hex: "FE2D55"))
                 } else {
@@ -129,7 +165,7 @@ struct ProfileHomeView: View {
             Spacer()
             
             // 编辑按钮
-            if appState.isLoggedIn {
+            if authService.isLoggedIn {
                 Image(systemName: "pencil")
                     .font(.title3)
                     .foregroundColor(Color(hex: "FE2D55"))
@@ -146,61 +182,92 @@ struct ProfileHomeView: View {
         .padding(.horizontal)
     }
     
-    // 成就部分
-    var achievementSection: some View {
+    // 用户信息部分
+    var userInfoSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("运动成就")
+            Text("用户信息")
                 .font(.headline)
                 .foregroundColor(Color(hex: "61462C"))
                 .padding(.horizontal)
             
-            HStack(spacing: 20) {
-                // 累计运动
-                VStack {
-                    Text("25")
-                        .font(.title)
-                        .fontWeight(.bold)
-                        .foregroundColor(Color(hex: "FE2D55"))
-                    Text("累计运动\n(天)")
-                        .font(.caption)
+            VStack(spacing: 0) {
+                // 个人资料
+                HStack {
+                    Image(systemName: "person.fill")
+                        .foregroundColor(Color.blue)
+                        .frame(width: 30, height: 30)
+                    
+                    Text("个人资料")
+                        .font(.body)
+                    
+                    Spacer()
+                    
+                    Image(systemName: "chevron.right")
                         .foregroundColor(.gray)
-                        .multilineTextAlignment(.center)
                 }
-                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.white)
                 
                 Divider()
-                    .frame(height: 40)
+                    .padding(.leading, 56)
                 
-                // 累计距离
-                VStack {
-                    Text("103")
-                        .font(.title)
-                        .fontWeight(.bold)
-                        .foregroundColor(Color(hex: "FE2D55"))
-                    Text("累计距离\n(千米)")
-                        .font(.caption)
+                // 身体数据
+                HStack {
+                    Image(systemName: "figure.stand")
+                        .foregroundColor(Color.orange)
+                        .frame(width: 30, height: 30)
+                    
+                    Text("身体数据")
+                        .font(.body)
+                    
+                    Spacer()
+                    
+                    Image(systemName: "chevron.right")
                         .foregroundColor(.gray)
-                        .multilineTextAlignment(.center)
                 }
-                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.white)
                 
                 Divider()
-                    .frame(height: 40)
+                    .padding(.leading, 56)
                 
-                // 甜品券
-                VStack {
-                    Text("32")
-                        .font(.title)
-                        .fontWeight(.bold)
-                        .foregroundColor(Color(hex: "FE2D55"))
-                    Text("获得甜品券\n(张)")
-                        .font(.caption)
+                // 运动偏好
+                HStack {
+                    Image(systemName: "figure.run")
+                        .foregroundColor(Color.green)
+                        .frame(width: 30, height: 30)
+                    
+                    Text("运动偏好设置")
+                        .font(.body)
+                    
+                    Spacer()
+                    
+                    Image(systemName: "chevron.right")
                         .foregroundColor(.gray)
-                        .multilineTextAlignment(.center)
                 }
-                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.white)
+                
+                Divider()
+                    .padding(.leading, 56)
+                
+                // 运动成就
+                HStack {
+                    Image(systemName: "medal.fill")
+                        .foregroundColor(Color(hex: "FE2D55"))
+                        .frame(width: 30, height: 30)
+                    
+                    Text("运动成就")
+                        .font(.body)
+                    
+                    Spacer()
+                    
+                    Image(systemName: "chevron.right")
+                        .foregroundColor(.gray)
+                }
+                .padding()
+                .background(Color.white)
             }
-            .padding()
             .background(Color.white)
             .cornerRadius(16)
             .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
@@ -238,6 +305,48 @@ struct ProfileHomeView: View {
                     .background(Color.white)
                     
                     if index < settingItems.count - 1 {
+                        Divider()
+                            .padding(.leading, 56)
+                    }
+                }
+            }
+            .background(Color.white)
+            .cornerRadius(16)
+            .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+            .padding(.horizontal)
+        }
+    }
+    
+    // 关于部分
+    var aboutSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("关于")
+                .font(.headline)
+                .foregroundColor(Color(hex: "61462C"))
+                .padding(.horizontal)
+            
+            VStack(spacing: 0) {
+                ForEach(0..<aboutItems.count, id: \.self) { index in
+                    HStack {
+                        // 图标
+                        Image(systemName: aboutItems[index].icon)
+                            .foregroundColor(aboutItems[index].color)
+                            .frame(width: 30, height: 30)
+                        
+                        // 标题
+                        Text(aboutItems[index].title)
+                            .font(.body)
+                        
+                        Spacer()
+                        
+                        // 箭头
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.gray)
+                    }
+                    .padding()
+                    .background(Color.white)
+                    
+                    if index < aboutItems.count - 1 {
                         Divider()
                             .padding(.leading, 56)
                     }

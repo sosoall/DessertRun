@@ -484,7 +484,7 @@ struct DessertToExerciseTransition: View {
                                     .font(.system(size: 18, weight: .bold))
                                     .foregroundColor(.white)
                                     .frame(width: 36, height: 36)
-                                    .background(Circle().fill(Color(hex: "#F3F3F3")))
+                                    .background(Circle().fill(Color(hex: "F3F3F3")))
                                     .overlay(
                                         Circle().stroke(Color.gray.opacity(0.2), lineWidth: 1)
                                     )
@@ -538,7 +538,7 @@ struct DessertToExerciseTransition: View {
                                     .font(.system(size: 18, weight: .bold))
                                     .foregroundColor(.white)
                                     .frame(width: 36, height: 36)
-                                    .background(Circle().fill(Color(hex: "#F3F3F3")))
+                                    .background(Circle().fill(Color(hex: "F3F3F3")))
                                     .overlay(
                                         Circle().stroke(Color.gray.opacity(0.2), lineWidth: 1)
                                     )
@@ -596,20 +596,20 @@ struct DessertToExerciseTransition: View {
                     .frame(height: 50)
                     .background(
                         LinearGradient(
-                            gradient: Gradient(colors: [Color(hex: "#FF5E57"), Color(hex: "#FF2D55")]),
+                            gradient: Gradient(colors: [Color(hex: "FF5E57"), Color(hex: "FF2D55")]),
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                         .cornerRadius(25)
                     )
-                    .shadow(color: Color(hex: "#FF2D55").opacity(0.3), radius: 6, x: 0, y: 3)
+                    .shadow(color: Color(hex: "FF2D55").opacity(0.3), radius: 6, x: 0, y: 3)
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 20)
         }
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color(hex: "#F8F8F8"))
+                .fill(Color(hex: "F8F8F8"))
                 .shadow(color: Color.black.opacity(0.05), radius: 6, x: 0, y: 3)
         )
     }

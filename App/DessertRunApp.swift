@@ -16,6 +16,9 @@ struct DessertRunApp: App {
     /// 共享的应用状态
     @StateObject private var appState = AppState.shared
     
+    /// 认证服务
+    @StateObject private var authService = AuthService.shared
+    
     /// 注册AppDelegate
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     
@@ -29,13 +32,21 @@ struct DessertRunApp: App {
     
     var body: some Scene {
         WindowGroup {
-            MainTabView()
-                .environmentObject(appState)
-                // 移除整个应用的背景色设置
-                // 强制竖屏显示
-                .onAppear {
-                    AppDelegate.lockOrientation(.portrait)
+            Group {
+                if appState.isFirstLaunch {
+                    // 首次启动显示引导页
+                    OnboardingView()
+                } else {
+                    // 直接显示主界面，跳过登录流程
+                    MainTabView()
+                        .transition(.opacity)
                 }
+            }
+            .environmentObject(appState)
+            .environmentObject(authService)
+            .onAppear {
+                AppDelegate.lockOrientation(.portrait)
+            }
         }
         .onChange(of: scenePhase) { newPhase in
             handleScenePhaseChange(newPhase)
@@ -47,7 +58,8 @@ struct DessertRunApp: App {
         switch phase {
         case .active:
             print("应用进入前台")
-            // MVP版本不再需要处理运动会话的恢复
+            // 更新登录状态
+            appState.updateLoginStatus()
             
         case .background:
             print("应用进入后台")

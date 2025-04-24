@@ -26,6 +26,14 @@ class AppState: ObservableObject {
         avatarName: "person.circle.fill"
     )
     
+    // MARK: - 首次启动和登录状态
+    
+    /// 是否是首次启动应用
+    @Published var isFirstLaunch: Bool = !UserDefaults.standard.bool(forKey: "hasLaunchedBefore")
+    
+    /// 是否显示登录页面
+    @Published var showLoginView = false
+    
     // MARK: - 导航状态
     
     /// 当前选中的主标签索引（0：运动，1：甜品打卡，2：运动记录，3：我的）
@@ -69,7 +77,51 @@ class AppState: ObservableObject {
     
     /// 初始化
     private init() {
-        // 不自动加载示例数据，由StatsViewModel负责加载
+        // 默认设置为已登录状态
+        self.isLoggedIn = true
+        
+        // 检查用户登录状态
+        checkAndSetupLoginState()
+        
+        // 如果是首次启动，记录已启动标记
+        if isFirstLaunch {
+            UserDefaults.standard.set(true, forKey: "hasLaunchedBefore")
+        }
+    }
+    
+    /// 检查登录状态并设置相应的应用状态
+    private func checkAndSetupLoginState() {
+        let authService = AuthService.shared
+        
+        // 如果已经有登录用户
+        if authService.isLoggedIn, authService.currentUser != nil {
+            self.isLoggedIn = true
+            self.selectedTabIndex = 0 // 直接设置首页为默认页
+            
+            // 如果是测试用户但未完成个人信息设置，自动填充
+            if let user = authService.currentUser, 
+               user.phoneNumber == AuthService.testPhoneNumber,
+               !user.isProfileCompleted {
+                authService.autoFillTestUserProfile()
+            }
+        }
+    }
+    
+    /// 更新登录状态（从AuthService获取）
+    func updateLoginStatus() {
+        let authService = AuthService.shared
+        
+        // 从AuthService获取登录状态
+        self.isLoggedIn = authService.isLoggedIn
+        
+        // 如果用户已登录，更新用户资料
+        if let user = authService.currentUser {
+            self.userProfile = UserProfile(
+                id: user.id.uuidString,
+                name: user.nickname ?? "用户\(Int.random(in: 1000...9999))",
+                avatarName: "person.circle.fill"
+            )
+        }
     }
     
     // MARK: - 状态重置
