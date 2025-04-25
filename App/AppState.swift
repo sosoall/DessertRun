@@ -77,8 +77,8 @@ class AppState: ObservableObject {
     
     /// 初始化
     private init() {
-        // 默认设置为已登录状态
-        self.isLoggedIn = true
+        // 登录状态应由AuthService确定，不应在这里强制设置
+        self.isLoggedIn = false
         
         // 检查用户登录状态
         checkAndSetupLoginState()
@@ -96,14 +96,13 @@ class AppState: ObservableObject {
         // 如果已经有登录用户
         if authService.isLoggedIn, authService.currentUser != nil {
             self.isLoggedIn = true
+            self.showLoginView = false
             self.selectedTabIndex = 0 // 直接设置首页为默认页
-            
-            // 如果是测试用户但未完成个人信息设置，自动填充
-            if let user = authService.currentUser, 
-               user.phoneNumber == AuthService.testPhoneNumber,
-               !user.isProfileCompleted {
-                authService.autoFillTestUserProfile()
-            }
+        } else {
+            // 未登录状态
+            self.isLoggedIn = false
+            // 不默认显示登录页，由AppState通过其他判断决定是否显示
+            // self.showLoginView = true
         }
     }
     
@@ -113,6 +112,9 @@ class AppState: ObservableObject {
         
         // 从AuthService获取登录状态
         self.isLoggedIn = authService.isLoggedIn
+        
+        // 更新登录页面显示状态
+        self.showLoginView = !authService.isLoggedIn
         
         // 如果用户已登录，更新用户资料
         if let user = authService.currentUser {

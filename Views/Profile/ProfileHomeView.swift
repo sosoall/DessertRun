@@ -87,7 +87,7 @@ struct ProfileHomeView: View {
                 #if DEBUG
                 if authService.isLoggedIn {
                     Button(action: {
-                        authService.clearTestUserData()
+                        authService.clearUserData()
                         appState.updateLoginStatus()
                     }) {
                         Text("清除测试数据")

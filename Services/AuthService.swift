@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Combine
 
 /// 认证服务，管理用户登录状态和数据
@@ -8,94 +9,268 @@ class AuthService: ObservableObject {
     @Published var currentUser: User?
     @Published var isLoggedIn: Bool = false
     @Published var isNewUser: Bool = false
+    @Published var isLoading = false
+    @Published var error: String?
+    
+    // 存储Combine订阅
+    var cancellables = Set<AnyCancellable>()
     
     // 本地存储键
     private enum StorageKeys {
         static let currentUser = "currentUser"
         static let isLoggedIn = "isLoggedIn"
+        static let userCredentials = "userCredentials" // 存储用户凭证
     }
-    
-    // 测试手机号
-    static let testPhoneNumber = "15010209342"
     
     // 单例实例
     static let shared = AuthService()
     
     private init() {
-        loadUserFromStorage()
+        DRInfo("AuthService 初始化")
         
-        // 如果没有用户登录，自动登录测试用户并填充资料
-        if currentUser == nil || !isLoggedIn {
-            autoLoginTestUser()
+        // 初始化时先验证token，然后再加载用户数据
+        checkTokenValidity { [weak self] isValid in
+            if isValid {
+                DRInfo("Token有效，加载用户数据")
+                self?.loadUserFromStorage()
+            } else {
+                DRInfo("Token无效或不存在，重置登录状态")
+                self?.resetLoginState()
+            }
         }
+    }
+    
+    /// 处理token过期
+    /// 在任何检测到token过期的地方调用此方法
+    func handleTokenExpired() {
+        DRInfo("处理Token过期")
+        
+        // 重置登录状态
+        resetLoginState()
+        
+        // 通知AppState显示登录页面
+        DispatchQueue.main.async {
+            // 设置AppState的showLoginView为true
+            AppState.shared.showLoginView = true
+            DRInfo("已设置显示登录页面")
+        }
+    }
+    
+    /// 验证当前token是否有效
+    /// - Parameter completion: 完成回调，参数为token是否有效
+    private func checkTokenValidity(completion: @escaping (Bool) -> Void) {
+        // 检查是否存在token
+        guard let token = UserDefaults.standard.string(forKey: Config.UserData.tokenKey) else {
+            DRInfo("Token不存在")
+            completion(false)
+            return
+        }
+        
+        DRInfo("开始验证Token有效性: \(token.prefix(10))...")
+        
+        // 调用API服务获取用户资料，这将隐式验证token
+        APIService.shared.getUserProfile()
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { result in
+                    switch result {
+                    case .finished:
+                        DRInfo("Token验证成功")
+                        completion(true)
+                    case .failure(let error):
+                        if case .tokenExpired = error {
+                            DRInfo("Token已过期")
+                            // Token已过期，清除本地token
+                            UserDefaults.standard.removeObject(forKey: Config.UserData.tokenKey)
+                            UserDefaults.standard.removeObject(forKey: Config.UserData.userIdKey)
+                            // 处理token过期
+                            AuthService.shared.handleTokenExpired()
+                        } else {
+                            DRError("Token验证失败: \(error.errorMessage)")
+                        }
+                        completion(false)
+                    }
+                },
+                receiveValue: { [weak self] apiUser in
+                    DRInfo("成功获取用户信息，更新本地用户数据")
+                    self?.currentUser = self?.mapToAppUser(apiUser: apiUser)
+                    self?.isLoggedIn = true
+                    self?.saveUserToStorage()
+                }
+            )
+            .store(in: &cancellables)
+    }
+    
+    /// 重置登录状态
+    private func resetLoginState() {
+        DRInfo("重置登录状态")
+        self.currentUser = nil
+        self.isLoggedIn = false
+        self.isNewUser = false
+        UserDefaults.standard.removeObject(forKey: StorageKeys.currentUser)
+        UserDefaults.standard.set(false, forKey: StorageKeys.isLoggedIn)
     }
     
     /// 从本地存储加载用户
     private func loadUserFromStorage() {
+        DRInfo("从本地存储加载用户数据")
+        
         if let userData = UserDefaults.standard.data(forKey: StorageKeys.currentUser),
            let user = try? JSONDecoder().decode(User.self, from: userData) {
             self.currentUser = user
             self.isLoggedIn = UserDefaults.standard.bool(forKey: StorageKeys.isLoggedIn)
+            DRInfo("成功加载用户: \(user.phoneNumber)")
+        } else {
+            DRInfo("本地没有存储用户数据")
         }
     }
     
     /// 保存用户到本地存储
-    private func saveUserToStorage() {
-        guard let user = currentUser else { return }
+    func saveUserToStorage() {
+        guard let user = currentUser else { 
+            DRWarning("尝试保存nil用户")
+            return
+        }
+        
+        DRInfo("保存用户到本地存储: \(user.phoneNumber)")
         
         if let encoded = try? JSONEncoder().encode(user) {
             UserDefaults.standard.set(encoded, forKey: StorageKeys.currentUser)
             UserDefaults.standard.set(isLoggedIn, forKey: StorageKeys.isLoggedIn)
-        }
-    }
-    
-    /// 自动登录测试用户
-    private func autoLoginTestUser() {
-        let phoneNumber = AuthService.testPhoneNumber
-        
-        // 创建测试用户
-        let testUser = User(phoneNumber: phoneNumber)
-        testUser.nickname = "测试用户"
-        testUser.gender = .male
-        testUser.height = 175.0
-        testUser.weight = 70.0
-        testUser.hasExerciseHabit = true
-        testUser.isProfileCompleted = true
-        
-        self.currentUser = testUser
-        self.isLoggedIn = true
-        self.isNewUser = false
-        saveUserToStorage()
-        
-        print("已自动登录测试用户并填充个人信息")
-    }
-    
-    /// 模拟一键登录认证
-    /// - Returns: 是否为新用户
-    func oneClickLogin() -> Bool {
-        // 模拟从运营商获取手机号
-        let phoneNumber = AuthService.testPhoneNumber
-        
-        // 检查是否已存在该用户
-        if let existingUser = fetchUserByPhone(phoneNumber) {
-            self.currentUser = existingUser
-            self.isLoggedIn = true
-            self.isNewUser = false
-            saveUserToStorage()
-            return false
         } else {
-            // 创建新用户
-            let newUser = User(phoneNumber: phoneNumber)
-            self.currentUser = newUser
-            self.isLoggedIn = true
-            self.isNewUser = true
-            saveUserToStorage()
-            return true
+            DRError("用户数据编码失败")
         }
+    }
+    
+    /// 创建一个映射方法，将APIUser转换为应用内使用的User模型
+    private func mapToAppUser(apiUser: APIUser) -> User {
+        DRInfo("将API用户转换为本地用户: ID=\(apiUser.id)")
+        return apiUser.toLocalUser()
+    }
+    
+    /// 发送验证码
+    func sendVerificationCode(phoneNumber: String, completion: @escaping (Bool) -> Void) {
+        DRInfo("开始发送验证码: \(phoneNumber)")
+        isLoading = true
+        error = nil
+        
+        APIService.shared.getVerificationCode(phone: phoneNumber)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { [weak self] result in
+                    self?.isLoading = false
+                    switch result {
+                    case .finished:
+                        DRInfo("验证码发送成功: \(phoneNumber)")
+                        completion(true)
+                    case .failure(let error):
+                        DRError("验证码发送失败: \(error.errorMessage)")
+                        self?.error = error.errorMessage
+                        completion(false)
+                    }
+                },
+                receiveValue: { _ in }
+            )
+            .store(in: &cancellables)
+    }
+    
+    /// 使用验证码登录
+    func loginWithVerificationCode(phoneNumber: String, code: String, completion: @escaping (Bool) -> Void) {
+        DRInfo("开始验证码登录: \(phoneNumber)")
+        isLoading = true
+        error = nil
+        
+        APIService.shared.loginWithVerificationCode(phone: phoneNumber, code: code)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { [weak self] result in
+                    self?.isLoading = false
+                    switch result {
+                    case .finished:
+                        DRInfo("验证码登录成功: \(phoneNumber)")
+                        self?.isLoggedIn = true
+                        self?.saveUserToStorage()
+                        completion(true)
+                    case .failure(let error):
+                        DRError("验证码登录失败: \(error.errorMessage)")
+                        self?.error = error.errorMessage
+                        completion(false)
+                    }
+                },
+                receiveValue: { [weak self] apiUser in
+                    DRInfo("获取到用户数据: \(apiUser.nickname)")
+                    self?.currentUser = self?.mapToAppUser(apiUser: apiUser)
+                }
+            )
+            .store(in: &cancellables)
+    }
+    
+    /// 使用密码登录
+    func loginWithPassword(phoneNumber: String, password: String, completion: @escaping (Bool) -> Void) {
+        DRInfo("开始密码登录: \(phoneNumber)")
+        isLoading = true
+        error = nil
+        
+        APIService.shared.loginWithPassword(phone: phoneNumber, password: password)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { [weak self] result in
+                    self?.isLoading = false
+                    switch result {
+                    case .finished:
+                        DRInfo("密码登录成功: \(phoneNumber)")
+                        self?.isLoggedIn = true
+                        self?.saveUserToStorage()
+                        completion(true)
+                    case .failure(let error):
+                        DRError("密码登录失败: \(error.errorMessage)")
+                        self?.error = error.errorMessage
+                        completion(false)
+                    }
+                },
+                receiveValue: { [weak self] apiUser in
+                    DRInfo("获取到用户数据: \(apiUser.nickname)")
+                    self?.currentUser = self?.mapToAppUser(apiUser: apiUser)
+                }
+            )
+            .store(in: &cancellables)
+    }
+    
+    /// 注册新用户
+    func register(phoneNumber: String, password: String, code: String, nickname: String, completion: @escaping (Bool) -> Void) {
+        DRInfo("开始注册新用户: \(phoneNumber), 昵称: \(nickname)")
+        isLoading = true
+        error = nil
+        
+        APIService.shared.register(phone: phoneNumber, password: password, code: code, nickname: nickname)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { [weak self] result in
+                    self?.isLoading = false
+                    switch result {
+                    case .finished:
+                        DRInfo("用户注册成功: \(phoneNumber)")
+                        self?.isLoggedIn = true
+                        self?.isNewUser = true
+                        self?.saveUserToStorage()
+                        completion(true)
+                    case .failure(let error):
+                        DRError("用户注册失败: \(error.errorMessage)")
+                        self?.error = error.errorMessage
+                        completion(false)
+                    }
+                },
+                receiveValue: { [weak self] apiUser in
+                    DRInfo("获取到新注册用户数据: \(apiUser.nickname)")
+                    self?.currentUser = self?.mapToAppUser(apiUser: apiUser)
+                }
+            )
+            .store(in: &cancellables)
     }
     
     /// 根据手机号查询用户（模拟数据库查询）
     private func fetchUserByPhone(_ phoneNumber: String) -> User? {
+        DRInfo("通过手机号查询用户: \(phoneNumber)")
         // 在实际项目中，这里应该从服务器获取用户信息
         // 这里仅通过本地存储模拟
         if let userData = UserDefaults.standard.data(forKey: StorageKeys.currentUser),
@@ -114,58 +289,94 @@ class AuthService: ObservableObject {
         weight: Double? = nil,
         hasExerciseHabit: Bool? = nil
     ) {
-        guard var user = currentUser else { return }
+        guard var user = currentUser else { 
+            DRWarning("尝试更新不存在的用户资料")
+            return 
+        }
         
-        if let nickname = nickname { user.nickname = nickname }
-        if let gender = gender { user.gender = gender }
-        if let height = height { user.height = height }
-        if let weight = weight { user.weight = weight }
-        if let hasExerciseHabit = hasExerciseHabit { user.hasExerciseHabit = hasExerciseHabit }
+        DRInfo("更新用户资料: \(user.phoneNumber)")
+        
+        if let nickname = nickname { 
+            DRInfo("更新昵称: \(nickname)")
+            user.nickname = nickname 
+        }
+        if let gender = gender { 
+            DRInfo("更新性别: \(gender.rawValue)")
+            user.gender = gender 
+        }
+        if let height = height { 
+            DRInfo("更新身高: \(height)")
+            user.height = height 
+        }
+        if let weight = weight { 
+            DRInfo("更新体重: \(weight)")
+            user.weight = weight 
+        }
+        if let hasExerciseHabit = hasExerciseHabit { 
+            DRInfo("更新运动习惯: \(hasExerciseHabit)")
+            user.hasExerciseHabit = hasExerciseHabit 
+        }
         
         // 检查是否完成了个人资料填写
         if user.nickname != nil && user.gender != nil && 
            user.height != nil && user.weight != nil && 
            user.hasExerciseHabit != nil {
             user.isProfileCompleted = true
+            DRInfo("用户资料已完成填写")
         }
         
         self.currentUser = user
         saveUserToStorage()
-    }
-    
-    /// 为测试用户自动填充个人信息（开发阶段使用）
-    func autoFillTestUserProfile() {
-        guard var user = currentUser, user.phoneNumber == AuthService.testPhoneNumber else { return }
         
-        // 设置默认个人信息
-        user.nickname = "测试用户"
-        user.gender = .male
-        user.height = 175.0
-        user.weight = 70.0
-        user.hasExerciseHabit = true
-        user.isProfileCompleted = true
-        
-        self.currentUser = user
-        self.isNewUser = false
-        saveUserToStorage()
-        
-        print("已为测试用户自动填充个人信息")
+        // 如果已经通过API登录，更新用户资料到服务器
+        if let userId = user.apiUserId {
+            DRInfo("同步用户资料到服务器")
+            let updateRequest = user.prepareProfileUpdateRequest()
+            
+            APIService.shared.updateUserProfile(profile: updateRequest)
+                .sink(
+                    receiveCompletion: { completion in
+                        if case let .failure(error) = completion {
+                            DRError("更新用户资料到服务器失败: \(error.errorMessage)")
+                        }
+                    },
+                    receiveValue: { updatedUser in
+                        DRInfo("用户资料已同步到服务器")
+                    }
+                )
+                .store(in: &cancellables)
+        }
     }
     
     /// 退出登录
     func logout() {
+        DRInfo("用户退出登录")
         self.currentUser = nil
         self.isLoggedIn = false
         self.isNewUser = false
+        
+        // 清除token和用户ID
+        UserDefaults.standard.removeObject(forKey: Config.UserData.tokenKey)
+        UserDefaults.standard.removeObject(forKey: Config.UserData.userIdKey)
+        
+        // 清除用户数据
         UserDefaults.standard.removeObject(forKey: StorageKeys.currentUser)
         UserDefaults.standard.set(false, forKey: StorageKeys.isLoggedIn)
+        
+        DRInfo("用户登录状态已重置")
     }
     
-    /// 清除测试用户数据（用于测试）
-    func clearTestUserData() {
+    /// 清除用户数据
+    func clearUserData() {
+        DRInfo("清除所有用户数据")
+        
         // 彻底删除用户数据
         UserDefaults.standard.removeObject(forKey: StorageKeys.currentUser)
         UserDefaults.standard.removeObject(forKey: StorageKeys.isLoggedIn)
+        
+        // 清除token和用户ID
+        UserDefaults.standard.removeObject(forKey: Config.UserData.tokenKey)
+        UserDefaults.standard.removeObject(forKey: Config.UserData.userIdKey)
         
         // 清除所有与用户相关的数据
         // 查找所有以user_开头的键值对并删除
@@ -181,11 +392,13 @@ class AuthService: ObservableObject {
         self.isLoggedIn = false
         self.isNewUser = false
         
-        print("已清除测试用户数据")
+        DRInfo("所有用户数据已清除")
     }
     
     /// 彻底清除所有UserDefaults数据（慎用，仅用于开发测试）
     func deleteAllUserDefaults() {
+        DRInfo("彻底清除所有应用数据")
+        
         if let bundleID = Bundle.main.bundleIdentifier {
             UserDefaults.standard.removePersistentDomain(forName: bundleID)
             UserDefaults.standard.synchronize()
@@ -195,21 +408,39 @@ class AuthService: ObservableObject {
             self.isLoggedIn = false
             self.isNewUser = false
             
-            print("已彻底清除所有应用数据")
+            DRInfo("已彻底清除所有应用数据")
         }
     }
     
     /// 为新用户自动填充个人信息
     func autoFillUserProfile() {
-        if let user = currentUser {
-            user.nickname = "跑步达人"
-            user.gender = .male
-            user.height = 175
-            user.weight = 65
-            user.birthYear = 1990
-            user.exerciseFrequency = .threeToFive
-            user.exerciseDuration = .thirtyToSixty
-            saveUserToStorage()
+        guard let user = currentUser else { 
+            DRWarning("尝试为不存在的用户自动填充资料")
+            return 
         }
+        
+        DRInfo("为新用户自动填充个人信息: \(user.phoneNumber)")
+        
+        user.nickname = "跑步达人"
+        user.gender = .male
+        user.height = 175
+        user.weight = 65
+        user.birthYear = 1990
+        user.exerciseFrequency = .threeToFive
+        user.exerciseDuration = .thirtyToSixty
+        saveUserToStorage()
+    }
+    
+    /// 清理应用所有状态，用于重置到初始未登录状态
+    func resetAppToInitialState() {
+        DRInfo("重置应用到初始状态")
+        
+        // 清理所有用户数据
+        deleteAllUserDefaults()
+        
+        // 重置应用状态
+        self.currentUser = nil
+        self.isLoggedIn = false
+        self.isNewUser = false
     }
 } 

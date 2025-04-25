@@ -5,6 +5,7 @@ class User: Identifiable, Codable, ObservableObject {
     let id: UUID
     @Published var phoneNumber: String
     @Published var nickname: String?
+    @Published var avatar: String?
     @Published var gender: Gender?
     @Published var height: Double?
     @Published var weight: Double?
@@ -15,9 +16,26 @@ class User: Identifiable, Codable, ObservableObject {
     @Published var registerDate: Date
     @Published var isProfileCompleted: Bool
     
+    // 存储后端用户ID (与UUID区分)
+    var apiUserId: Int?
+    
     enum Gender: String, Codable {
         case male = "男"
         case female = "女"
+        
+        // 转换为后端接受的整数格式
+        var toApiValue: Int {
+            return self == .male ? 1 : 2
+        }
+        
+        // 从后端整数格式转换
+        static func fromApiValue(_ value: Int) -> Gender? {
+            switch value {
+            case 1: return .male
+            case 2: return .female
+            default: return nil
+            }
+        }
     }
     
     enum ExerciseFrequency: String, Codable {
@@ -35,14 +53,15 @@ class User: Identifiable, Codable, ObservableObject {
     }
     
     enum CodingKeys: String, CodingKey {
-        case id, phoneNumber, nickname, gender, height, weight, hasExerciseHabit
+        case id, phoneNumber, nickname, avatar, gender, height, weight, hasExerciseHabit
         case birthYear, exerciseFrequency, exerciseDuration
-        case registerDate, isProfileCompleted
+        case registerDate, isProfileCompleted, apiUserId
     }
     
     init(id: UUID = UUID(), 
          phoneNumber: String, 
-         nickname: String? = nil, 
+         nickname: String? = nil,
+         avatar: String? = nil,
          gender: Gender? = nil, 
          height: Double? = nil, 
          weight: Double? = nil, 
@@ -50,10 +69,12 @@ class User: Identifiable, Codable, ObservableObject {
          birthYear: Int? = nil,
          exerciseFrequency: ExerciseFrequency? = nil,
          exerciseDuration: ExerciseDuration? = nil,
-         isProfileCompleted: Bool = false) {
+         isProfileCompleted: Bool = false,
+         apiUserId: Int? = nil) {
         self.id = id
         self.phoneNumber = phoneNumber
         self.nickname = nickname
+        self.avatar = avatar
         self.gender = gender
         self.height = height
         self.weight = weight
@@ -63,6 +84,7 @@ class User: Identifiable, Codable, ObservableObject {
         self.exerciseDuration = exerciseDuration
         self.registerDate = Date()
         self.isProfileCompleted = isProfileCompleted
+        self.apiUserId = apiUserId
     }
     
     // Codable实现
@@ -71,6 +93,7 @@ class User: Identifiable, Codable, ObservableObject {
         id = try container.decode(UUID.self, forKey: .id)
         phoneNumber = try container.decode(String.self, forKey: .phoneNumber)
         nickname = try container.decodeIfPresent(String.self, forKey: .nickname)
+        avatar = try container.decodeIfPresent(String.self, forKey: .avatar)
         gender = try container.decodeIfPresent(Gender.self, forKey: .gender)
         height = try container.decodeIfPresent(Double.self, forKey: .height)
         weight = try container.decodeIfPresent(Double.self, forKey: .weight)
@@ -80,6 +103,7 @@ class User: Identifiable, Codable, ObservableObject {
         exerciseDuration = try container.decodeIfPresent(ExerciseDuration.self, forKey: .exerciseDuration)
         registerDate = try container.decode(Date.self, forKey: .registerDate)
         isProfileCompleted = try container.decode(Bool.self, forKey: .isProfileCompleted)
+        apiUserId = try container.decodeIfPresent(Int.self, forKey: .apiUserId)
     }
     
     func encode(to encoder: Encoder) throws {
@@ -87,6 +111,7 @@ class User: Identifiable, Codable, ObservableObject {
         try container.encode(id, forKey: .id)
         try container.encode(phoneNumber, forKey: .phoneNumber)
         try container.encodeIfPresent(nickname, forKey: .nickname)
+        try container.encodeIfPresent(avatar, forKey: .avatar)
         try container.encodeIfPresent(gender, forKey: .gender)
         try container.encodeIfPresent(height, forKey: .height)
         try container.encodeIfPresent(weight, forKey: .weight)
@@ -96,5 +121,15 @@ class User: Identifiable, Codable, ObservableObject {
         try container.encodeIfPresent(exerciseDuration, forKey: .exerciseDuration)
         try container.encode(registerDate, forKey: .registerDate)
         try container.encode(isProfileCompleted, forKey: .isProfileCompleted)
+        try container.encodeIfPresent(apiUserId, forKey: .apiUserId)
+    }
+    
+    /// 为API更新请求准备数据
+    func prepareProfileUpdateRequest() -> UpdateProfileRequest {
+        return UpdateProfileRequest(
+            nickname: nickname,
+            avatar: avatar,
+            gender: gender?.toApiValue
+        )
     }
 } 

@@ -172,7 +172,7 @@ struct DessertData {
         return [
             // 首屏显示的7个甜品
             DessertItem(id: 1, name: "芝芝云顶奶茶", imageName: "MilkTea", calories: "344", category: .drink, description: "全糖大杯奶茶，650ml", backgroundColor: Color(hex: "E0C9A6")),
-            DessertItem(id: 2, name: "珍珠奶茶", imageName: "BubbleTea", calories: "192", category: .drink, description: "全糖大杯柠檬茶，650ml", backgroundColor: Color(hex: "FFFBD6")),
+            DessertItem(id: 2, name: "珍珠奶茶", imageName: "BubbleTea", calories: "354", category: .drink, description: "全糖大杯珍珠奶茶，650ml", backgroundColor: Color(hex: "FFFBD6")),
             DessertItem(id: 3, name: "拿铁", imageName: "Latte", calories: "265", category: .drink, description: "风味拿铁，450ml", backgroundColor: Color(hex: "D2B48C")),
             DessertItem(id: 8, name: "瑞士卷", imageName: "SwissRoll", calories: "256", category: .cake, description: "瑞士卷，85克", backgroundColor: Color(hex: "D8EFDC")),
             DessertItem(id: 9, name: "提拉米苏", imageName: "Tiramisu", calories: "318", category: .cake, description: "提拉米苏，100克", backgroundColor: Color(hex: "E5D6C3")),

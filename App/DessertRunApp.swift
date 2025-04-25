@@ -26,8 +26,8 @@ struct DessertRunApp: App {
     @Environment(\.scenePhase) private var scenePhase
     
     init() {
-        // 强制屏幕旋转为竖屏
-        AppDelegate.lockOrientation(.portrait)
+        // 配置应用
+        setupApp()
     }
     
     var body: some Scene {
@@ -36,8 +36,12 @@ struct DessertRunApp: App {
                 if appState.isFirstLaunch {
                     // 首次启动显示引导页
                     OnboardingView()
+                } else if appState.showLoginView {
+                    // 显示登录页面（token过期或需要登录时）
+                    LoginView()
+                        .transition(.opacity)
                 } else {
-                    // 直接显示主界面，跳过登录流程
+                    // 直接显示主界面
                     MainTabView()
                         .transition(.opacity)
                 }
@@ -45,7 +49,17 @@ struct DessertRunApp: App {
             .environmentObject(appState)
             .environmentObject(authService)
             .onAppear {
-                AppDelegate.lockOrientation(.portrait)
+                DRInfo("应用启动完成")
+                
+                // 检查用户登录状态
+                if let token = UserDefaults.standard.string(forKey: Config.UserData.tokenKey) {
+                    DRInfo("找到已存储token: \(token.prefix(10))...")
+                } else {
+                    DRInfo("未找到token，用户未登录")
+                }
+                
+                // 在这里可以添加任何应用启动后需要执行的逻辑
+                // AuthService的初始化已经处理了token验证和用户状态加载
             }
         }
         .onChange(of: scenePhase) { newPhase in
@@ -72,5 +86,25 @@ struct DessertRunApp: App {
         @unknown default:
             print("未知的应用状态")
         }
+    }
+    
+    private func setupApp() {
+        // 设置应用的基本配置
+        DRInfo("应用初始化开始")
+        
+        #if DEBUG
+        // 仅在DEBUG模式下启用
+        if CommandLine.arguments.contains("--reset") {
+            DRInfo("检测到重置参数，清除所有用户数据")
+            AuthService.shared.resetAppToInitialState()
+        }
+        #endif
+        
+        // 配置全局UI外观
+        UINavigationBar.appearance().tintColor = UIColor(Color("Primary"))
+        
+        // 打印应用配置信息
+        DRInfo("应用配置: API地址: \(Config.API.baseURL)")
+        DRInfo("应用初始化完成")
     }
 }
