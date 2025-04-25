@@ -108,31 +108,74 @@ class APIService {
     /// - Parameters:
     ///   - phone: 手机号
     ///   - password: 密码
+    ///   - confirmPassword: 确认密码
     ///   - code: 验证码
     ///   - nickname: 昵称
     /// - Returns: 包含用户信息的发布者
-    func register(phone: String, password: String, code: String, nickname: String) -> AnyPublisher<APIUser, APIServiceError> {
+    func register(phone: String, password: String, confirmPassword: String, code: String, nickname: String) -> AnyPublisher<APIUser, APIServiceError> {
         let endpoint = "/api/v1/auth/register"
         let parameters: [String: Any] = [
             "phone_number": phone,
             "password": password,
+            "confirm_password": confirmPassword,
             "code": code,
             "nickname": nickname
         ]
         
-        return networkManager.request(
-            endpoint: endpoint,
-            method: .post,
-            parameters: parameters,
-            requiresAuth: false
-        )
-        .map { (response: AuthResponse) -> APIUser in
-            // 保存令牌
-            UserDefaults.standard.set(response.token, forKey: Config.UserData.tokenKey)
-            UserDefaults.standard.set(response.user.id, forKey: Config.UserData.userIdKey)
-            return response.user
+        // 创建一个Publisher，处理注册请求和响应
+        return Deferred {
+            Future<APIUser, APIServiceError> { promise in
+                // 执行原始注册请求
+                self.networkManager.request(
+                    endpoint: endpoint,
+                    method: .post,
+                    parameters: parameters,
+                    requiresAuth: false
+                )
+                .sink(
+                    receiveCompletion: { completion in
+                        switch completion {
+                        case .finished:
+                            // 处理注册成功但没有receiveValue的情况
+                            // 注册成功后，自动登录
+                            self.loginWithPassword(phone: phone, password: password)
+                                .sink(
+                                    receiveCompletion: { loginCompletion in
+                                        if case let .failure(error) = loginCompletion {
+                                            print("注册成功后登录失败: \(error.errorMessage)")
+                                            // 登录失败但注册成功
+                                            // 创建一个基本用户对象
+                                            let user = APIUser(
+                                                id: -1, // 临时ID
+                                                phone: phone,
+                                                nickname: nickname,
+                                                avatar: nil,
+                                                gender: nil,
+                                                createdAt: "",
+                                                updatedAt: ""
+                                            )
+                                            promise(.success(user))
+                                        }
+                                    },
+                                    receiveValue: { user in
+                                        print("注册成功并获取用户信息: \(user.nickname)")
+                                        promise(.success(user))
+                                    }
+                                )
+                                .store(in: &self.cancellables)
+                        case .failure(let error):
+                            print("注册失败: \(error)")
+                            promise(.failure(self.handleError(error)))
+                        }
+                    },
+                    receiveValue: { (_: EmptyResponse) in
+                        print("注册API调用成功")
+                        // 这里不做任何事情，因为我们将在receiveCompletion的.finished分支中处理
+                    }
+                )
+                .store(in: &self.cancellables)
+            }
         }
-        .mapError { self.handleError($0) }
         .eraseToAnyPublisher()
     }
     
@@ -184,15 +227,21 @@ class APIService {
     /// - Returns: API服务错误
     private func handleError(_ error: NetworkError) -> APIServiceError {
         switch error {
-        case .unauthorized:
-            // 清除本地令牌
-            UserDefaults.standard.removeObject(forKey: Config.UserData.tokenKey)
-            UserDefaults.standard.removeObject(forKey: Config.UserData.userIdKey)
-            // 处理token过期，通知显示登录页面
-            DispatchQueue.main.async {
-                AuthService.shared.handleTokenExpired()
+        case .unauthorized(let message):
+            // 只有消息明确提到"过期"或"token"时才认为是token过期
+            if message.contains("过期") || message.contains("token") || message.contains("Token") {
+                // 清除本地令牌
+                UserDefaults.standard.removeObject(forKey: Config.UserData.tokenKey)
+                UserDefaults.standard.removeObject(forKey: Config.UserData.userIdKey)
+                // 处理token过期，通知显示登录页面
+                DispatchQueue.main.async {
+                    AuthService.shared.handleTokenExpired()
+                }
+                return .tokenExpired
+            } else {
+                // 其他401错误，如密码错误、用户不存在等
+                return .networkError(APINetworkError(error: error))
             }
-            return .tokenExpired
         default:
             return .networkError(APINetworkError(error: error))
         }

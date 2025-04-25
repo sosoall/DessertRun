@@ -8,8 +8,9 @@ enum NetworkError: Error {
     case invalidResponse
     case serverError(Int, String)
     case decodingFailed(Error)
-    case unauthorized
-    case notFound
+    case unauthorized(String)
+    case notFound(String)
+    case badRequest(String)
     case noInternet
     case emptyData
     
@@ -21,14 +22,16 @@ enum NetworkError: Error {
             return "请求失败: \(error.localizedDescription)"
         case .invalidResponse:
             return "无效的服务器响应"
-        case .serverError(let code, let message):
-            return "服务器错误 (\(code)): \(message)"
+        case .serverError(_, let message):
+            return message
         case .decodingFailed(let error):
             return "数据解析失败: \(error.localizedDescription)"
-        case .unauthorized:
-            return "请先登录"
-        case .notFound:
-            return "请求的资源不存在"
+        case .unauthorized(let message):
+            return message
+        case .notFound(let message):
+            return message
+        case .badRequest(let message):
+            return message
         case .noInternet:
             return "网络连接不可用，请检查您的网络设置"
         case .emptyData:
@@ -138,10 +141,30 @@ class NetworkManager {
                 switch httpResponse.statusCode {
                 case 200..<300:
                     return data
+                case 400:
+                    // 提取具体的400错误信息
+                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let message = json["message"] as? String {
+                        throw NetworkError.badRequest(message)
+                    } else {
+                        throw NetworkError.badRequest("请求参数错误")
+                    }
                 case 401:
-                    throw NetworkError.unauthorized
+                    // 提取具体的401错误信息
+                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let message = json["message"] as? String {
+                        throw NetworkError.unauthorized(message)
+                    } else {
+                        throw NetworkError.unauthorized("未授权访问")
+                    }
                 case 404:
-                    throw NetworkError.notFound
+                    // 提取具体的404错误信息
+                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let message = json["message"] as? String {
+                        throw NetworkError.notFound(message)
+                    } else {
+                        throw NetworkError.notFound("请求的资源不存在")
+                    }
                 default:
                     // 尝试解析服务器错误消息
                     do {
@@ -152,7 +175,11 @@ class NetworkManager {
                             throw NetworkError.serverError(httpResponse.statusCode, "未知服务器错误")
                         }
                     } catch {
-                        throw NetworkError.serverError(httpResponse.statusCode, "未知服务器错误")
+                        if let networkError = error as? NetworkError {
+                            throw networkError
+                        } else {
+                            throw NetworkError.serverError(httpResponse.statusCode, "未知服务器错误")
+                        }
                     }
                 }
             }

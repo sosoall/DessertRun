@@ -7,7 +7,12 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     // 屏幕方向控制
     static var orientationLock = UIInterfaceOrientationMask.portrait
     
-    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        // Override point for customization after application launch.
+        
+        // 设置CoreGraphics数值错误忽略
+        UserDefaults.standard.set(false, forKey: "_UIConstraintBasedLayoutLogUnsatisfiable")
+        
         print("应用已启动")
         
         // 应用启动时主动请求必要的权限

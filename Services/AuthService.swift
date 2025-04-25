@@ -237,12 +237,12 @@ class AuthService: ObservableObject {
     }
     
     /// 注册新用户
-    func register(phoneNumber: String, password: String, code: String, nickname: String, completion: @escaping (Bool) -> Void) {
+    func register(phoneNumber: String, password: String, confirmPassword: String, code: String, nickname: String, completion: @escaping (Bool) -> Void) {
         DRInfo("开始注册新用户: \(phoneNumber), 昵称: \(nickname)")
         isLoading = true
         error = nil
         
-        APIService.shared.register(phone: phoneNumber, password: password, code: code, nickname: nickname)
+        APIService.shared.register(phone: phoneNumber, password: password, confirmPassword: confirmPassword, code: code, nickname: nickname)
             .receive(on: DispatchQueue.main)
             .sink(
                 receiveCompletion: { [weak self] result in

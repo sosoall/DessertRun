@@ -26,40 +26,34 @@ struct DessertRunApp: App {
     @Environment(\.scenePhase) private var scenePhase
     
     init() {
+        // 设置全局设置，避免UI和输入系统警告
+        // 这些设置不会修复根本问题，但会减少不必要的警告日志
+        #if DEBUG
+        // 仅在调试模式下执行，避免影响生产性能
+        UserDefaults.standard.set(false, forKey: "UIInputViewInsetNoncontentRegionNeedsReverseSwizzle")
+        UserDefaults.standard.set(false, forKey: "UIViewShowAlignmentRects")
+        #endif
+        
         // 配置应用
         setupApp()
     }
     
     var body: some Scene {
         WindowGroup {
-            Group {
-                if appState.isFirstLaunch {
-                    // 首次启动显示引导页
-                    OnboardingView()
-                } else if appState.showLoginView {
-                    // 显示登录页面（token过期或需要登录时）
-                    LoginView()
-                        .transition(.opacity)
-                } else {
-                    // 直接显示主界面
-                    MainTabView()
-                        .transition(.opacity)
-                }
-            }
-            .environmentObject(appState)
-            .environmentObject(authService)
-            .onAppear {
-                DRInfo("应用启动完成")
-                
-                // 检查用户登录状态
-                if let token = UserDefaults.standard.string(forKey: Config.UserData.tokenKey) {
-                    DRInfo("找到已存储token: \(token.prefix(10))...")
-                } else {
-                    DRInfo("未找到token，用户未登录")
-                }
-                
-                // 在这里可以添加任何应用启动后需要执行的逻辑
-                // AuthService的初始化已经处理了token验证和用户状态加载
+            if appState.isResettingApp {
+                ProgressView("重置应用中...")
+                    .onAppear {
+                        // 应用重置逻辑
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                            appState.isResettingApp = false
+                        }
+                    }
+            } else if appState.showLoginView && !appState.isLoggedIn {
+                LoginView()
+                    .environmentObject(appState)
+            } else {
+                MainTabView()
+                    .environmentObject(appState)
             }
         }
         .onChange(of: scenePhase) { newPhase in

@@ -1,6 +1,15 @@
 import SwiftUI
 import Combine
 
+/// 扩展View添加点击背景隐藏键盘功能
+extension View {
+    func hideKeyboardWhenTappedAround() -> some View {
+        return self.onTapGesture {
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        }
+    }
+}
+
 /// 登录页面 - 提供账号密码登录及跳转到注册页面选项
 struct LoginView: View {
     @StateObject private var authService = AuthService.shared
@@ -14,11 +23,21 @@ struct LoginView: View {
     @State private var alertMessage = ""
     @State private var cancellables = Set<AnyCancellable>()
     
+    // 定义输入焦点字段
+    enum LoginField: Hashable {
+        case phone, password, code
+    }
+    
+    // 焦点状态
+    @FocusState private var focusedField: LoginField?
+    
     // 登录表单
     @State private var phoneNumber = ""
     @State private var password = ""
-    @State private var rememberMe = false
     @State private var isShowingRegister = false
+    
+    // 协议同意状态
+    @State private var agreeToTerms = false
     
     // 验证码登录相关状态
     @State private var loginMethod: LoginMethod = .password
@@ -40,6 +59,11 @@ struct LoginView: View {
     // 环境属性用于控制页面展示
     @Environment(\.dismiss) private var dismiss
     
+    // 添加处理键盘消失的方法
+    private func dismissKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+    
     var body: some View {
         ZStack {
             // 背景渐变
@@ -49,6 +73,7 @@ struct LoginView: View {
                 endPoint: .bottomTrailing
             )
             .ignoresSafeArea()
+            .hideKeyboardWhenTappedAround() // 点击背景隐藏键盘
             
             VStack(spacing: 30) {
                 Spacer()
@@ -68,6 +93,16 @@ struct LoginView: View {
                         .background(Color.white.opacity(0.8))
                         .cornerRadius(10)
                         .autocapitalization(.none)
+                        .disableAutocorrection(true)
+                        .submitLabel(.next)
+                        .focused($focusedField, equals: .phone)
+                        .onSubmit {
+                            if loginMethod == .password {
+                                focusedField = .password
+                            } else {
+                                focusedField = .code
+                            }
+                        }
                     
                     // 根据登录方式显示不同的输入框
                     if loginMethod == .password {
@@ -76,17 +111,24 @@ struct LoginView: View {
                             .padding()
                             .background(Color.white.opacity(0.8))
                             .cornerRadius(10)
+                            .disableAutocorrection(true)
+                            .submitLabel(.done)
+                            .focused($focusedField, equals: .password)
+                            .onSubmit {
+                                dismissKeyboard() // 点击按钮时隐藏键盘
+                                login()
+                            }
                         
-                        // 记住我选项
+                        // 忘记密码链接
                         HStack {
-                            Toggle("记住我", isOn: $rememberMe)
-                                .foregroundColor(.white)
-                            
                             Spacer()
                             
                             Button("忘记密码?") {
                                 // 切换到验证码登录
                                 loginMethod = .verificationCode
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                    focusedField = .phone
+                                }
                             }
                             .foregroundColor(.white)
                         }
@@ -99,6 +141,13 @@ struct LoginView: View {
                                 .padding()
                                 .background(Color.white.opacity(0.8))
                                 .cornerRadius(10)
+                                .disableAutocorrection(true)
+                                .submitLabel(.done)
+                                .focused($focusedField, equals: .code)
+                                .onSubmit {
+                                    dismissKeyboard() // 点击按钮时隐藏键盘
+                                    login()
+                                }
                             
                             Button(action: {
                                 sendVerificationCode()
@@ -121,23 +170,13 @@ struct LoginView: View {
                             }
                             .disabled(isSendingCode || phoneNumber.count != 11 || codeTimeRemaining > 0)
                         }
-                        
-                        // 切换到密码登录
-                        HStack {
-                            Spacer()
-                            
-                            Button("使用密码登录") {
-                                loginMethod = .password
-                            }
-                            .foregroundColor(.white)
-                        }
-                        .padding(.horizontal, 5)
                     }
                 }
                 .padding(.horizontal)
                 
                 // 登录按钮
                 Button(action: {
+                    dismissKeyboard() // 点击按钮时隐藏键盘
                     login()
                 }) {
                     ZStack {
@@ -192,9 +231,13 @@ struct LoginView: View {
                 // 协议同意区域
                 VStack(spacing: 8) {
                     HStack(spacing: 4) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 16))
-                            .foregroundColor(.white)
+                        Button(action: {
+                            agreeToTerms.toggle()
+                        }) {
+                            Image(systemName: agreeToTerms ? "checkmark.circle.fill" : "circle")
+                                .font(.system(size: 16))
+                                .foregroundColor(.white)
+                        }
                         
                         Text("同意《用户协议》和《隐私政策》")
                             .font(.system(size: 12))
@@ -202,17 +245,6 @@ struct LoginView: View {
                     }
                 }
                 .padding(.top, 20)
-                
-                // 随便逛逛按钮（跳过登录）
-                Button(action: {
-                    navigateToMainView = true
-                }) {
-                    Text("随便逛逛")
-                        .font(.system(size: 14))
-                        .foregroundColor(.white)
-                        .padding(.vertical, 10)
-                }
-                .padding(.top, 10)
                 
                 // 开发测试工具按钮
                 Button(action: {
@@ -302,6 +334,9 @@ struct LoginView: View {
                 appState.showLoginView = true
             }
         }
+        .onChange(of: isShowingRegister) { _ in
+            dismissKeyboard() // 切换到注册页面时隐藏键盘
+        }
     }
     
     /// 创建登录选项按钮
@@ -316,6 +351,8 @@ struct LoginView: View {
                         .font(.system(size: 20))
                         .foregroundColor(Color(hex: "FE2D55"))
                 )
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(name)登录")
             
             Text(name)
                 .font(.system(size: 12))
@@ -325,8 +362,17 @@ struct LoginView: View {
     
     /// 处理登录业务逻辑
     func login() {
+        // 先隐藏键盘
+        dismissKeyboard()
+        
         guard !phoneNumber.isEmpty else {
             errorMessage = "请输入手机号"
+            showErrorMessage = true
+            return
+        }
+        
+        guard agreeToTerms else {
+            errorMessage = "请先同意用户协议和隐私政策"
             showErrorMessage = true
             return
         }
@@ -443,6 +489,14 @@ struct RegisterView: View {
     @StateObject private var authService = AuthService.shared
     @State private var cancellables = Set<AnyCancellable>()
     
+    // 定义输入焦点字段
+    enum RegisterField: Hashable {
+        case phone, code, nickname, password, confirmPassword
+    }
+    
+    // 焦点状态
+    @FocusState private var focusedField: RegisterField?
+    
     @State private var phoneNumber = ""
     @State private var password = ""
     @State private var confirmPassword = ""
@@ -456,6 +510,12 @@ struct RegisterView: View {
     @State private var codeTimeRemaining = 0
     @State private var codeWaitingTime = 60
     @State private var codeTimer: Timer?
+    @State private var agreeToTerms = false
+    
+    // 添加处理键盘消失的方法
+    private func dismissKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
     
     var body: some View {
         ZStack {
@@ -466,6 +526,7 @@ struct RegisterView: View {
                 endPoint: .bottomTrailing
             )
             .ignoresSafeArea()
+            .hideKeyboardWhenTappedAround() // 点击背景隐藏键盘
             
             VStack(spacing: 30) {
                 // 返回按钮
@@ -496,6 +557,12 @@ struct RegisterView: View {
                         .padding()
                         .background(Color.white.opacity(0.8))
                         .cornerRadius(10)
+                        .disableAutocorrection(true)
+                        .submitLabel(.next)
+                        .focused($focusedField, equals: .phone)
+                        .onSubmit {
+                            focusedField = .code
+                        }
                     
                     // 验证码
                     HStack {
@@ -504,6 +571,12 @@ struct RegisterView: View {
                             .padding()
                             .background(Color.white.opacity(0.8))
                             .cornerRadius(10)
+                            .disableAutocorrection(true)
+                            .submitLabel(.next)
+                            .focused($focusedField, equals: .code)
+                            .onSubmit {
+                                focusedField = .nickname
+                            }
                         
                         Button(action: {
                             sendVerificationCode()
@@ -532,23 +605,43 @@ struct RegisterView: View {
                         .padding()
                         .background(Color.white.opacity(0.8))
                         .cornerRadius(10)
+                        .disableAutocorrection(true)
+                        .submitLabel(.next)
+                        .focused($focusedField, equals: .nickname)
+                        .onSubmit {
+                            focusedField = .password
+                        }
                     
                     // 密码输入框
                     SecureField("设置密码", text: $password)
                         .padding()
                         .background(Color.white.opacity(0.8))
                         .cornerRadius(10)
+                        .disableAutocorrection(true)
+                        .submitLabel(.next)
+                        .focused($focusedField, equals: .password)
+                        .onSubmit {
+                            focusedField = .confirmPassword
+                        }
                     
                     // 确认密码输入框
                     SecureField("确认密码", text: $confirmPassword)
                         .padding()
                         .background(Color.white.opacity(0.8))
                         .cornerRadius(10)
+                        .disableAutocorrection(true)
+                        .submitLabel(.done)
+                        .focused($focusedField, equals: .confirmPassword)
+                        .onSubmit {
+                            dismissKeyboard() // 点击按钮时隐藏键盘
+                            registerAction()
+                        }
                 }
                 .padding(.horizontal)
                 
                 // 注册按钮
                 Button(action: {
+                    dismissKeyboard() // 点击按钮时隐藏键盘
                     registerAction()
                 }) {
                     ZStack {
@@ -588,9 +681,13 @@ struct RegisterView: View {
                 // 协议同意区域
                 VStack(spacing: 8) {
                     HStack(spacing: 4) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 16))
-                            .foregroundColor(.white)
+                        Button(action: {
+                            agreeToTerms.toggle()
+                        }) {
+                            Image(systemName: agreeToTerms ? "checkmark.circle.fill" : "circle")
+                                .font(.system(size: 16))
+                                .foregroundColor(.white)
+                        }
                         
                         Text("同意《用户协议》和《隐私政策》")
                             .font(.system(size: 12))
@@ -607,9 +704,25 @@ struct RegisterView: View {
     
     /// 注册操作
     private func registerAction() {
+        // 先隐藏键盘
+        dismissKeyboard()
+        
         // 验证输入
         guard !phoneNumber.isEmpty, !password.isEmpty, !confirmPassword.isEmpty, !verificationCode.isEmpty, !nickname.isEmpty else {
             alertMessage = "请填写所有字段"
+            showAlert = true
+            return
+        }
+        
+        // 添加基本字符限制检查
+        guard nickname.count >= 2 && nickname.count <= 20 else {
+            alertMessage = "昵称长度应在2-20个字符之间"
+            showAlert = true
+            return
+        }
+        
+        guard password.count >= 6 && password.count <= 20 else {
+            alertMessage = "密码长度应在6-20个字符之间"
             showAlert = true
             return
         }
@@ -626,11 +739,18 @@ struct RegisterView: View {
             return
         }
         
+        guard agreeToTerms else {
+            alertMessage = "请先同意用户协议和隐私政策"
+            showAlert = true
+            return
+        }
+        
         isRegistering = true
         
         APIService.shared.register(
             phone: phoneNumber,
             password: password,
+            confirmPassword: confirmPassword,
             code: verificationCode,
             nickname: nickname
         )
