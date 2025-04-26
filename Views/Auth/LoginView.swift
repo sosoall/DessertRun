@@ -123,23 +123,32 @@ struct LoginView: View {
                 
                 // 登录表单
                 VStack(spacing: 20) {
-                    // 账号输入框
-                    TextField("手机号", text: $phoneNumber)
-                        .keyboardType(.phonePad)
-                        .padding()
-                        .background(Color.white.opacity(0.8))
-                        .cornerRadius(10)
-                        .autocapitalization(.none)
-                        .disableAutocorrection(true)
-                        .submitLabel(.next)
-                        .focused($focusedField, equals: .phone)
-                        .onSubmit {
-                            if loginMethod == .password {
-                                focusedField = .password
-                            } else {
-                                focusedField = .code
+                    // 账号输入框 - 加上延迟激活的逻辑
+                    ZStack {
+                        TextField("手机号", text: $phoneNumber)
+                            .keyboardType(.phonePad)
+                            .padding()
+                            .background(Color.white.opacity(0.8))
+                            .cornerRadius(10)
+                            .autocapitalization(.none)
+                            .disableAutocorrection(true)
+                            .submitLabel(.next)
+                            .focused($focusedField, equals: .phone)
+                            .onSubmit {
+                                if loginMethod == .password {
+                                    focusedField = .password
+                                } else {
+                                    focusedField = .code
+                                }
                             }
+                    }
+                    .onTapGesture {
+                        // 点击时先清除焦点，然后延迟一小段时间后再激活
+                        focusedField = nil
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            focusedField = .phone
                         }
+                    }
                     
                     // 根据登录方式显示不同的输入框
                     if loginMethod == .password {
@@ -172,37 +181,28 @@ struct LoginView: View {
                         .padding(.horizontal, 5)
                     } else {
                         // 验证码输入框
-                        HStack {
-                            TextField("验证码", text: $verificationCode)
-                                .keyboardType(.numberPad)
-                                .padding()
-                                .background(Color.white.opacity(0.8))
-                                .cornerRadius(10)
-                                .disableAutocorrection(true)
-                                .submitLabel(.done)
-                                .focused($focusedField, equals: .code)
-                                .onSubmit {
-                                    dismissKeyboard() // 点击按钮时隐藏键盘
-                                    login()
-                                }
+                        VStack(spacing: 12) {
+                            VerificationCodeInputView(code: $verificationCode)
+                                .frame(height: 60)
+                                .padding(.vertical, 8)
                             
                             Button(action: {
                                 sendVerificationCode()
                             }) {
                                 if codeTimeRemaining > 0 {
                                     Text("\(codeTimeRemaining)s")
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 8)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 12)
                                         .foregroundColor(.white)
                                         .background(Color.gray)
-                                        .cornerRadius(8)
+                                        .cornerRadius(10)
                                 } else {
-                                    Text(codeSent ? "重新发送" : "发送验证码")
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 8)
+                                    Text(codeSent ? "重新发送验证码" : "发送验证码")
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 12)
                                         .foregroundColor(.white)
                                         .background(Color(hex: "FE2D55"))
-                                        .cornerRadius(8)
+                                        .cornerRadius(10)
                                 }
                             }
                             .disabled(isSendingCode || phoneNumber.count != 11 || codeTimeRemaining > 0)
@@ -592,17 +592,26 @@ struct RegisterView: View {
                 // 注册表单
                 VStack(spacing: 20) {
                     // 手机号输入框
-                    TextField("手机号", text: $phoneNumber)
-                        .keyboardType(.phonePad)
-                        .padding()
-                        .background(Color.white.opacity(0.8))
-                        .cornerRadius(10)
-                        .disableAutocorrection(true)
-                        .submitLabel(.next)
-                        .focused($focusedField, equals: .phone)
-                        .onSubmit {
-                            focusedField = .code
+                    ZStack {
+                        TextField("手机号", text: $phoneNumber)
+                            .keyboardType(.phonePad)
+                            .padding()
+                            .background(Color.white.opacity(0.8))
+                            .cornerRadius(10)
+                            .disableAutocorrection(true)
+                            .submitLabel(.next)
+                            .focused($focusedField, equals: .phone)
+                            .onSubmit {
+                                focusedField = .code
+                            }
+                    }
+                    .onTapGesture {
+                        // 点击时先清除焦点，然后延迟一小段时间后再激活
+                        focusedField = nil
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            focusedField = .phone
                         }
+                    }
                     
                     // 验证码
                     HStack {

@@ -11,14 +11,12 @@ class User: Identifiable, Codable, ObservableObject {
     @Published var weight: Double?
     @Published var hasExerciseHabit: Bool?
     @Published var birthYear: Int?
-    @Published var exerciseFrequency: ExerciseFrequency?
-    @Published var exerciseDuration: ExerciseDuration?
     @Published var registerDate: Date
     @Published var isProfileCompleted: Bool
     @Published var isNewUser: Bool
     
     // 存储后端用户ID (与UUID区分)
-    var apiUserId: Int?
+    var apiUserId: String?
     
     enum Gender: String, Codable {
         case male = "男"
@@ -39,23 +37,9 @@ class User: Identifiable, Codable, ObservableObject {
         }
     }
     
-    enum ExerciseFrequency: String, Codable {
-        case none = "不经常运动"
-        case oneToTwo = "每周1-2次"
-        case threeToFive = "每周3-5次"
-        case daily = "几乎每天"
-    }
-    
-    enum ExerciseDuration: String, Codable {
-        case lessThanThirty = "少于30分钟"
-        case thirtyToSixty = "30-60分钟"
-        case sixtyToNinety = "60-90分钟"
-        case moreThanNinety = "90分钟以上"
-    }
-    
     enum CodingKeys: String, CodingKey {
         case id, phoneNumber, nickname, avatar, gender, height, weight, hasExerciseHabit
-        case birthYear, exerciseFrequency, exerciseDuration
+        case birthYear
         case registerDate, isProfileCompleted, apiUserId
         case isNewUser
     }
@@ -69,11 +53,9 @@ class User: Identifiable, Codable, ObservableObject {
          weight: Double? = nil, 
          hasExerciseHabit: Bool? = nil,
          birthYear: Int? = nil,
-         exerciseFrequency: ExerciseFrequency? = nil,
-         exerciseDuration: ExerciseDuration? = nil,
          isProfileCompleted: Bool = false,
          isNewUser: Bool = true,
-         apiUserId: Int? = nil) {
+         apiUserId: String? = nil) {
         self.id = id
         self.phoneNumber = phoneNumber
         self.nickname = nickname
@@ -83,8 +65,6 @@ class User: Identifiable, Codable, ObservableObject {
         self.weight = weight
         self.hasExerciseHabit = hasExerciseHabit
         self.birthYear = birthYear
-        self.exerciseFrequency = exerciseFrequency
-        self.exerciseDuration = exerciseDuration
         self.registerDate = Date()
         self.isProfileCompleted = isProfileCompleted
         self.isNewUser = isNewUser
@@ -103,12 +83,10 @@ class User: Identifiable, Codable, ObservableObject {
         weight = try container.decodeIfPresent(Double.self, forKey: .weight)
         hasExerciseHabit = try container.decodeIfPresent(Bool.self, forKey: .hasExerciseHabit)
         birthYear = try container.decodeIfPresent(Int.self, forKey: .birthYear)
-        exerciseFrequency = try container.decodeIfPresent(ExerciseFrequency.self, forKey: .exerciseFrequency)
-        exerciseDuration = try container.decodeIfPresent(ExerciseDuration.self, forKey: .exerciseDuration)
         registerDate = try container.decode(Date.self, forKey: .registerDate)
         isProfileCompleted = try container.decode(Bool.self, forKey: .isProfileCompleted)
         isNewUser = try container.decode(Bool.self, forKey: .isNewUser)
-        apiUserId = try container.decodeIfPresent(Int.self, forKey: .apiUserId)
+        apiUserId = try container.decodeIfPresent(String.self, forKey: .apiUserId)
     }
     
     func encode(to encoder: Encoder) throws {
@@ -122,8 +100,6 @@ class User: Identifiable, Codable, ObservableObject {
         try container.encodeIfPresent(weight, forKey: .weight)
         try container.encodeIfPresent(hasExerciseHabit, forKey: .hasExerciseHabit)
         try container.encodeIfPresent(birthYear, forKey: .birthYear)
-        try container.encodeIfPresent(exerciseFrequency, forKey: .exerciseFrequency)
-        try container.encodeIfPresent(exerciseDuration, forKey: .exerciseDuration)
         try container.encode(registerDate, forKey: .registerDate)
         try container.encode(isProfileCompleted, forKey: .isProfileCompleted)
         try container.encode(isNewUser, forKey: .isNewUser)
@@ -135,7 +111,10 @@ class User: Identifiable, Codable, ObservableObject {
         return UpdateProfileRequest(
             nickname: nickname,
             avatar: avatar,
-            gender: gender?.toApiValue
+            gender: gender?.toApiValue,
+            height: height,
+            weight: weight,
+            hasExerciseHabit: hasExerciseHabit
         )
     }
 } 

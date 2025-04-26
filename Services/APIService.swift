@@ -87,9 +87,8 @@ class APIService {
                 UserDefaults.standard.set(wrapper.data.token, forKey: Config.UserData.tokenKey)
                 
                 // 创建并返回APIUser对象
-                let userId = wrapper.data.uuid?.hashValue ?? Int.random(in: 1000...9999)
                 return APIUser(
-                    id: userId,
+                    id: wrapper.data.userID, // 直接使用服务器返回的UUID字符串
                     phone: phone,
                     nickname: nil,
                     avatar: nil,
@@ -146,9 +145,8 @@ class APIService {
                 UserDefaults.standard.set(wrapper.data.token, forKey: Config.UserData.tokenKey)
                 
                 // 创建并返回APIUser对象
-                let userId = wrapper.data.uuid?.hashValue ?? Int.random(in: 1000...9999)
                 return APIUser(
-                    id: userId,
+                    id: wrapper.data.userID, // 直接使用服务器返回的UUID字符串
                     phone: phone,
                     nickname: nil,
                     avatar: nil,
@@ -208,7 +206,7 @@ class APIService {
                                             // 登录失败但注册成功
                                             // 创建一个基本用户对象
                                             let user = APIUser(
-                                                id: -1, // 临时ID
+                                                id: UUID().uuidString, // 使用随机生成的UUID字符串作为临时ID
                                                 phone: phone,
                                                 nickname: nickname,
                                                 avatar: nil,
@@ -274,6 +272,17 @@ class APIService {
         if let gender = profile.gender {
             parameters["gender"] = gender
         }
+        if let height = profile.height {
+            parameters["height"] = height
+        }
+        if let weight = profile.weight {
+            parameters["weight"] = weight
+        }
+        if let hasExerciseHabit = profile.hasExerciseHabit {
+            parameters["has_exercise_habit"] = hasExerciseHabit
+        }
+        
+        print("发送用户更新请求: \(parameters)")
         
         return networkManager.request(
             endpoint: endpoint,
@@ -352,7 +361,7 @@ struct AuthResponseWrapper: Decodable {
 
 /// API用户模型
 struct APIUser: Decodable, Identifiable {
-    let id: Int
+    let id: String
     let phone: String
     let nickname: String?
     let avatar: String?
@@ -384,7 +393,7 @@ struct APIUser: Decodable, Identifiable {
             gender: gender != nil ? User.Gender.fromApiValue(gender!) : nil,
             isProfileCompleted: isProfileCompleted ?? false,
             isNewUser: isNewUser ?? true,
-            apiUserId: id
+            apiUserId: id // 直接使用字符串ID，不尝试转换为Int
         )
         return user
     }
@@ -395,4 +404,7 @@ struct UpdateProfileRequest {
     let nickname: String?
     let avatar: String?
     let gender: Int?
+    let height: Double?
+    let weight: Double?
+    let hasExerciseHabit: Bool?
 } 

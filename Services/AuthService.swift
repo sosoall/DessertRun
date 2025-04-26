@@ -350,6 +350,7 @@ class AuthService: ObservableObject {
             let updateRequest = user.prepareProfileUpdateRequest()
             
             APIService.shared.updateUserProfile(profile: updateRequest)
+                .receive(on: DispatchQueue.main) // 确保在主线程接收结果
                 .sink(
                     receiveCompletion: { completion in
                         if case let .failure(error) = completion {
@@ -442,8 +443,7 @@ class AuthService: ObservableObject {
         user.height = 175
         user.weight = 65
         user.birthYear = 1990
-        user.exerciseFrequency = .threeToFive
-        user.exerciseDuration = .thirtyToSixty
+        user.hasExerciseHabit = true
         saveUserToStorage()
     }
     

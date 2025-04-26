@@ -9,7 +9,7 @@ struct UserInfoSetupView: View {
     @State private var showSuccessMessage = false
     @State private var navigateToMainView = false
     
-    private let totalSteps = 6
+    private let totalSteps = 3 // 修改总步骤数：1.昵称和性别 2.身高和体重 3.运动习惯
     
     var body: some View {
         NavigationStack {
@@ -82,17 +82,11 @@ struct UserInfoSetupView: View {
     private func setupTitle() -> some View {
         switch currentStep {
         case 0:
-            stepTitle("设置个人资料", subtitle: "请设置您的昵称")
+            stepTitle("设置个人资料", subtitle: "请设置您的昵称和性别")
         case 1:
-            stepTitle("设置个人资料", subtitle: "请选择您的性别")
+            stepTitle("身体数据", subtitle: "请输入您的身高和体重")
         case 2:
-            stepTitle("身体数据", subtitle: "请输入您的身高")
-        case 3:
-            stepTitle("身体数据", subtitle: "请输入您的体重")
-        case 4:
             stepTitle("运动习惯", subtitle: "您是否有运动习惯？")
-        case 5:
-            stepTitle("运动习惯", subtitle: "您平均每周运动几次？")
         default:
             stepTitle("设置完成", subtitle: "您的个人资料已设置完成")
         }
@@ -116,71 +110,91 @@ struct UserInfoSetupView: View {
     private func formContent() -> some View {
         switch currentStep {
         case 0:
-            // 昵称设置
-            VStack(alignment: .leading, spacing: 10) {
-                Text("昵称")
-                    .font(.headline)
+            // 昵称和性别设置
+            VStack(alignment: .leading, spacing: 20) {
+                // 昵称设置
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("昵称")
+                        .font(.headline)
+                    
+                    TextField("请输入昵称", text: $viewModel.nickname)
+                        .padding()
+                        .background(Color(.systemGray6))
+                        .cornerRadius(10)
+                }
                 
-                TextField("请输入昵称", text: $viewModel.nickname)
-                    .padding()
-                    .background(Color(.systemGray6))
-                    .cornerRadius(10)
+                // 性别选择
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("性别")
+                        .font(.headline)
+                    
+                    HStack(spacing: 20) {
+                        GenderOptionButton(title: "男", isSelected: viewModel.user.gender == .male) {
+                            withAnimation {
+                                viewModel.user.gender = .male
+                            }
+                        }
+                        
+                        GenderOptionButton(title: "女", isSelected: viewModel.user.gender == .female) {
+                            withAnimation {
+                                viewModel.user.gender = .female
+                            }
+                        }
+                    }
+                }
             }
             
         case 1:
-            // 性别选择
-            VStack(alignment: .leading, spacing: 20) {
-                Text("性别")
-                    .font(.headline)
-                
-                HStack(spacing: 20) {
-                    GenderOptionButton(title: "男", isSelected: viewModel.user.gender == .male) {
-                        viewModel.user.gender = .male
-                    }
+            // 身高和体重设置
+            VStack(alignment: .leading, spacing: 30) {
+                // 身高设置
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("身高（厘米）")
+                        .font(.headline)
                     
-                    GenderOptionButton(title: "女", isSelected: viewModel.user.gender == .female) {
-                        viewModel.user.gender = .female
+                    HStack {
+                        Picker("", selection: Binding(
+                            get: { Int(viewModel.user.height ?? 170) },
+                            set: { viewModel.user.height = Double($0) }
+                        )) {
+                            ForEach(100...220, id: \.self) { height in
+                                Text("\(height)").tag(height)
+                            }
+                        }
+                        .pickerStyle(WheelPickerStyle())
+                        .frame(height: 150)
+                        .clipped()
+                        
+                        Text("厘米")
+                            .padding(.leading, 10)
+                    }
+                }
+                
+                // 体重设置
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("体重（公斤）")
+                        .font(.headline)
+                    
+                    HStack {
+                        Picker("", selection: Binding(
+                            get: { Int(viewModel.user.weight ?? 60) },
+                            set: { viewModel.user.weight = Double($0) }
+                        )) {
+                            ForEach(35...150, id: \.self) { weight in
+                                Text("\(weight)").tag(weight)
+                            }
+                        }
+                        .pickerStyle(WheelPickerStyle())
+                        .frame(height: 150)
+                        .clipped()
+                        
+                        Text("公斤")
+                            .padding(.leading, 10)
                     }
                 }
             }
             
         case 2:
-            // 身高设置
-            VStack(alignment: .leading, spacing: 10) {
-                Text("身高（厘米）")
-                    .font(.headline)
-                
-                HStack {
-                    Slider(value: Binding(
-                        get: { viewModel.user.height ?? 170 },
-                        set: { viewModel.user.height = $0 }
-                    ), in: 140...220, step: 1)
-                    
-                    Text("\(Int(viewModel.user.height ?? 170))")
-                        .font(.headline)
-                        .frame(width: 50)
-                }
-            }
-            
-        case 3:
-            // 体重设置
-            VStack(alignment: .leading, spacing: 10) {
-                Text("体重（公斤）")
-                    .font(.headline)
-                
-                HStack {
-                    Slider(value: Binding(
-                        get: { viewModel.user.weight ?? 60 },
-                        set: { viewModel.user.weight = $0 }
-                    ), in: 30...150, step: 1)
-                    
-                    Text("\(Int(viewModel.user.weight ?? 60))")
-                        .font(.headline)
-                        .frame(width: 50)
-                }
-            }
-            
-        case 4:
             // 是否有运动习惯
             VStack(alignment: .leading, spacing: 20) {
                 Text("您是否有运动习惯？")
@@ -193,43 +207,6 @@ struct UserInfoSetupView: View {
                     
                     ExerciseHabitButton(title: "否", isSelected: viewModel.user.hasExerciseHabit == false) {
                         viewModel.user.hasExerciseHabit = false
-                    }
-                }
-            }
-            
-        case 5:
-            // 运动频率
-            VStack(alignment: .leading, spacing: 20) {
-                Text("您的运动频率是？")
-                    .font(.headline)
-                
-                VStack(spacing: 15) {
-                    FrequencyOptionButton(
-                        title: "不经常运动",
-                        isSelected: viewModel.user.exerciseFrequency == User.ExerciseFrequency.none
-                    ) {
-                        viewModel.user.exerciseFrequency = User.ExerciseFrequency.none
-                    }
-                    
-                    FrequencyOptionButton(
-                        title: "每周1-2次",
-                        isSelected: viewModel.user.exerciseFrequency == .oneToTwo
-                    ) {
-                        viewModel.user.exerciseFrequency = .oneToTwo
-                    }
-                    
-                    FrequencyOptionButton(
-                        title: "每周3-5次",
-                        isSelected: viewModel.user.exerciseFrequency == .threeToFive
-                    ) {
-                        viewModel.user.exerciseFrequency = .threeToFive
-                    }
-                    
-                    FrequencyOptionButton(
-                        title: "几乎每天",
-                        isSelected: viewModel.user.exerciseFrequency == .daily
-                    ) {
-                        viewModel.user.exerciseFrequency = .daily
                     }
                 }
             }
@@ -260,7 +237,7 @@ struct UserInfoSetupView: View {
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 20)
-            .disabled(currentStep == 0 && viewModel.nickname.isEmpty)
+            .disabled(currentStep == 0 && (viewModel.nickname.isEmpty || viewModel.user.gender == nil))
         }
         .background(
             Rectangle()
@@ -279,6 +256,8 @@ struct UserInfoSetupView: View {
         viewModel.saveUserInfo {
             // 标记用户已登录
             appState.isLoggedIn = true
+            // 设置首页为"运动"标签
+            appState.selectedTabIndex = 0
             
             // 2秒后跳转到主页
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
@@ -327,33 +306,6 @@ struct ExerciseHabitButton: View {
     }
 }
 
-struct FrequencyOptionButton: View {
-    let title: String
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            HStack {
-                Text(title)
-                    .font(.headline)
-                
-                Spacer()
-                
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .foregroundColor(.white)
-                }
-            }
-            .padding(.horizontal, 20)
-            .foregroundColor(isSelected ? .white : .primary)
-            .frame(height: 50)
-            .background(isSelected ? Color.blue : Color(.systemGray6))
-            .cornerRadius(10)
-        }
-    }
-}
-
 struct StepProgressBar: View {
     let currentStep: Int
     let totalSteps: Int
@@ -392,10 +344,21 @@ class UserInfoSetupViewModel: ObservableObject {
         if let currentUser = AuthService.shared.currentUser {
             self.user = currentUser
             self.nickname = currentUser.nickname ?? ""
+            
+            // 确保身高体重初始值设置，即使未滚动拨盘
+            if self.user.height == nil {
+                self.user.height = 170.0
+            }
+            if self.user.weight == nil {
+                self.user.weight = 60.0
+            }
         } else {
             // Fallback to a new User instance if somehow no current user exists
             self.user = User(phoneNumber: "")
             self.nickname = ""
+            // 设置默认身高体重
+            self.user.height = 170.0
+            self.user.weight = 60.0
         }
     }
     
@@ -421,19 +384,24 @@ class UserInfoSetupViewModel: ObservableObject {
             
             // 调用API更新用户资料
             APIService.shared.updateUserProfile(profile: updateRequest)
+                .receive(on: DispatchQueue.main) // 确保在主线程接收结果
                 .sink(
-                    receiveCompletion: { completion in
+                    receiveCompletion: { result in
                         // 处理可能的错误
-                        if case let .failure(error) = completion {
+                        if case let .failure(error) = result {
                             print("更新用户资料失败: \(error.errorMessage)")
                         }
+                        // 无论成功或失败都调用完成回调
+                        completion()
                     },
                     receiveValue: { _ in
                         print("用户资料已同步到服务器")
-                        completion()
                     }
                 )
                 .store(in: &AuthService.shared.cancellables)
+        } else {
+            // 如果没有API用户ID，直接完成
+            completion()
         }
     }
 }

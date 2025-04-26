@@ -85,16 +85,89 @@ struct ProfileHomeView: View {
                 
                 // 开发测试功能
                 #if DEBUG
-                if authService.isLoggedIn {
-                    Button(action: {
-                        authService.clearUserData()
-                        appState.updateLoginStatus()
-                    }) {
-                        Text("清除测试数据")
-                            .font(.footnote)
-                            .foregroundColor(.gray)
-                            .padding(.vertical, 8)
+                // 开发者工具部分
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("开发者工具")
+                        .font(.headline)
+                        .foregroundColor(Color(hex: "61462C"))
+                        .padding(.horizontal)
+                    
+                    VStack(spacing: 0) {
+                        // 环境设置
+                        NavigationLink(destination: EnvironmentSettingsView()) {
+                            HStack {
+                                Image(systemName: "server.rack")
+                                    .foregroundColor(Color.purple)
+                                    .frame(width: 30, height: 30)
+                                
+                                Text("服务器环境设置")
+                                    .font(.body)
+                                
+                                Spacer()
+                                
+                                Text(Config.API.environment.rawValue)
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                                
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(.gray)
+                            }
+                            .padding()
+                            .background(Color.white)
+                        }
+                        
+                        Divider()
+                            .padding(.leading, 56)
+                        
+                        // 显示API地址
+                        HStack {
+                            Image(systemName: "network")
+                                .foregroundColor(Color.blue)
+                                .frame(width: 30, height: 30)
+                            
+                            Text("当前API地址")
+                                .font(.body)
+                            
+                            Spacer()
+                            
+                            Text(Config.API.baseURL)
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                        .padding()
+                        .background(Color.white)
+                        
+                        Divider()
+                            .padding(.leading, 56)
+                        
+                        // 清除测试数据
+                        if authService.isLoggedIn {
+                            Button(action: {
+                                authService.clearUserData()
+                                appState.updateLoginStatus()
+                            }) {
+                                HStack {
+                                    Image(systemName: "trash")
+                                        .foregroundColor(Color.red)
+                                        .frame(width: 30, height: 30)
+                                    
+                                    Text("清除测试数据")
+                                        .font(.body)
+                                        .foregroundColor(.primary)
+                                    
+                                    Spacer()
+                                }
+                                .padding()
+                                .background(Color.white)
+                            }
+                        }
                     }
+                    .background(Color.white)
+                    .cornerRadius(16)
+                    .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+                    .padding(.horizontal)
                 }
                 #endif
                 
