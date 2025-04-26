@@ -246,20 +246,8 @@ struct UserInfoSetupView: View {
                 if currentStep < totalSteps - 1 {
                     currentStep += 1
                 } else {
-                    // 保存用户信息
-                    viewModel.saveUserInfo()
-                    
-                    // 显示完成动画
-                    showSuccessMessage = true
-                    
-                    // 2秒后关闭完成动画并导航到主页
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                        showSuccessMessage = false
-                        navigateToMainView = true
-                        
-                        // 更新全局状态
-                        appState.updateLoginStatus()
-                    }
+                    // 完成按钮操作
+                    finishAction()
                 }
             }) {
                 Text(currentStep < totalSteps - 1 ? "下一步" : "完成")
@@ -280,6 +268,24 @@ struct UserInfoSetupView: View {
                 .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: -5)
                 .edgesIgnoringSafeArea(.bottom)
         )
+    }
+    
+    // 完成按钮操作
+    private func finishAction() {
+        // 显示完成动画
+        showSuccessMessage = true
+        
+        // 保存用户信息
+        viewModel.saveUserInfo {
+            // 标记用户已登录
+            appState.isLoggedIn = true
+            
+            // 2秒后跳转到主页
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                showSuccessMessage = false
+                navigateToMainView = true
+            }
+        }
     }
 }
 
@@ -393,7 +399,7 @@ class UserInfoSetupViewModel: ObservableObject {
         }
     }
     
-    func saveUserInfo() {
+    func saveUserInfo(completion: @escaping () -> Void) {
         // 更新用户昵称
         user.nickname = nickname
         
@@ -424,6 +430,7 @@ class UserInfoSetupViewModel: ObservableObject {
                     },
                     receiveValue: { _ in
                         print("用户资料已同步到服务器")
+                        completion()
                     }
                 )
                 .store(in: &AuthService.shared.cancellables)

@@ -25,6 +25,12 @@ struct DessertRunApp: App {
     /// 场景管理
     @Environment(\.scenePhase) private var scenePhase
     
+    /// 显示用户信息设置页面
+    @State private var showUserInfoSetup = false
+    
+    /// 是否已添加观察者
+    @State private var observerAdded = false
+    
     init() {
         // 设置全局设置，避免UI和输入系统警告
         // 这些设置不会修复根本问题，但会减少不必要的警告日志
@@ -40,20 +46,34 @@ struct DessertRunApp: App {
     
     var body: some Scene {
         WindowGroup {
-            if appState.isResettingApp {
-                ProgressView("重置应用中...")
-                    .onAppear {
-                        // 应用重置逻辑
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-                            appState.isResettingApp = false
+            ZStack {
+                if appState.isResettingApp {
+                    ProgressView("重置应用中...")
+                        .onAppear {
+                            // 应用重置逻辑
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                                appState.isResettingApp = false
+                            }
                         }
+                } else if showUserInfoSetup {
+                    UserInfoSetupView()
+                        .environmentObject(appState)
+                } else if appState.showLoginView && !appState.isLoggedIn {
+                    LoginView()
+                        .environmentObject(appState)
+                } else {
+                    MainTabView()
+                        .environmentObject(appState)
+                }
+            }
+            .onAppear {
+                // 注册监听新用户通知
+                if !observerAdded {
+                    NotificationCenter.default.addObserver(forName: .userRegistered, object: nil, queue: .main) { [self] _ in
+                        showUserInfoSetup = true
                     }
-            } else if appState.showLoginView && !appState.isLoggedIn {
-                LoginView()
-                    .environmentObject(appState)
-            } else {
-                MainTabView()
-                    .environmentObject(appState)
+                    observerAdded = true
+                }
             }
         }
         .onChange(of: scenePhase) { newPhase in

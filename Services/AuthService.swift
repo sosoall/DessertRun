@@ -2,6 +2,11 @@ import Foundation
 import SwiftUI
 import Combine
 
+// 添加 Notification.Name 扩展
+extension Notification.Name {
+    static let userRegistered = Notification.Name("userRegistered")
+}
+
 /// 认证服务，管理用户登录状态和数据
 class AuthService: ObservableObject {
     
@@ -142,9 +147,9 @@ class AuthService: ObservableObject {
         }
     }
     
-    /// 创建一个映射方法，将APIUser转换为应用内使用的User模型
+    /// 将API用户转换为App用户模型
     private func mapToAppUser(apiUser: APIUser) -> User {
-        DRInfo("将API用户转换为本地用户: ID=\(apiUser.id)")
+        // 将API用户转换为本地用户
         return apiUser.toLocalUser()
     }
     
@@ -190,6 +195,13 @@ class AuthService: ObservableObject {
                         DRInfo("验证码登录成功: \(phoneNumber)")
                         self?.isLoggedIn = true
                         self?.saveUserToStorage()
+                        
+                        // 检查是否是新用户（自动注册）
+                        if let isNewUser = self?.currentUser?.isNewUser, isNewUser {
+                            DRInfo("新用户自动注册成功，准备收集个人信息")
+                            NotificationCenter.default.post(name: .userRegistered, object: nil)
+                        }
+                        
                         completion(true)
                     case .failure(let error):
                         DRError("验证码登录失败: \(error.errorMessage)")
@@ -198,7 +210,7 @@ class AuthService: ObservableObject {
                     }
                 },
                 receiveValue: { [weak self] apiUser in
-                    DRInfo("获取到用户数据: \(apiUser.nickname)")
+                    DRInfo("获取到用户数据: \(apiUser.nickname ?? "新用户")")
                     self?.currentUser = self?.mapToAppUser(apiUser: apiUser)
                 }
             )
@@ -322,10 +334,14 @@ class AuthService: ObservableObject {
            user.height != nil && user.weight != nil && 
            user.hasExerciseHabit != nil {
             user.isProfileCompleted = true
-            DRInfo("用户资料已完成填写")
+            // 个人资料填写完成后，不再是新用户
+            user.isNewUser = false
+            DRInfo("用户资料已完成填写，标记为非新用户")
         }
         
         self.currentUser = user
+        // 同步更新isNewUser状态
+        self.isNewUser = user.isNewUser
         saveUserToStorage()
         
         // 如果已经通过API登录，更新用户资料到服务器

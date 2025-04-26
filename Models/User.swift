@@ -15,6 +15,7 @@ class User: Identifiable, Codable, ObservableObject {
     @Published var exerciseDuration: ExerciseDuration?
     @Published var registerDate: Date
     @Published var isProfileCompleted: Bool
+    @Published var isNewUser: Bool
     
     // 存储后端用户ID (与UUID区分)
     var apiUserId: Int?
@@ -56,6 +57,7 @@ class User: Identifiable, Codable, ObservableObject {
         case id, phoneNumber, nickname, avatar, gender, height, weight, hasExerciseHabit
         case birthYear, exerciseFrequency, exerciseDuration
         case registerDate, isProfileCompleted, apiUserId
+        case isNewUser
     }
     
     init(id: UUID = UUID(), 
@@ -70,6 +72,7 @@ class User: Identifiable, Codable, ObservableObject {
          exerciseFrequency: ExerciseFrequency? = nil,
          exerciseDuration: ExerciseDuration? = nil,
          isProfileCompleted: Bool = false,
+         isNewUser: Bool = true,
          apiUserId: Int? = nil) {
         self.id = id
         self.phoneNumber = phoneNumber
@@ -84,6 +87,7 @@ class User: Identifiable, Codable, ObservableObject {
         self.exerciseDuration = exerciseDuration
         self.registerDate = Date()
         self.isProfileCompleted = isProfileCompleted
+        self.isNewUser = isNewUser
         self.apiUserId = apiUserId
     }
     
@@ -103,6 +107,7 @@ class User: Identifiable, Codable, ObservableObject {
         exerciseDuration = try container.decodeIfPresent(ExerciseDuration.self, forKey: .exerciseDuration)
         registerDate = try container.decode(Date.self, forKey: .registerDate)
         isProfileCompleted = try container.decode(Bool.self, forKey: .isProfileCompleted)
+        isNewUser = try container.decode(Bool.self, forKey: .isNewUser)
         apiUserId = try container.decodeIfPresent(Int.self, forKey: .apiUserId)
     }
     
@@ -121,6 +126,7 @@ class User: Identifiable, Codable, ObservableObject {
         try container.encodeIfPresent(exerciseDuration, forKey: .exerciseDuration)
         try container.encode(registerDate, forKey: .registerDate)
         try container.encode(isProfileCompleted, forKey: .isProfileCompleted)
+        try container.encode(isNewUser, forKey: .isNewUser)
         try container.encodeIfPresent(apiUserId, forKey: .apiUserId)
     }
     

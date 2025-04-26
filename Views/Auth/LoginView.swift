@@ -40,7 +40,7 @@ struct LoginView: View {
     @State private var agreeToTerms = false
     
     // 验证码登录相关状态
-    @State private var loginMethod: LoginMethod = .password
+    @State private var loginMethod: LoginMethod = .verificationCode // 默认使用验证码登录
     @State private var verificationCode = ""
     @State private var isSendingCode = false
     @State private var codeTimeRemaining = 0
@@ -83,6 +83,43 @@ struct LoginView: View {
                     .font(.system(size: 36, weight: .bold))
                     .foregroundColor(.white)
                     .padding(.bottom, 40)
+                
+                // 登录方法选择
+                HStack {
+                    Text("手机号登录或注册")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundColor(.white)
+                    
+                    Spacer()
+                    
+                    // 密码登录链接
+                    if loginMethod == .verificationCode {
+                        Button("密码登录") {
+                            loginMethod = .password
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                focusedField = .phone
+                            }
+                        }
+                        .font(.system(size: 16))
+                        .foregroundColor(.white)
+                        .padding(8)
+                        .background(Color.white.opacity(0.3))
+                        .cornerRadius(12)
+                    } else {
+                        Button("验证码登录") {
+                            loginMethod = .verificationCode
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                focusedField = .phone
+                            }
+                        }
+                        .font(.system(size: 16))
+                        .foregroundColor(.white)
+                        .padding(8)
+                        .background(Color.white.opacity(0.3))
+                        .cornerRadius(12)
+                    }
+                }
+                .padding(.horizontal)
                 
                 // 登录表单
                 VStack(spacing: 20) {
@@ -210,16 +247,13 @@ struct LoginView: View {
                         .cornerRadius(5)
                 }
                 
-                // 注册按钮
-                Button(action: {
-                    isShowingRegister = true
-                }) {
-                    Text("没有账号？点击注册")
-                        .font(.system(size: 16))
-                        .foregroundColor(.white)
-                        .underline()
+                // 注册说明文本
+                if loginMethod == .verificationCode {
+                    Text("未注册手机号将自动完成注册")
+                        .font(.system(size: 14))
+                        .foregroundColor(.white.opacity(0.8))
+                        .padding(.top, 10)
                 }
-                .padding(.top, 10)
                 
                 // 其他登录选项
                 HStack(spacing: 40) {
@@ -435,10 +469,16 @@ struct LoginView: View {
         // 关闭登录页面标志
         appState.showLoginView = false
         
-        // 2秒后关闭登录成功提示并导航到主页
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+        // 检查是否为新用户，如果不是新用户则导航到主页
+        if authService.isNewUser {
+            // 新用户不自动导航，由DessertRunApp中的通知监听器处理
             showLoginSuccess = false
-            navigateToMainView = true
+        } else {
+            // 2秒后关闭登录成功提示并导航到主页
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                showLoginSuccess = false
+                navigateToMainView = true
+            }
         }
     }
     

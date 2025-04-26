@@ -194,6 +194,12 @@ class NetworkManager {
                 // 尝试解析为API响应格式
                 let decoder = JSONDecoder()
                 decoder.dateDecodingStrategy = .iso8601
+                decoder.keyDecodingStrategy = .convertFromSnakeCase
+                
+                // 打印原始数据，用于调试
+                if let jsonString = String(data: data, encoding: .utf8) {
+                    DRInfo("[NetworkManager] 收到的JSON数据: \(jsonString)")
+                }
                 
                 // 创建一个特殊情况处理器，处理无内容响应的情况
                 if T.self == EmptyResponseData.self {
@@ -205,7 +211,24 @@ class NetworkManager {
                 // 尝试解析为API标准响应格式
                 return Just(data)
                     .decode(type: APIResponse<T>.self, decoder: decoder)
-                    .mapError { NetworkError.decodingFailed($0) }
+                    .mapError { error -> NetworkError in
+                        DRError("[NetworkManager] 解析API响应失败: \(error.localizedDescription)")
+                        if let decodingError = error as? DecodingError {
+                            switch decodingError {
+                            case .keyNotFound(let key, let context):
+                                DRError("[NetworkManager] 找不到键: \(key.stringValue), 路径: \(context.codingPath.map { $0.stringValue })")
+                            case .valueNotFound(let type, let context):
+                                DRError("[NetworkManager] 找不到\(type)类型的值, 路径: \(context.codingPath.map { $0.stringValue })")
+                            case .typeMismatch(let type, let context):
+                                DRError("[NetworkManager] 类型不匹配: 期望\(type), 路径: \(context.codingPath.map { $0.stringValue })")
+                            case .dataCorrupted(let context):
+                                DRError("[NetworkManager] 数据损坏: \(context)")
+                            @unknown default:
+                                DRError("[NetworkManager] 未知解码错误: \(decodingError)")
+                            }
+                        }
+                        return NetworkError.decodingFailed(error)
+                    }
                     .tryMap { response in
                         // 检查响应状态
                         guard response.code == 0 || response.code == 200 else {
@@ -228,10 +251,14 @@ class NetworkManager {
                     }
                     .catch { error -> AnyPublisher<T, NetworkError> in
                         // 如果不是标准响应格式，尝试直接解析为目标类型
+                        DRInfo("[NetworkManager] 尝试直接解析为目标类型 \(T.self)")
                         if let _ = error as? DecodingError {
                             return Just(data)
                                 .decode(type: T.self, decoder: decoder)
-                                .mapError { NetworkError.decodingFailed($0) }
+                                .mapError { decodingError -> NetworkError in
+                                    DRError("[NetworkManager] 直接解析失败: \(decodingError.localizedDescription)")
+                                    return NetworkError.decodingFailed(decodingError)
+                                }
                                 .eraseToAnyPublisher()
                         }
                         return Fail(error: error)
@@ -240,5 +267,85 @@ class NetworkManager {
                     .eraseToAnyPublisher()
             }
             .eraseToAnyPublisher()
+    }
+    
+    // 处理响应数据
+    private func handleResponse<T: Decodable>(_ data: Data, _ response: URLResponse) throws -> T {
+        // 检查HTTP响应状态码
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NetworkError.invalidURL
+        }
+        
+        // 打印响应状态码和数据大小以便调试
+        DRInfo("[NetworkManager] 收到响应: 状态码=\(httpResponse.statusCode), 数据大小=\(data.count)字节")
+        
+        // 打印响应原始数据以便调试
+        if let jsonString = String(data: data, encoding: .utf8) {
+            DRInfo("[NetworkManager] 响应原始数据: \(jsonString)")
+        }
+        
+        // 检查HTTP状态码
+        switch httpResponse.statusCode {
+        case 200...299:  // 成功
+            do {
+                let decoder = JSONDecoder()
+                // 将下划线命名转换为驼峰命名
+                decoder.keyDecodingStrategy = .convertFromSnakeCase
+                return try decoder.decode(T.self, from: data)
+            } catch {
+                // 添加详细的解码错误信息
+                DRError("[NetworkManager] 数据解析失败: \(error.localizedDescription)")
+                if let decodingError = error as? DecodingError {
+                    switch decodingError {
+                    case .keyNotFound(let key, let context):
+                        DRError("找不到键: \(key.stringValue), 路径: \(context.codingPath.map { $0.stringValue })")
+                    case .valueNotFound(let type, let context):
+                        DRError("找不到\(type)类型的值, 路径: \(context.codingPath.map { $0.stringValue })")
+                    case .typeMismatch(let type, let context):
+                        DRError("类型不匹配: 期望\(type), 路径: \(context.codingPath.map { $0.stringValue })")
+                    case .dataCorrupted(let context):
+                        DRError("数据损坏: \(context)")
+                    @unknown default:
+                        DRError("未知解码错误: \(decodingError)")
+                    }
+                }
+                throw NetworkError.decodingFailed(error)
+            }
+            
+        case 400:  // 错误请求
+            if let jsonString = String(data: data, encoding: .utf8) {
+                throw NetworkError.badRequest(jsonString)
+            } else {
+                throw NetworkError.badRequest("Bad Request")
+            }
+            
+        case 401:  // 未授权
+            if let jsonString = String(data: data, encoding: .utf8) {
+                throw NetworkError.unauthorized(jsonString)
+            } else {
+                throw NetworkError.unauthorized("Unauthorized")
+            }
+            
+        case 404:  // 未找到
+            if let jsonString = String(data: data, encoding: .utf8) {
+                throw NetworkError.notFound(jsonString)
+            } else {
+                throw NetworkError.notFound("Not Found")
+            }
+            
+        case 500...599:  // 服务器错误
+            if let jsonString = String(data: data, encoding: .utf8) {
+                throw NetworkError.serverError(httpResponse.statusCode, jsonString)
+            } else {
+                throw NetworkError.serverError(httpResponse.statusCode, "Server Error")
+            }
+            
+        default:  // 其他错误
+            if let jsonString = String(data: data, encoding: .utf8) {
+                throw NetworkError.serverError(httpResponse.statusCode, jsonString)
+            } else {
+                throw NetworkError.serverError(httpResponse.statusCode, "Unknown Error")
+            }
+        }
     }
 } 

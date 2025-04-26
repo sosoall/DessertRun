@@ -34,6 +34,9 @@ class AppState: ObservableObject {
     /// 是否显示登录页面
     @Published var showLoginView = false
     
+    /// 是否正在重置应用
+    @Published var isResettingApp = false
+    
     // MARK: - 导航状态
     
     /// 当前选中的主标签索引（0：运动，1：甜品打卡，2：运动记录，3：我的）
