@@ -38,6 +38,7 @@ struct LoginView: View {
     
     // 协议同意状态
     @State private var agreeToTerms = false
+    @State private var showTermsAlert = false
     
     // 验证码登录相关状态
     @State private var loginMethod: LoginMethod = .verificationCode // 默认使用验证码登录
@@ -50,6 +51,14 @@ struct LoginView: View {
     @State private var errorMessage = ""
     @State private var showErrorMessage = false
     @State private var codeSent = false
+    
+    // 添加验证码输入步骤状态
+    @State private var phoneVerifyStep: PhoneVerifyStep = .enterPhone
+    
+    enum PhoneVerifyStep {
+        case enterPhone
+        case enterCode
+    }
     
     enum LoginMethod {
         case password
@@ -76,6 +85,50 @@ struct LoginView: View {
             .hideKeyboardWhenTappedAround() // 点击背景隐藏键盘
             
             VStack(spacing: 30) {
+                // 手机设备测试模式快速切换
+                #if DEBUG
+                HStack {
+                    Spacer()
+                    Menu {
+                        ForEach(Config.API.ServerEnvironment.allCases, id: \.self) { env in
+                            Button(action: {
+                                Config.API.environment = env
+                                // 更新环境后显示成功提示
+                                withAnimation {
+                                    alertMessage = "已切换到\(env.rawValue)：\(env.baseURL)"
+                                    showAlertLogin = true
+                                }
+                            }) {
+                                HStack {
+                                    Text(env.rawValue)
+                                    if Config.API.environment == env {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack {
+                            Image(systemName: "network")
+                                .font(.system(size: 14, weight: .bold))
+                            Text("环境: \(Config.API.environment.rawValue)")
+                                .font(.system(size: 14, weight: .bold))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
+                        .background(Color.blue.opacity(0.7))
+                        .cornerRadius(20)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 20)
+                                .stroke(Color.white, lineWidth: 1)
+                        )
+                    }
+                    .padding(.trailing, 20)
+                }
+                .padding(.top, 60) // 增加顶部间距，确保按钮在安全区域内可见
+                #endif
+                
                 Spacer()
                 
                 // 应用标题
@@ -86,7 +139,7 @@ struct LoginView: View {
                 
                 // 登录方法选择
                 HStack {
-                    Text("手机号登录或注册")
+                    Text(loginMethod == .verificationCode ? "手机号登录或注册" : "密码登录")
                         .font(.system(size: 22, weight: .bold))
                         .foregroundColor(.white)
                     
@@ -108,6 +161,7 @@ struct LoginView: View {
                     } else {
                         Button("验证码登录") {
                             loginMethod = .verificationCode
+                            phoneVerifyStep = .enterPhone // 重置步骤
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                                 focusedField = .phone
                             }
@@ -121,37 +175,29 @@ struct LoginView: View {
                 }
                 .padding(.horizontal)
                 
-                // 登录表单
-                VStack(spacing: 20) {
-                    // 账号输入框 - 加上延迟激活的逻辑
-                    ZStack {
-                        TextField("手机号", text: $phoneNumber)
-                            .keyboardType(.phonePad)
-                            .padding()
-                            .background(Color.white.opacity(0.8))
-                            .cornerRadius(10)
-                            .autocapitalization(.none)
-                            .disableAutocorrection(true)
-                            .submitLabel(.next)
-                            .focused($focusedField, equals: .phone)
-                            .onSubmit {
-                                if loginMethod == .password {
-                                    focusedField = .password
-                                } else {
-                                    focusedField = .code
-                                }
+                if loginMethod == .password {
+                    // 密码登录表单
+                    VStack(spacing: 20) {
+                        // 账号输入框
+                        CustomTextField(
+                            text: $phoneNumber,
+                            placeholder: "手机号",
+                            keyboardType: .phonePad,
+                            returnKeyType: .next,
+                            onSubmit: {
+                                focusedField = .password
                             }
-                    }
-                    .onTapGesture {
-                        // 点击时先清除焦点，然后延迟一小段时间后再激活
-                        focusedField = nil
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            focusedField = .phone
+                        )
+                        .frame(height: 50)
+                        .cornerRadius(10)
+                        .onChange(of: phoneNumber) { newValue in
+                            // 限制只能输入数字
+                            let filtered = newValue.filter { "0123456789".contains($0) }
+                            if filtered != newValue {
+                                phoneNumber = filtered
+                            }
                         }
-                    }
-                    
-                    // 根据登录方式显示不同的输入框
-                    if loginMethod == .password {
+                        
                         // 密码输入框
                         SecureField("密码", text: $password)
                             .padding()
@@ -172,6 +218,7 @@ struct LoginView: View {
                             Button("忘记密码?") {
                                 // 切换到验证码登录
                                 loginMethod = .verificationCode
+                                phoneVerifyStep = .enterPhone // 重置步骤
                                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                                     focusedField = .phone
                                 }
@@ -179,42 +226,169 @@ struct LoginView: View {
                             .foregroundColor(.white)
                         }
                         .padding(.horizontal, 5)
-                    } else {
-                        // 验证码输入框
-                        VStack(spacing: 12) {
-                            VerificationCodeInputView(code: $verificationCode)
-                                .frame(height: 60)
-                                .padding(.vertical, 8)
+                    }
+                    .padding(.horizontal)
+                } else {
+                    // 验证码登录表单 - 分两步走
+                    if phoneVerifyStep == .enterPhone {
+                        // 第一步：输入手机号和获取验证码
+                        VStack(spacing: 20) {
+                            // 账号输入框
+                            CustomTextField(
+                                text: $phoneNumber,
+                                placeholder: "手机号",
+                                keyboardType: .phonePad,
+                                returnKeyType: .done,
+                                onSubmit: {
+                                    if phoneNumber.count == 11 {
+                                        // 如果已输入11位手机号，尝试发送验证码
+                                        checkAgreementAndSendCode()
+                                    }
+                                }
+                            )
+                            .frame(height: 50)
+                            .cornerRadius(10)
+                            .onChange(of: phoneNumber) { newValue in
+                                // 限制只能输入数字
+                                let filtered = newValue.filter { "0123456789".contains($0) }
+                                if filtered != newValue {
+                                    phoneNumber = filtered
+                                }
+                                // 限制最多11位
+                                if filtered.count > 11 {
+                                    phoneNumber = String(filtered.prefix(11))
+                                }
+                            }
                             
+                            // 获取验证码按钮
                             Button(action: {
-                                sendVerificationCode()
+                                checkAgreementAndSendCode()
                             }) {
-                                if codeTimeRemaining > 0 {
-                                    Text("\(codeTimeRemaining)s")
+                                if isSendingCode {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
                                         .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 12)
-                                        .foregroundColor(.white)
+                                        .frame(height: 50)
                                         .background(Color.gray)
                                         .cornerRadius(10)
                                 } else {
-                                    Text(codeSent ? "重新发送验证码" : "发送验证码")
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 12)
+                                    Text("获取验证码")
+                                        .font(.system(size: 18, weight: .medium))
                                         .foregroundColor(.white)
-                                        .background(Color(hex: "FE2D55"))
+                                        .frame(maxWidth: .infinity)
+                                        .frame(height: 50)
+                                        .background(phoneNumber.count == 11 ? Color(hex: "FE2D55") : Color.gray)
                                         .cornerRadius(10)
                                 }
                             }
-                            .disabled(isSendingCode || phoneNumber.count != 11 || codeTimeRemaining > 0)
+                            .disabled(isSendingCode || phoneNumber.count != 11)
+                            
+                            // 协议同意区域 - 只在第一步显示
+                            HStack(spacing: 8) {
+                                // 增大勾选按钮的点击区域
+                                Button(action: {
+                                    agreeToTerms.toggle()
+                                }) {
+                                    Image(systemName: agreeToTerms ? "checkmark.square.fill" : "square")
+                                        .font(.system(size: 22))
+                                        .foregroundColor(.white)
+                                        .frame(width: 44, height: 44)
+                                        .contentShape(Rectangle())
+                                }
+                                
+                                Text("同意《用户协议》和《隐私政策》")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.white)
+                                    // 为文本也添加点击事件
+                                    .onTapGesture {
+                                        agreeToTerms.toggle()
+                                    }
+                                
+                                Spacer()
+                            }
+                            .padding(.top, 20)
                         }
+                        .padding(.horizontal)
+                    } else {
+                        // 第二步：输入验证码
+                        VStack(spacing: 20) {
+                            // 返回按钮替代修改按钮
+                            HStack {
+                                Button(action: {
+                                    phoneVerifyStep = .enterPhone
+                                }) {
+                                    HStack(spacing: 5) {
+                                        Image(systemName: "chevron.left")
+                                            .font(.system(size: 14))
+                                        Text("返回")
+                                            .font(.system(size: 14))
+                                    }
+                                    .foregroundColor(.white)
+                                    .padding(.vertical, 6)
+                                    .padding(.horizontal, 12)
+                                    .background(Color.black.opacity(0.3))
+                                    .cornerRadius(16)
+                                }
+                                
+                                Spacer()
+                            }
+                            .padding(.horizontal)
+                            .padding(.top, 10)
+                            
+                            // 显示已发送至的手机号
+                            Text("验证码已发送至: \(phoneNumber)")
+                                .font(.system(size: 14))
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal)
+                            
+                            // 验证码输入框
+                            VerificationCodeInputView(code: $verificationCode)
+                                .frame(height: 60)
+                                .padding(.vertical, 8)
+                                .onAppear {
+                                    // 自动激活验证码输入框
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                        focusedField = .code
+                                    }
+                                }
+                            
+                            // 重新发送按钮
+                            if codeTimeRemaining > 0 {
+                                Text("\(codeTimeRemaining)秒后可重新发送")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.white.opacity(0.8))
+                            } else {
+                                Button("重新发送验证码") {
+                                    sendVerificationCode()
+                                }
+                                .font(.system(size: 14))
+                                .foregroundColor(.white)
+                                .disabled(isSendingCode)
+                            }
+                        }
+                        .padding(.horizontal)
                     }
                 }
-                .padding(.horizontal)
                 
                 // 登录按钮
                 Button(action: {
-                    dismissKeyboard() // 点击按钮时隐藏键盘
-                    login()
+                    dismissKeyboard()
+                    
+                    // 如果是验证码登录的输入验证码阶段，则执行登录
+                    if loginMethod == .verificationCode && phoneVerifyStep == .enterCode {
+                        login()
+                    }
+                    
+                    // 如果是密码登录
+                    if loginMethod == .password {
+                        // 检查是否同意条款
+                        if !agreeToTerms {
+                            showTermsAlert = true
+                        } else {
+                            login()
+                        }
+                    }
                 }) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 28)
@@ -227,15 +401,22 @@ struct LoginView: View {
                                 .progressViewStyle(CircularProgressViewStyle(tint: Color(hex: "FE2D55")))
                                 .scaleEffect(1.2)
                         } else {
-                            Text("登录")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(Color(hex: "FE2D55"))
+                            // 只在验证码输入页面显示登录按钮，手机号输入页面不显示这个按钮
+                            if !(loginMethod == .verificationCode && phoneVerifyStep == .enterPhone) {
+                                Text("登录")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundColor(Color(hex: "FE2D55"))
+                            } else {
+                                // 手机号输入页面不显示任何文字，保持这个区域空白
+                                EmptyView()
+                            }
                         }
                     }
                 }
-                .disabled(isLoading)
+                .disabled(isLoading || (loginMethod == .verificationCode && phoneVerifyStep == .enterPhone))
                 .padding(.horizontal, 30)
                 .padding(.top, 20)
+                .opacity(loginMethod == .verificationCode && phoneVerifyStep == .enterPhone ? 0 : 1) // 手机号输入页不显示登录按钮
                 
                 // 错误信息显示
                 if showErrorMessage {
@@ -255,30 +436,33 @@ struct LoginView: View {
                         .padding(.top, 10)
                 }
                 
-                // 其他登录选项
-                HStack(spacing: 40) {
-                    loginOptionButton(image: "applelogo", name: "Apple")
-                    loginOptionButton(image: "ellipsis", name: "更多")
-                }
-                .padding(.top, 30)
-                
-                // 协议同意区域
-                VStack(spacing: 8) {
-                    HStack(spacing: 4) {
+                // 协议同意区域 - 仅在密码登录时显示
+                if loginMethod == .password {
+                    HStack(spacing: 8) {
+                        // 增大勾选按钮的点击区域
                         Button(action: {
                             agreeToTerms.toggle()
                         }) {
-                            Image(systemName: agreeToTerms ? "checkmark.circle.fill" : "circle")
-                                .font(.system(size: 16))
+                            Image(systemName: agreeToTerms ? "checkmark.square.fill" : "square")
+                                .font(.system(size: 22))
                                 .foregroundColor(.white)
+                                .frame(width: 44, height: 44)
+                                .contentShape(Rectangle())
                         }
                         
                         Text("同意《用户协议》和《隐私政策》")
-                            .font(.system(size: 12))
+                            .font(.system(size: 14))
                             .foregroundColor(.white)
+                            // 为文本也添加点击事件
+                            .onTapGesture {
+                                agreeToTerms.toggle()
+                            }
+                        
+                        Spacer()
                     }
+                    .padding(.horizontal, 30)
+                    .padding(.top, 20)
                 }
-                .padding(.top, 20)
                 
                 // 开发测试工具按钮
                 Button(action: {
@@ -355,6 +539,16 @@ struct LoginView: View {
                 }
             })
         }
+        // 添加用户协议确认弹窗
+        .alert("同意用户协议", isPresented: $showTermsAlert) {
+            Button("不同意", role: .cancel) { }
+            Button("同意并继续") {
+                agreeToTerms = true
+                login()
+            }
+        } message: {
+            Text("请同意《用户协议》和《隐私政策》继续操作")
+        }
         .onAppear {
             // 如果已登录，自动跳转到首页
             if authService.isLoggedIn && authService.currentUser?.isProfileCompleted == true {
@@ -373,27 +567,6 @@ struct LoginView: View {
         }
     }
     
-    /// 创建登录选项按钮
-    private func loginOptionButton(image: String, name: String) -> some View {
-        VStack(spacing: 8) {
-            Circle()
-                .fill(Color.white)
-                .frame(width: 50, height: 50)
-                .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
-                .overlay(
-                    Image(systemName: image)
-                        .font(.system(size: 20))
-                        .foregroundColor(Color(hex: "FE2D55"))
-                )
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("\(name)登录")
-            
-            Text(name)
-                .font(.system(size: 12))
-                .foregroundColor(.white)
-        }
-    }
-    
     /// 处理登录业务逻辑
     func login() {
         // 先隐藏键盘
@@ -401,12 +574,6 @@ struct LoginView: View {
         
         guard !phoneNumber.isEmpty else {
             errorMessage = "请输入手机号"
-            showErrorMessage = true
-            return
-        }
-        
-        guard agreeToTerms else {
-            errorMessage = "请先同意用户协议和隐私政策"
             showErrorMessage = true
             return
         }
@@ -499,6 +666,8 @@ struct LoginView: View {
                 isSendingCode = false
                 
                 if success {
+                    // 切换到验证码输入界面
+                    phoneVerifyStep = .enterCode
                     codeTimeRemaining = codeWaitingTime
                     startCodeTimer()
                 } else {
@@ -519,6 +688,17 @@ struct LoginView: View {
                 timer.invalidate()
                 codeTimer = nil
             }
+        }
+    }
+    
+    /// 检查协议并发送验证码的辅助方法
+    func checkAgreementAndSendCode() {
+        // 检查是否同意协议
+        if !agreeToTerms {
+            // 弹出用户协议同意确认框
+            showTermsAlert = true
+        } else {
+            sendVerificationCode()
         }
     }
 }
@@ -592,26 +772,17 @@ struct RegisterView: View {
                 // 注册表单
                 VStack(spacing: 20) {
                     // 手机号输入框
-                    ZStack {
-                        TextField("手机号", text: $phoneNumber)
-                            .keyboardType(.phonePad)
-                            .padding()
-                            .background(Color.white.opacity(0.8))
-                            .cornerRadius(10)
-                            .disableAutocorrection(true)
-                            .submitLabel(.next)
-                            .focused($focusedField, equals: .phone)
-                            .onSubmit {
-                                focusedField = .code
-                            }
-                    }
-                    .onTapGesture {
-                        // 点击时先清除焦点，然后延迟一小段时间后再激活
-                        focusedField = nil
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            focusedField = .phone
+                    CustomTextField(
+                        text: $phoneNumber,
+                        placeholder: "手机号",
+                        keyboardType: .phonePad,
+                        returnKeyType: .next,
+                        onSubmit: {
+                            focusedField = .code
                         }
-                    }
+                    )
+                    .frame(height: 50)
+                    .cornerRadius(10)
                     
                     // 验证码
                     HStack {

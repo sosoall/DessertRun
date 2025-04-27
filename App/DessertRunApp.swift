@@ -67,6 +67,15 @@ struct DessertRunApp: App {
                 }
             }
             .onAppear {
+                // 应用首次启动检查登录状态
+                appState.updateLoginStatus()
+                
+                // 设置监听，处理需要登录的情况
+                setupNotificationObservers()
+                
+                // 打印应用配置信息
+                DRInfo("应用配置: API地址: \(Config.API.baseURL)")
+                
                 // 注册监听新用户通知
                 if !observerAdded {
                     NotificationCenter.default.addObserver(forName: .userRegistered, object: nil, queue: .main) { [self] _ in
@@ -120,5 +129,24 @@ struct DessertRunApp: App {
         // 打印应用配置信息
         DRInfo("应用配置: API地址: \(Config.API.baseURL)")
         DRInfo("应用初始化完成")
+    }
+    
+    /// 设置通知监听器
+    private func setupNotificationObservers() {
+        // 监听退出登录通知
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("LogoutNotification"),
+            object: nil,
+            queue: .main
+        ) { [self] _ in
+            // 重置应用状态
+            appState.isLoggedIn = false
+            appState.showLoginView = true
+            // 确保回到个人资料页面
+            appState.selectedTabIndex = 4
+        }
+        
+        // 监听新用户完成资料填写后的通知
+        // ... existing code ...
     }
 }

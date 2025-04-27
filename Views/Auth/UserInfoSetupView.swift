@@ -130,12 +130,14 @@ struct UserInfoSetupView: View {
                     
                     HStack(spacing: 20) {
                         GenderOptionButton(title: "男", isSelected: viewModel.user.gender == .male) {
+                            dismissKeyboard() // 首先隐藏键盘
                             withAnimation {
                                 viewModel.user.gender = .male
                             }
                         }
                         
                         GenderOptionButton(title: "女", isSelected: viewModel.user.gender == .female) {
+                            dismissKeyboard() // 首先隐藏键盘
                             withAnimation {
                                 viewModel.user.gender = .female
                             }
@@ -202,10 +204,12 @@ struct UserInfoSetupView: View {
                 
                 HStack(spacing: 20) {
                     ExerciseHabitButton(title: "是", isSelected: viewModel.user.hasExerciseHabit == true) {
+                        dismissKeyboard() // 首先隐藏键盘
                         viewModel.user.hasExerciseHabit = true
                     }
                     
                     ExerciseHabitButton(title: "否", isSelected: viewModel.user.hasExerciseHabit == false) {
+                        dismissKeyboard() // 首先隐藏键盘
                         viewModel.user.hasExerciseHabit = false
                     }
                 }
@@ -255,8 +259,7 @@ struct UserInfoSetupView: View {
         // 保存用户信息
         viewModel.saveUserInfo {
             // 标记用户已登录
-            appState.isLoggedIn = true
-            // 设置首页为"运动"标签
+             // 设置首页为"运动"标签
             appState.selectedTabIndex = 0
             
             // 2秒后跳转到主页
@@ -265,6 +268,11 @@ struct UserInfoSetupView: View {
                 navigateToMainView = true
             }
         }
+    }
+    
+    // 添加隐藏键盘的方法
+    private func dismissKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 }
 

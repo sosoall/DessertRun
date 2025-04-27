@@ -380,6 +380,9 @@ class AuthService: ObservableObject {
         UserDefaults.standard.removeObject(forKey: StorageKeys.currentUser)
         UserDefaults.standard.set(false, forKey: StorageKeys.isLoggedIn)
         
+        // 通知应用显示登录页面
+        NotificationCenter.default.post(name: NSNotification.Name("LogoutNotification"), object: nil)
+        
         DRInfo("用户登录状态已重置")
     }
     
