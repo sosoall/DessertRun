@@ -470,7 +470,7 @@ class UserInfoSetupViewModel: ObservableObject {
         AuthService.shared.saveUserToStorage()
         
         // 如果已经通过API登录，更新用户资料到服务器
-        if let userId = user.apiUserId {
+        if user.apiUserId != nil {
             // 准备更新请求
             let updateRequest = user.prepareProfileUpdateRequest()
             

@@ -90,7 +90,7 @@ struct DessertGridView: View {
                                 // 计算图片在气泡中的实际大小
                                 // 图片区域大小由气泡大小和当前位置决定
                                 let imageOffset: CGFloat = -50  // 图片顶部偏移
-                                let scaleFactor = state.size / createConfig(for: geometry.size).bubbleSize  // 当前缩放比例
+                                _ = state.size / createConfig(for: geometry.size).bubbleSize  // 当前缩放比例(暂未使用)
                                 
                                 // 计算图片高度，约为气泡高度的70%
                                 //我手动改成了0.95，是因为不能直接改成1，不知道这里有没有问题。后面测试其他机型的时候要重点关注。

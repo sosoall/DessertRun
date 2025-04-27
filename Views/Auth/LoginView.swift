@@ -190,7 +190,7 @@ struct LoginView: View {
                         )
                         .frame(height: 50)
                         .cornerRadius(10)
-                        .onChange(of: phoneNumber) { newValue in
+                        .onChange(of: phoneNumber) { oldValue, newValue in
                             // 限制只能输入数字
                             let filtered = newValue.filter { "0123456789".contains($0) }
                             if filtered != newValue {
@@ -248,7 +248,7 @@ struct LoginView: View {
                             )
                             .frame(height: 50)
                             .cornerRadius(10)
-                            .onChange(of: phoneNumber) { newValue in
+                            .onChange(of: phoneNumber) { oldValue, newValue in
                                 // 限制只能输入数字
                                 let filtered = newValue.filter { "0123456789".contains($0) }
                                 if filtered != newValue {
@@ -563,7 +563,7 @@ struct LoginView: View {
                 appState.showLoginView = true
             }
         }
-        .onChange(of: isShowingRegister) { _ in
+        .onChange(of: isShowingRegister) { oldValue, newValue in
             dismissKeyboard() // 切换到注册页面时隐藏键盘
         }
     }

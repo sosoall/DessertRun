@@ -105,7 +105,7 @@ struct ExerciseRecordView: View {
             selectedMonth = viewModel.selectedMonth
             selectedWeek = Date() // 默认显示当前周
         }
-        .onChange(of: selectedTab) { newTab in
+        .onChange(of: selectedTab) { oldTab, newTab in
             // 当切换标签页时，确保viewModel中的年份和月份是最新的
             switch newTab {
             case .month:
@@ -421,7 +421,7 @@ struct ExerciseRecordView: View {
         let calendar = Calendar.current
         
         // 获取date所在周的周日（本周开始日期）
-        var components = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date)
+        let components = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date)
         guard let startOfWeek = calendar.date(from: components) else { return "" }
         
         // 获取周六（本周结束日期）
@@ -440,7 +440,7 @@ struct ExerciseRecordView: View {
         let calendar = Calendar.current
         
         // 获取weekStartDate所在周的周日（本周开始日期）
-        var components = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: weekStartDate)
+        let components = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: weekStartDate)
         guard let startOfWeek = calendar.date(from: components) else { return [] }
         
         // 生成一周的数据

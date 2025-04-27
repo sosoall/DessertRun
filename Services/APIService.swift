@@ -220,7 +220,7 @@ class APIService {
                                         }
                                     },
                                     receiveValue: { user in
-                                        print("注册成功并获取用户信息: \(user.nickname)")
+                                        print("注册成功并获取用户信息: \(user.nickname ?? "未设置昵称")")
                                         promise(.success(user))
                                     }
                                 )

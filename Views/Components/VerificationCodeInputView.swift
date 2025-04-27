@@ -23,7 +23,7 @@ struct VerificationCodeInputView: View {
                 .frame(width: 0, height: 0, alignment: .center)
                 .opacity(0)
                 .focused($isTextFieldFocused)
-                .onChange(of: code) { newValue in
+                .onChange(of: code) { oldValue, newValue in
                     // 限制输入字符数量和类型
                     let filtered = newValue.filter { "0123456789".contains($0) }
                     if filtered.count > numberOfDigits {

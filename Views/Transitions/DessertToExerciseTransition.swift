@@ -346,9 +346,9 @@ struct DessertToExerciseTransition: View {
     
     /// 单个运动类型行视图
     private func exerciseRowView(for exerciseType: ExerciseType) -> some View {
-        // 提前计算所需的提示文本
+        // 替换为简单的布尔值检查，消除未使用变量警告
         let requiredValueText: String
-        if let dessert = animationState.selectedDessert {
+        if animationState.selectedDessert != nil {
             if exerciseType.usesDistance {
                 let distance = suggestedDistance(for: exerciseType)
                 requiredValueText = "约\(String(format: "%.1f", distance / 1000))公里"
@@ -735,5 +735,26 @@ extension ExerciseType {
         // 距离转换为公里
         let distanceInKm = distance / 1000.0
         return distanceInKm * getCaloriesPerKmPerKg() * weight
+    }
+}
+
+// 修复永不执行的默认情况
+/// 获取运动类型按钮的背景颜色
+private func getExerciseGradientColors(for exerciseType: ExerciseType) -> [Color] {
+    switch exerciseType {
+    case .running:
+        return [Color(hex: "FF9500"), Color(hex: "FF3B30")]
+    case .walking:
+        return [Color(hex: "4CB8C4"), Color(hex: "3CD3AD")]
+    case .homeWorkout:
+        return [Color(hex: "FF4B91"), Color(hex: "E61E5A")]
+    case .hiitWorkout:
+        return [Color(hex: "FF2D55"), Color(hex: "D81547")]
+    case .stairClimbing:
+        return [Color(hex: "4CD964"), Color(hex: "2CA94C")]
+    case .houseCleaning, .dogWalking:
+        return [Color(hex: "8A2387"), Color(hex: "E94057")]
+    default:
+        return [Color(hex: "8A2387"), Color(hex: "E94057")]
     }
 } 

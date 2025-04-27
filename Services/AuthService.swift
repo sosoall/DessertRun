@@ -210,7 +210,7 @@ class AuthService: ObservableObject {
                     }
                 },
                 receiveValue: { [weak self] apiUser in
-                    DRInfo("获取到用户数据: \(apiUser.nickname ?? "新用户")")
+                    DRInfo("获取到用户数据: \(apiUser.nickname ?? "未设置昵称")")
                     self?.currentUser = self?.mapToAppUser(apiUser: apiUser)
                 }
             )
@@ -273,7 +273,7 @@ class AuthService: ObservableObject {
                     }
                 },
                 receiveValue: { [weak self] apiUser in
-                    DRInfo("获取到新注册用户数据: \(apiUser.nickname)")
+                    DRInfo("获取到新注册用户数据: \(apiUser.nickname ?? "未设置昵称")")
                     self?.currentUser = self?.mapToAppUser(apiUser: apiUser)
                 }
             )
@@ -301,7 +301,7 @@ class AuthService: ObservableObject {
         weight: Double? = nil,
         hasExerciseHabit: Bool? = nil
     ) {
-        guard var user = currentUser else { 
+        guard let user = currentUser else { 
             DRWarning("尝试更新不存在的用户资料")
             return 
         }
@@ -345,7 +345,7 @@ class AuthService: ObservableObject {
         saveUserToStorage()
         
         // 如果已经通过API登录，更新用户资料到服务器
-        if let userId = user.apiUserId {
+        if user.apiUserId != nil {
             DRInfo("同步用户资料到服务器")
             let updateRequest = user.prepareProfileUpdateRequest()
             

@@ -252,7 +252,9 @@ class NetworkManager {
                     .catch { error -> AnyPublisher<T, NetworkError> in
                         // 如果不是标准响应格式，尝试直接解析为目标类型
                         DRInfo("[NetworkManager] 尝试直接解析为目标类型 \(T.self)")
-                        if let _ = error as? DecodingError {
+                        // 检查是否为解码错误
+                        if case .decodingFailed(let decodingError) = error,
+                           decodingError is DecodingError {
                             return Just(data)
                                 .decode(type: T.self, decoder: decoder)
                                 .mapError { decodingError -> NetworkError in

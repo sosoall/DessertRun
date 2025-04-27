@@ -112,8 +112,8 @@ struct BubbleView: View {
                                     GeometryReader { imageGeo in
                                         Color.clear
                                             .onAppear {
-                                                // 记录图片区域的相对位置
-                                                let imageFrame = imageGeo.frame(in: .named("bubbleCoordinateSpace"))
+                                                // 记录图片区域的相对位置(不再使用)
+                                                _ = imageGeo.frame(in: .named("bubbleCoordinateSpace"))
                                             }
                                     }
                                 )

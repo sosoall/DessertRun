@@ -58,7 +58,7 @@ struct MainTabView: View {
             }
             // 确保内容没有背景色设置
         }
-        .onChange(of: appState.shouldResetNavigation) { shouldReset in
+        .onChange(of: appState.shouldResetNavigation) { oldValue, shouldReset in
             if shouldReset {
                 print("【调试】MainTabView检测到导航重置请求")
                 print("【调试】当前TabIndex: \(appState.selectedTabIndex)")
