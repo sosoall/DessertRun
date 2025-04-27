@@ -367,23 +367,28 @@ class AuthService: ObservableObject {
     
     /// 退出登录
     func logout() {
-        DRInfo("用户退出登录")
-        self.currentUser = nil
-        self.isLoggedIn = false
-        self.isNewUser = false
+        DRInfo("用户退出登录 - 开始")
         
-        // 清除token和用户ID
-        UserDefaults.standard.removeObject(forKey: Config.UserData.tokenKey)
-        UserDefaults.standard.removeObject(forKey: Config.UserData.userIdKey)
-        
-        // 清除用户数据
-        UserDefaults.standard.removeObject(forKey: StorageKeys.currentUser)
-        UserDefaults.standard.set(false, forKey: StorageKeys.isLoggedIn)
-        
-        // 通知应用显示登录页面
+        // 先通知应用显示登录页面，确保UI状态先更新
+        DRInfo("发送登出通知")
         NotificationCenter.default.post(name: NSNotification.Name("LogoutNotification"), object: nil)
         
-        DRInfo("用户登录状态已重置")
+        // 然后清理数据
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.currentUser = nil
+            self.isLoggedIn = false
+            self.isNewUser = false
+            
+            // 清除token和用户ID
+            UserDefaults.standard.removeObject(forKey: Config.UserData.tokenKey)
+            UserDefaults.standard.removeObject(forKey: Config.UserData.userIdKey)
+            
+            // 清除用户数据
+            UserDefaults.standard.removeObject(forKey: StorageKeys.currentUser)
+            UserDefaults.standard.set(false, forKey: StorageKeys.isLoggedIn)
+            
+            DRInfo("用户登录状态已重置 - 完成")
+        }
     }
     
     /// 清除用户数据

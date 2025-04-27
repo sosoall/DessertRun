@@ -140,10 +140,9 @@ struct DessertRunApp: App {
             queue: .main
         ) { [self] _ in
             // 重置应用状态
-            appState.isLoggedIn = false
-            appState.showLoginView = true
-            // 确保回到个人资料页面
-            appState.selectedTabIndex = 4
+            DRInfo("收到退出登录通知，重置应用状态")
+            // 使用AppState的方法处理退出登录
+            appState.handleLogout()
         }
         
         // 监听新用户完成资料填写后的通知

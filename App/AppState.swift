@@ -165,6 +165,28 @@ class AppState: ObservableObject {
             selectedTabIndex = 2
         }
     }
+    
+    /// 清理所有登录相关的状态
+    func clearLoginState() {
+        isLoggedIn = false
+        showLoginView = true
+        selectedTabIndex = 0
+        DRInfo("AppState - 登录状态已清理")
+    }
+    
+    /// 处理登出流程，确保UI和数据状态同步
+    func handleLogout() {
+        DRInfo("AppState - 处理退出登录")
+        // 先更新UI状态
+        isLoggedIn = false
+        showLoginView = true
+        
+        // 确保状态更新传播到UI
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            self.selectedTabIndex = 0
+            DRInfo("AppState - 退出登录处理完成")
+        }
+    }
 }
 
 /// 应用屏幕枚举
