@@ -80,7 +80,43 @@ class APIService {
         
         // 执行请求并手动解析响应
         return URLSession.shared.dataTaskPublisher(for: request)
-            .map { $0.data }
+            .tryMap { data, response -> Data in
+                // 手动处理HTTP状态码
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    throw NetworkError.invalidResponse
+                }
+                
+                // 打印响应状态码和数据
+                print("验证码登录响应: 状态码=\(httpResponse.statusCode), 数据大小=\(data.count)字节")
+                if let jsonString = String(data: data, encoding: .utf8) {
+                    print("响应数据: \(jsonString)")
+                }
+                
+                // 处理HTTP状态码
+                switch httpResponse.statusCode {
+                case 200..<300:
+                    return data
+                case 401:
+                    // 提取401错误信息
+                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let message = json["message"] as? String {
+                        throw NetworkError.unauthorized(message)
+                    } else if let errorString = String(data: data, encoding: .utf8) {
+                        throw NetworkError.unauthorized("认证失败: \(errorString)")
+                    } else {
+                        throw NetworkError.unauthorized("认证失败")
+                    }
+                default:
+                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let message = json["message"] as? String {
+                        throw NetworkError.serverError(httpResponse.statusCode, message)
+                    } else if let errorString = String(data: data, encoding: .utf8) {
+                        throw NetworkError.serverError(httpResponse.statusCode, errorString)
+                    } else {
+                        throw NetworkError.serverError(httpResponse.statusCode, "服务器错误")
+                    }
+                }
+            }
             .decode(type: AuthResponseWrapper.self, decoder: JSONDecoder())
             .map { wrapper -> APIUser in
                 // 保存令牌
@@ -101,7 +137,11 @@ class APIService {
             }
             .mapError { error -> APIServiceError in
                 print("登录解析错误: \(error)")
-                return .networkError(APINetworkError(error: NetworkError.decodingFailed(error)))
+                if let networkError = error as? NetworkError {
+                    return .networkError(APINetworkError(error: networkError))
+                } else {
+                    return .networkError(APINetworkError(error: NetworkError.decodingFailed(error)))
+                }
             }
             .eraseToAnyPublisher()
     }
@@ -138,7 +178,43 @@ class APIService {
         
         // 执行请求并手动解析响应
         return URLSession.shared.dataTaskPublisher(for: request)
-            .map { $0.data }
+            .tryMap { data, response -> Data in
+                // 手动处理HTTP状态码
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    throw NetworkError.invalidResponse
+                }
+                
+                // 打印响应状态码和数据
+                print("密码登录响应: 状态码=\(httpResponse.statusCode), 数据大小=\(data.count)字节")
+                if let jsonString = String(data: data, encoding: .utf8) {
+                    print("响应数据: \(jsonString)")
+                }
+                
+                // 处理HTTP状态码
+                switch httpResponse.statusCode {
+                case 200..<300:
+                    return data
+                case 401:
+                    // 提取401错误信息
+                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let message = json["message"] as? String {
+                        throw NetworkError.unauthorized(message)
+                    } else if let errorString = String(data: data, encoding: .utf8) {
+                        throw NetworkError.unauthorized("认证失败: \(errorString)")
+                    } else {
+                        throw NetworkError.unauthorized("认证失败")
+                    }
+                default:
+                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let message = json["message"] as? String {
+                        throw NetworkError.serverError(httpResponse.statusCode, message)
+                    } else if let errorString = String(data: data, encoding: .utf8) {
+                        throw NetworkError.serverError(httpResponse.statusCode, errorString)
+                    } else {
+                        throw NetworkError.serverError(httpResponse.statusCode, "服务器错误")
+                    }
+                }
+            }
             .decode(type: AuthResponseWrapper.self, decoder: JSONDecoder())
             .map { wrapper -> APIUser in
                 // 保存令牌
@@ -159,7 +235,11 @@ class APIService {
             }
             .mapError { error -> APIServiceError in
                 print("登录解析错误: \(error)")
-                return .networkError(APINetworkError(error: NetworkError.decodingFailed(error)))
+                if let networkError = error as? NetworkError {
+                    return .networkError(APINetworkError(error: networkError))
+                } else {
+                    return .networkError(APINetworkError(error: NetworkError.decodingFailed(error)))
+                }
             }
             .eraseToAnyPublisher()
     }
