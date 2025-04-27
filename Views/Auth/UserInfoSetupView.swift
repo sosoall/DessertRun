@@ -42,9 +42,17 @@ struct UserInfoSetupView: View {
                             .padding(.horizontal, 20)
                             .padding(.bottom, 100)
                         }
+                        .onTapGesture {
+                            dismissKeyboard()
+                        }
                         
                         // 底部按钮区域
                         bottomButtons()
+                    }
+                    // 添加背景点击隐藏键盘
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        dismissKeyboard()
                     }
                     
                     // 显示完成动画
@@ -129,19 +137,45 @@ struct UserInfoSetupView: View {
                         .font(.headline)
                     
                     HStack(spacing: 20) {
-                        GenderOptionButton(title: "男", isSelected: viewModel.user.gender == .male) {
+                        Button(action: {
+                            print("男性按钮被点击") // 添加调试日志
                             dismissKeyboard() // 首先隐藏键盘
                             withAnimation {
                                 viewModel.user.gender = .male
+                                // 强制视图刷新
+                                viewModel.objectWillChange.send()
                             }
+                        }) {
+                            Text("男")
+                                .font(.headline)
+                                .foregroundColor(viewModel.user.gender == .male ? .white : .primary)
+                                .frame(height: 50)
+                                .frame(maxWidth: .infinity)
+                                .background(viewModel.user.gender == .male ? Color.blue : Color(.systemGray6))
+                                .cornerRadius(10)
                         }
+                        .buttonStyle(PlainButtonStyle()) // 添加这一行解决按钮不响应问题
+                        .id("maleButton-\(viewModel.user.gender == .male)") // 添加动态ID，强制视图刷新
                         
-                        GenderOptionButton(title: "女", isSelected: viewModel.user.gender == .female) {
+                        Button(action: {
+                            print("女性按钮被点击") // 添加调试日志
                             dismissKeyboard() // 首先隐藏键盘
                             withAnimation {
                                 viewModel.user.gender = .female
+                                // 强制视图刷新
+                                viewModel.objectWillChange.send()
                             }
+                        }) {
+                            Text("女")
+                                .font(.headline)
+                                .foregroundColor(viewModel.user.gender == .female ? .white : .primary)
+                                .frame(height: 50)
+                                .frame(maxWidth: .infinity)
+                                .background(viewModel.user.gender == .female ? Color.blue : Color(.systemGray6))
+                                .cornerRadius(10)
                         }
+                        .buttonStyle(PlainButtonStyle()) // 添加这一行解决按钮不响应问题
+                        .id("femaleButton-\(viewModel.user.gender == .female)") // 添加动态ID，强制视图刷新
                     }
                 }
             }
@@ -203,15 +237,45 @@ struct UserInfoSetupView: View {
                     .font(.headline)
                 
                 HStack(spacing: 20) {
-                    ExerciseHabitButton(title: "是", isSelected: viewModel.user.hasExerciseHabit == true) {
+                    Button(action: {
+                        print("是按钮被点击") // 添加调试日志
                         dismissKeyboard() // 首先隐藏键盘
-                        viewModel.user.hasExerciseHabit = true
+                        withAnimation {
+                            viewModel.user.hasExerciseHabit = true
+                            // 强制视图刷新
+                            viewModel.objectWillChange.send()
+                        }
+                    }) {
+                        Text("是")
+                            .font(.headline)
+                            .foregroundColor(viewModel.user.hasExerciseHabit == true ? .white : .primary)
+                            .frame(height: 50)
+                            .frame(maxWidth: .infinity)
+                            .background(viewModel.user.hasExerciseHabit == true ? Color.blue : Color(.systemGray6))
+                            .cornerRadius(10)
                     }
+                    .buttonStyle(PlainButtonStyle()) // 添加这一行解决按钮不响应问题
+                    .id("yesButton-\(viewModel.user.hasExerciseHabit == true)") // 添加动态ID，强制视图刷新
                     
-                    ExerciseHabitButton(title: "否", isSelected: viewModel.user.hasExerciseHabit == false) {
+                    Button(action: {
+                        print("否按钮被点击") // 添加调试日志
                         dismissKeyboard() // 首先隐藏键盘
-                        viewModel.user.hasExerciseHabit = false
+                        withAnimation {
+                            viewModel.user.hasExerciseHabit = false
+                            // 强制视图刷新
+                            viewModel.objectWillChange.send()
+                        }
+                    }) {
+                        Text("否")
+                            .font(.headline)
+                            .foregroundColor(viewModel.user.hasExerciseHabit == false ? .white : .primary)
+                            .frame(height: 50)
+                            .frame(maxWidth: .infinity)
+                            .background(viewModel.user.hasExerciseHabit == false ? Color.blue : Color(.systemGray6))
+                            .cornerRadius(10)
                     }
+                    .buttonStyle(PlainButtonStyle()) // 添加这一行解决按钮不响应问题
+                    .id("noButton-\(viewModel.user.hasExerciseHabit == false)") // 添加动态ID，强制视图刷新
                 }
             }
             
@@ -224,6 +288,8 @@ struct UserInfoSetupView: View {
     private func bottomButtons() -> some View {
         VStack {
             Button(action: {
+                print("底部按钮被点击") // 添加调试日志
+                dismissKeyboard() // 点击按钮时隐藏键盘
                 if currentStep < totalSteps - 1 {
                     currentStep += 1
                 } else {
@@ -236,12 +302,13 @@ struct UserInfoSetupView: View {
                     .foregroundColor(.white)
                     .frame(height: 55)
                     .frame(maxWidth: .infinity)
-                    .background(Color.blue)
+                    .background(isNextButtonDisabled() ? Color.gray : Color.blue)
                     .cornerRadius(10)
             }
+            .buttonStyle(PlainButtonStyle()) // 添加这一行解决按钮不响应问题
             .padding(.horizontal, 20)
             .padding(.bottom, 20)
-            .disabled(currentStep == 0 && (viewModel.nickname.isEmpty || viewModel.user.gender == nil))
+            .disabled(isNextButtonDisabled())
         }
         .background(
             Rectangle()
@@ -249,6 +316,23 @@ struct UserInfoSetupView: View {
                 .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: -5)
                 .edgesIgnoringSafeArea(.bottom)
         )
+    }
+    
+    // 判断下一步按钮是否应该禁用
+    private func isNextButtonDisabled() -> Bool {
+        switch currentStep {
+        case 0:
+            // 第一步：昵称和性别必须填写
+            return viewModel.nickname.isEmpty || viewModel.user.gender == nil
+        case 1:
+            // 第二步：身高和体重已经有默认值，所以不需要禁用
+            return false
+        case 2:
+            // 第三步：运动习惯必须选择
+            return viewModel.user.hasExerciseHabit == nil
+        default:
+            return false
+        }
     }
     
     // 完成按钮操作
@@ -443,4 +527,13 @@ struct SuccessMessageView: View {
 #Preview {
     UserInfoSetupView()
         .environmentObject(AppState.shared)
+}
+
+// MARK: - 扩展视图隐藏键盘功能
+extension View {
+    func hideKeyboardOnTap() -> some View {
+        self.onTapGesture {
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        }
+    }
 } 

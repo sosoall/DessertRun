@@ -544,7 +544,8 @@ struct LoginView: View {
             Button("不同意", role: .cancel) { }
             Button("同意并继续") {
                 agreeToTerms = true
-                login()
+                // 直接发送验证码，不用再次点击获取验证码按钮
+                sendVerificationCode()
             }
         } message: {
             Text("请同意《用户协议》和《隐私政策》继续操作")
