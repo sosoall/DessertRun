@@ -44,7 +44,7 @@ enum FoodImageStyle {
 }
 
 /// 美食数据模型
-struct DessertItem: Identifiable, Codable {
+struct DessertItem: Identifiable, Hashable, Codable {
     /// 唯一标识符
     let id: Int
     
@@ -71,6 +71,18 @@ struct DessertItem: Identifiable, Codable {
     
     /// 相关食品（如配对饮品/甜点）
     var relatedItems: [Int] = []
+    
+    /// 美食分类ID
+    let categoryId: Int
+    
+    /// 美食分类名称
+    let categoryName: String
+    
+    /// 显示顺序
+    let displayOrder: Int
+    
+    /// 美食图片
+    let images: [DessertImage]
     
     // MARK: - 扩展功能方法
     
@@ -110,11 +122,11 @@ struct DessertItem: Identifiable, Codable {
     // MARK: - Codable 支持
     
     enum CodingKeys: String, CodingKey {
-        case id, name, imageName, calories, description, isFeatured, relatedItems, category
+        case id, name, imageName, calories, description, isFeatured, relatedItems, category, categoryId, categoryName, displayOrder, images
         case backgroundColorHex
     }
     
-    init(id: Int, name: String, imageName: String, calories: String, category: FoodCategory = .dessert, description: String = "", backgroundColor: Color? = nil, isFeatured: Bool = false, relatedItems: [Int] = []) {
+    init(id: Int, name: String, imageName: String, calories: String, category: FoodCategory = .dessert, description: String = "", backgroundColor: Color? = nil, isFeatured: Bool = false, relatedItems: [Int] = [], categoryId: Int, categoryName: String, displayOrder: Int, images: [DessertImage]) {
         self.id = id
         self.name = name
         self.imageName = imageName
@@ -124,6 +136,10 @@ struct DessertItem: Identifiable, Codable {
         self.backgroundColor = backgroundColor
         self.isFeatured = isFeatured
         self.relatedItems = relatedItems
+        self.categoryId = categoryId
+        self.categoryName = categoryName
+        self.displayOrder = displayOrder
+        self.images = images
     }
     
     // 解码
@@ -137,6 +153,10 @@ struct DessertItem: Identifiable, Codable {
         description = try container.decodeIfPresent(String.self, forKey: .description) ?? ""
         isFeatured = try container.decodeIfPresent(Bool.self, forKey: .isFeatured) ?? false
         relatedItems = try container.decodeIfPresent([Int].self, forKey: .relatedItems) ?? []
+        categoryId = try container.decode(Int.self, forKey: .categoryId)
+        categoryName = try container.decode(String.self, forKey: .categoryName)
+        displayOrder = try container.decode(Int.self, forKey: .displayOrder)
+        images = try container.decode([DessertImage].self, forKey: .images)
         
         if let colorHex = try container.decodeIfPresent(String.self, forKey: .backgroundColorHex) {
             backgroundColor = Color(hex: colorHex)
@@ -156,6 +176,10 @@ struct DessertItem: Identifiable, Codable {
         try container.encode(description, forKey: .description)
         try container.encode(isFeatured, forKey: .isFeatured)
         try container.encode(relatedItems, forKey: .relatedItems)
+        try container.encode(categoryId, forKey: .categoryId)
+        try container.encode(categoryName, forKey: .categoryName)
+        try container.encode(displayOrder, forKey: .displayOrder)
+        try container.encode(images, forKey: .images)
         
         // 将颜色转换为十六进制字符串存储
         if let bgColor = backgroundColor, let uiColor = bgColor.uiColor {
@@ -167,68 +191,110 @@ struct DessertItem: Identifiable, Codable {
 
 /// 美食数据提供者
 struct DessertData {
-    /// 获取示例美食数据
+    /// 缓存的美食数据
+    private static var cachedDesserts: [DessertItem]?
+    
+    /// 获取所有美食数据（优先从API获取，失败则使用本地数据）
+    static func getAllDesserts(completion: @escaping ([DessertItem]) -> Void) {
+        // 如果已有缓存，直接返回
+        if let cached = cachedDesserts {
+            completion(cached)
+            return
+        }
+        
+        // 尝试从API获取
+        let _ = APIService.shared.getAllDesserts()
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { result in
+                    if case .failure(_) = result {
+                        // API获取失败，使用本地数据
+                        completion(getSampleDesserts())
+                    }
+                },
+                receiveValue: { response in
+                    // 将API响应转换为DessertItem模型
+                    let desserts = response.items.map { $0.toDessertItem() }
+                    cachedDesserts = desserts
+                    completion(desserts)
+                }
+            )
+    }
+    
+    /// 获取示例美食数据（本地数据）
     static func getSampleDesserts() -> [DessertItem] {
         return [
             // 首屏显示的7个甜品
-            DessertItem(id: 1, name: "芝芝云顶奶茶", imageName: "MilkTea", calories: "344", category: .drink, description: "全糖大杯奶茶，650ml", backgroundColor: Color(hex: "E0C9A6")),
-            DessertItem(id: 2, name: "珍珠奶茶", imageName: "BubbleTea", calories: "354", category: .drink, description: "全糖大杯珍珠奶茶，650ml", backgroundColor: Color(hex: "FFFBD6")),
-            DessertItem(id: 3, name: "拿铁", imageName: "Latte", calories: "265", category: .drink, description: "风味拿铁，450ml", backgroundColor: Color(hex: "D2B48C")),
-            DessertItem(id: 8, name: "瑞士卷", imageName: "SwissRoll", calories: "256", category: .cake, description: "瑞士卷，85克", backgroundColor: Color(hex: "D8EFDC")),
-            DessertItem(id: 9, name: "提拉米苏", imageName: "Tiramisu", calories: "318", category: .cake, description: "提拉米苏，100克", backgroundColor: Color(hex: "E5D6C3")),
-            DessertItem(id: 18, name: "甜筒", imageName: "IceCreamCone", calories: "173", category: .iceCream, description: "甜筒，60克", backgroundColor: Color(hex: "C9E6C0")),
-            DessertItem(id: 21, name: "方便面", imageName: "InstantNoodles", calories: "510", category: .snack, description: "辛拉面，120克", backgroundColor: Color(hex: "F5DEB3")),
+            DessertItem(id: 1, name: "芝芝云顶奶茶", imageName: "MilkTea", calories: "344", category: .drink, description: "全糖大杯奶茶，650ml", backgroundColor: Color(hex: "E0C9A6"), isFeatured: true, relatedItems: [], categoryId: 1, categoryName: "饮品", displayOrder: 1, images: []),
+            DessertItem(id: 2, name: "珍珠奶茶", imageName: "BubbleTea", calories: "354", category: .drink, description: "全糖大杯珍珠奶茶，650ml", backgroundColor: Color(hex: "FFFBD6"), isFeatured: true, relatedItems: [], categoryId: 1, categoryName: "饮品", displayOrder: 2, images: []),
+            DessertItem(id: 3, name: "拿铁", imageName: "Latte", calories: "265", category: .drink, description: "风味拿铁，450ml", backgroundColor: Color(hex: "D2B48C"), isFeatured: true, relatedItems: [], categoryId: 1, categoryName: "饮品", displayOrder: 3, images: []),
+            DessertItem(id: 8, name: "瑞士卷", imageName: "SwissRoll", calories: "256", category: .cake, description: "瑞士卷，85克", backgroundColor: Color(hex: "D8EFDC"), isFeatured: true, relatedItems: [], categoryId: 2, categoryName: "蛋糕", displayOrder: 1, images: []),
+            DessertItem(id: 9, name: "提拉米苏", imageName: "Tiramisu", calories: "318", category: .cake, description: "提拉米苏，100克", backgroundColor: Color(hex: "E5D6C3"), isFeatured: true, relatedItems: [], categoryId: 2, categoryName: "蛋糕", displayOrder: 2, images: []),
+            DessertItem(id: 18, name: "甜筒", imageName: "IceCreamCone", calories: "173", category: .iceCream, description: "甜筒，60克", backgroundColor: Color(hex: "C9E6C0"), isFeatured: true, relatedItems: [], categoryId: 3, categoryName: "冰品", displayOrder: 1, images: []),
+            DessertItem(id: 21, name: "方便面", imageName: "InstantNoodles", calories: "510", category: .snack, description: "辛拉面，120克", backgroundColor: Color(hex: "F5DEB3"), isFeatured: true, relatedItems: [], categoryId: 4, categoryName: "零食", displayOrder: 1, images: []),
             
             // 饮料类
-            DessertItem(id: 5, name: "原味可乐", imageName: "CocaCola", calories: "215", category: .drink, description: "经典原味可乐，500ml", backgroundColor: Color(hex: "3C2218")),
+            DessertItem(id: 5, name: "原味可乐", imageName: "CocaCola", calories: "215", category: .drink, description: "经典原味可乐，500ml", backgroundColor: Color(hex: "3C2218"), isFeatured: true, relatedItems: [], categoryId: 1, categoryName: "饮品", displayOrder: 4, images: []),
             
             // 蛋糕类
-            DessertItem(id: 7, name: "千层切角", imageName: "MilleCrepes", calories: "156", category: .cake, description: "千层切角蛋糕，60克", backgroundColor: Color(hex: "D6E5FF")),
-            DessertItem(id: 10, name: "巧克力甜品", imageName: "ChocolateCake", calories: "430", category: .cake, description: "巧克力蛋糕/甜品，100克", backgroundColor: Color(hex: "FFE8C4")),
-            DessertItem(id: 11, name: "拿破仑", imageName: "Napoleon", calories: "413", category: .cake, description: "拿破仑，90克", backgroundColor: Color(hex: "FFCECE")),
-            DessertItem(id: 12, name: "奶油蛋糕", imageName: "CreamCake", calories: "312", category: .cake, description: "奶油芝士蛋糕/巴斯克，130克", backgroundColor: Color(hex: "D6E5FF")),
-            DessertItem(id: 13, name: "芝士蛋糕", imageName: "CheeseCake", calories: "341", category: .cake, description: "芝士蛋糕/巴斯克，100克", backgroundColor: Color(hex: "D6E5FF")),
+            DessertItem(id: 7, name: "千层切角", imageName: "MilleCrepes", calories: "156", category: .cake, description: "千层切角蛋糕，60克", backgroundColor: Color(hex: "D6E5FF"), isFeatured: true, relatedItems: [], categoryId: 2, categoryName: "蛋糕", displayOrder: 3, images: []),
+            DessertItem(id: 10, name: "巧克力甜品", imageName: "ChocolateCake", calories: "430", category: .cake, description: "巧克力蛋糕/甜品，100克", backgroundColor: Color(hex: "FFE8C4"), isFeatured: true, relatedItems: [], categoryId: 2, categoryName: "蛋糕", displayOrder: 4, images: []),
+            DessertItem(id: 11, name: "拿破仑", imageName: "Napoleon", calories: "413", category: .cake, description: "拿破仑，90克", backgroundColor: Color(hex: "FFCECE"), isFeatured: true, relatedItems: [], categoryId: 2, categoryName: "蛋糕", displayOrder: 5, images: []),
+            DessertItem(id: 12, name: "奶油蛋糕", imageName: "CreamCake", calories: "312", category: .cake, description: "奶油芝士蛋糕/巴斯克，130克", backgroundColor: Color(hex: "D6E5FF"), isFeatured: true, relatedItems: [], categoryId: 2, categoryName: "蛋糕", displayOrder: 6, images: []),
+            DessertItem(id: 13, name: "芝士蛋糕", imageName: "CheeseCake", calories: "341", category: .cake, description: "芝士蛋糕/巴斯克，100克", backgroundColor: Color(hex: "D6E5FF"), isFeatured: true, relatedItems: [], categoryId: 2, categoryName: "蛋糕", displayOrder: 7, images: []),
             
             // 甜点类
-            DessertItem(id: 14, name: "大福", imageName: "Daifuku", calories: "218", category: .dessert, description: "大福/雪媚娘，50克", backgroundColor: Color(hex: "FFCECE")),
-            DessertItem(id: 15, name: "蛋挞", imageName: "EggTart", calories: "192", category: .dessert, description: "蛋挞，45克", backgroundColor: Color(hex: "FFE8C4")),
-            DessertItem(id: 16, name: "蛋黄酥", imageName: "EggYolkPastry", calories: "221", category: .dessert, description: "蛋黄酥/凤梨酥/肉松/月饼，50克/一块", backgroundColor: Color(hex: "FFD6E5")),
+            DessertItem(id: 14, name: "大福", imageName: "Daifuku", calories: "218", category: .dessert, description: "大福/雪媚娘，50克", backgroundColor: Color(hex: "FFCECE"), isFeatured: true, relatedItems: [], categoryId: 4, categoryName: "甜点", displayOrder: 1, images: []),
+            DessertItem(id: 15, name: "蛋挞", imageName: "EggTart", calories: "192", category: .dessert, description: "蛋挞，45克", backgroundColor: Color(hex: "FFE8C4"), isFeatured: true, relatedItems: [], categoryId: 4, categoryName: "甜点", displayOrder: 2, images: []),
+            DessertItem(id: 16, name: "蛋黄酥", imageName: "EggYolkPastry", calories: "221", category: .dessert, description: "蛋黄酥/凤梨酥/肉松/月饼，50克/一块", backgroundColor: Color(hex: "FFD6E5"), isFeatured: true, relatedItems: [], categoryId: 4, categoryName: "甜点", displayOrder: 3, images: []),
             
             // 冰淇淋类
-            DessertItem(id: 17, name: "圣代", imageName: "Sundae", calories: "394", category: .iceCream, description: "圣代，120克", backgroundColor: Color(hex: "8B4513")),
+            DessertItem(id: 17, name: "圣代", imageName: "Sundae", calories: "394", category: .iceCream, description: "圣代，120克", backgroundColor: Color(hex: "8B4513"), isFeatured: true, relatedItems: [], categoryId: 3, categoryName: "冰品", displayOrder: 2, images: []),
             
             // 零食类
-            DessertItem(id: 6, name: "面包", imageName: "Bread", calories: "358", category: .bread, description: "奶酪/芝士/风味糖浆面包，100克", backgroundColor: Color(hex: "F5DEB3")),
-            DessertItem(id: 19, name: "好丽友派", imageName: "OrionPie", calories: "104", category: .snack, description: "蛋黄派/巧克力派，23克/一块", backgroundColor: Color(hex: "FFB6C1")),
-            DessertItem(id: 20, name: "薯片", imageName: "PotatoChips", calories: "400", category: .snack, description: "乐事薯片，75克", backgroundColor: Color(hex: "FFF8DC"))
+            DessertItem(id: 6, name: "面包", imageName: "Bread", calories: "358", category: .bread, description: "奶酪/芝士/风味糖浆面包，100克", backgroundColor: Color(hex: "F5DEB3"), isFeatured: true, relatedItems: [], categoryId: 5, categoryName: "面包", displayOrder: 1, images: []),
+            DessertItem(id: 19, name: "好丽友派", imageName: "OrionPie", calories: "104", category: .snack, description: "蛋黄派/巧克力派，23克/一块", backgroundColor: Color(hex: "FFB6C1"), isFeatured: true, relatedItems: [], categoryId: 4, categoryName: "零食", displayOrder: 2, images: []),
+            DessertItem(id: 20, name: "薯片", imageName: "PotatoChips", calories: "400", category: .snack, description: "乐事薯片，75克", backgroundColor: Color(hex: "FFF8DC"), isFeatured: true, relatedItems: [], categoryId: 4, categoryName: "零食", displayOrder: 3, images: [])
         ]
     }
     
     /// 按分类获取美食
-    static func getFoodsByCategory(_ category: FoodCategory) -> [DessertItem] {
-        return getSampleDesserts().filter { $0.category == category }
+    static func getFoodsByCategory(_ category: FoodCategory, completion: @escaping ([DessertItem]) -> Void) {
+        getAllDesserts { allDesserts in
+            let filtered = allDesserts.filter { $0.category == category }
+            completion(filtered)
+        }
     }
     
     /// 获取特色美食
-    static func getFeaturedFood() -> [DessertItem] {
-        return getSampleDesserts().filter { $0.isFeatured }
+    static func getFeaturedFood(completion: @escaping ([DessertItem]) -> Void) {
+        getAllDesserts { allDesserts in
+            let featured = allDesserts.filter { $0.isFeatured }
+            completion(featured)
+        }
     }
     
     /// 通过ID获取美食
-    static func getFood(by id: Int) -> DessertItem? {
-        return getSampleDesserts().first { $0.id == id }
+    static func getFood(by id: Int, completion: @escaping (DessertItem?) -> Void) {
+        getAllDesserts { allDesserts in
+            let food = allDesserts.first { $0.id == id }
+            completion(food)
+        }
     }
     
     /// 获取相关美食
-    static func getRelatedFoods(for food: DessertItem) -> [DessertItem] {
-        if food.relatedItems.isEmpty {
-            // 如果没有指定相关美食，返回同类中随机3个
-            let sameCategory = getSampleDesserts().filter { $0.category == food.category && $0.id != food.id }
-            return Array(sameCategory.shuffled().prefix(3))
-        } else {
-            // 返回指定的相关美食
-            return food.relatedItems.compactMap { id in
-                return getFood(by: id)
+    static func getRelatedFoods(for food: DessertItem, completion: @escaping ([DessertItem]) -> Void) {
+        getAllDesserts { allDesserts in
+            if food.relatedItems.isEmpty {
+                // 如果没有指定相关美食，返回同类中随机3个
+                let sameCategory = allDesserts.filter { $0.category == food.category && $0.id != food.id }
+                completion(Array(sameCategory.shuffled().prefix(3)))
+            } else {
+                // 返回指定的相关美食
+                let related = food.relatedItems.compactMap { id in
+                    return allDesserts.first { $0.id == id }
+                }
+                completion(related)
             }
         }
     }

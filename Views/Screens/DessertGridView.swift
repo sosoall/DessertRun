@@ -6,47 +6,14 @@
 //
 
 import SwiftUI
+import Combine
 
 /// 甜品网格视图
 struct DessertGridView: View {
-    /// 甜品数据 - 重新排序以确保重要甜品在中心位置
-    private var desserts: [DessertItem] {
-        let allDesserts = DessertData.getSampleDesserts()
-        
-        // 定义重要甜品的ID列表(芝芝云顶奶茶、珍珠奶茶、拿铁、瑞士卷、提拉米苏、甜筒、方便面)
-        let importantIds = [1, 2, 3, 8, 9, 18, 21]
-        
-        // 将甜品分为重要和非重要两组
-        let important = allDesserts.filter { importantIds.contains($0.id) }
-        let others = allDesserts.filter { !importantIds.contains($0.id) }
-        
-        // 安排甜品顺序，将重要甜品放在数组中间
-        // 蜂窝布局中，中间位置的索引约为数组长度的1/3到2/3之间
-        let totalCount = allDesserts.count
-        let middleStart = totalCount / 3
-        
-        // 计算重要甜品和其他甜品各自应该占用的位置
-        var result: [DessertItem] = Array(repeating: allDesserts[0], count: totalCount)
-        
-        // 先填充前1/3和后1/3位置为其他甜品
-        for (index, item) in others.enumerated() {
-            if index < middleStart {
-                // 放在前面1/3
-                result[index] = item
-            } else if index >= middleStart && index - middleStart < others.count - middleStart {
-                // 放在后面1/3
-                result[index - middleStart + middleStart + important.count] = item
-            }
-        }
-        
-        // 中间1/3位置放置重要甜品
-        for (index, item) in important.enumerated() {
-            result[middleStart + index] = item
-        }
-        
-        
-        return result
-    }
+    /// 甜品数据状态
+    @State private var desserts: [DessertItem] = []
+    @State private var isLoading: Bool = true
+    @State private var errorMessage: String? = nil
     
     /// 动画状态管理
     @ObservedObject var animationState: TransitionAnimationState
@@ -72,50 +39,70 @@ struct DessertGridView: View {
                 Color(hex: "FFFFFF")
                 .ignoresSafeArea()
                 
-                // 气泡布局
-                BubbleLayout(
-                    items: desserts,
-                    config: createConfig(for: geometry.size),
-                    onDragStateChanged: onDragStateChanged,
-                    content: { dessert, state in
-                        // 单个气泡内容
-                        BubbleView(
-                            item: dessert,
-                            bubbleSize: state.size,
-                            distanceToCenter: state.distanceToCenter,
-                            maxSize: createConfig(for: geometry.size).bubbleSize,
-                            minSize: createConfig(for: geometry.size).minBubbleSize,
-                            onTap: { bubbleFrame in
-                                
-                                // 计算图片在气泡中的实际大小
-                                // 图片区域大小由气泡大小和当前位置决定
-                                let imageOffset: CGFloat = -50  // 图片顶部偏移
-                                _ = state.size / createConfig(for: geometry.size).bubbleSize  // 当前缩放比例(暂未使用)
-                                
-                                // 计算图片高度，约为气泡高度的70%
-                                //我手动改成了0.95，是因为不能直接改成1，不知道这里有没有问题。后面测试其他机型的时候要重点关注。
-                                let imageHeight = bubbleFrame.height * 0.95
-                                
-                                // 创建图片区域的实际框架，宽度与气泡相同
-                                let imageFrame = CGRect(
-                                    x: bubbleFrame.minX,
-                                    y: bubbleFrame.minY + imageOffset,
-                                    width: bubbleFrame.width,
-                                    height: imageHeight
-                                )
-                                
-                                animationState.selectDessert(
-                                    dessert,
-                                    originFrame: bubbleFrame,
-                                    originalSize: state.size,
-                                    imageFrame: imageFrame
-                                )
-                            }
-                        )
+                if isLoading {
+                    ProgressView("加载中...")
+                        .progressViewStyle(CircularProgressViewStyle())
+                } else if let error = errorMessage {
+                    VStack {
+                        Text("加载失败")
+                            .font(.headline)
+                        Text(error)
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
+                        Button("重试") {
+                            loadDessertData()
+                        }
+                        .padding()
+                        .background(Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(8)
                     }
-                )
-                .id(forceLayoutUpdate) // 使用id强制刷新布局
-                .padding(.top, 100) // 为顶部标题留出空间
+                } else {
+                    // 气泡布局
+                    BubbleLayout(
+                        items: desserts,
+                        config: createConfig(for: geometry.size),
+                        onDragStateChanged: onDragStateChanged,
+                        content: { dessert, state in
+                            // 单个气泡内容
+                            BubbleView(
+                                item: dessert,
+                                bubbleSize: state.size,
+                                distanceToCenter: state.distanceToCenter,
+                                maxSize: createConfig(for: geometry.size).bubbleSize,
+                                minSize: createConfig(for: geometry.size).minBubbleSize,
+                                onTap: { bubbleFrame in
+                                    
+                                    // 计算图片在气泡中的实际大小
+                                    // 图片区域大小由气泡大小和当前位置决定
+                                    let imageOffset: CGFloat = -50  // 图片顶部偏移
+                                    _ = state.size / createConfig(for: geometry.size).bubbleSize  // 当前缩放比例(暂未使用)
+                                    
+                                    // 计算图片高度，约为气泡高度的70%
+                                    //我手动改成了0.95，是因为不能直接改成1，不知道这里有没有问题。后面测试其他机型的时候要重点关注。
+                                    let imageHeight = bubbleFrame.height * 0.95
+                                    
+                                    // 创建图片区域的实际框架，宽度与气泡相同
+                                    let imageFrame = CGRect(
+                                        x: bubbleFrame.minX,
+                                        y: bubbleFrame.minY + imageOffset,
+                                        width: bubbleFrame.width,
+                                        height: imageHeight
+                                    )
+                                    
+                                    animationState.selectDessert(
+                                        dessert,
+                                        originFrame: bubbleFrame,
+                                        originalSize: state.size,
+                                        imageFrame: imageFrame
+                                    )
+                                }
+                            )
+                        }
+                    )
+                    .id(forceLayoutUpdate) // 使用id强制刷新布局
+                    .padding(.top, 100) // 为顶部标题留出空间
+                }
                 
                 // 底部空间，保持布局平衡
                 VStack {
@@ -129,6 +116,9 @@ struct DessertGridView: View {
             .coordinateSpace(name: globalCoordinateSpaceName)
             .environmentObject(animationState) // 将animationState作为环境对象提供给子视图
             .onAppear {
+                // 加载数据
+                loadDessertData()
+                
                 // 延迟一点时间确保视图布局完成后再刷新气泡布局
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     forceLayoutUpdate.toggle()
@@ -142,5 +132,48 @@ struct DessertGridView: View {
     /// - Returns: 布局配置
     private func createConfig(for size: CGSize) -> BubbleLayoutConfiguration {
         return BubbleLayoutConfiguration.forScreenSize(size)
+    }
+    
+    /// 加载美食数据
+    private func loadDessertData() {
+        isLoading = true
+        errorMessage = nil
+        
+        DessertData.getAllDesserts { loadedDesserts in
+            let allDesserts = loadedDesserts
+            
+            // 使用isImportant字段过滤重要甜品
+            let important = allDesserts.filter { $0.isFeatured }
+            let others = allDesserts.filter { !$0.isFeatured }
+            
+            // 安排甜品顺序，将重要甜品放在数组中间
+            // 蜂窝布局中，中间位置的索引约为数组长度的1/3到2/3之间
+            let totalCount = allDesserts.count
+            let middleStart = totalCount / 3
+            
+            // 计算重要甜品和其他甜品各自应该占用的位置
+            var result: [DessertItem] = Array(repeating: allDesserts[0], count: totalCount)
+            
+            // 先填充前1/3和后1/3位置为其他甜品
+            for (index, item) in others.enumerated() {
+                if index < middleStart {
+                    // 放在前面1/3
+                    result[index] = item
+                } else if index >= middleStart && index - middleStart < others.count - middleStart {
+                    // 放在后面1/3
+                    result[index - middleStart + middleStart + important.count] = item
+                }
+            }
+            
+            // 中间1/3位置放置重要甜品
+            for (index, item) in important.enumerated() {
+                result[middleStart + index] = item
+            }
+            
+            // 更新UI
+            self.desserts = result
+            self.isLoading = false
+            self.forceLayoutUpdate.toggle() // 强制刷新布局
+        }
     }
 } 

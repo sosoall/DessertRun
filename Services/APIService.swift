@@ -383,6 +383,168 @@ class APIService {
         .eraseToAnyPublisher()
     }
     
+    // MARK: - 美食相关API
+    
+    /// 获取所有美食
+    func getAllDesserts() -> AnyPublisher<DessertListResponse, APIServiceError> {
+        return processAPIRequest(
+            endpoint: "/desserts",
+            method: .get,
+            parameters: ["all": "true"],
+            requiresAuth: false
+        )
+    }
+    
+    /// 按分类获取美食
+    func getDessertsByCategory(categoryID: String, page: Int = 1, limit: Int = 20) -> AnyPublisher<DessertListResponse, APIServiceError> {
+        return processAPIRequest(
+            endpoint: "/desserts",
+            method: .get,
+            parameters: [
+                "category_id": categoryID,
+                "page": "\(page)",
+                "limit": "\(limit)"
+            ],
+            requiresAuth: false
+        )
+    }
+    
+    /// 搜索美食
+    func searchDesserts(query: String, limit: Int = 10) -> AnyPublisher<DessertSearchResponse, APIServiceError> {
+        return processAPIRequest(
+            endpoint: "/desserts/search",
+            method: .get,
+            parameters: [
+                "query": query,
+                "limit": "\(limit)"
+            ],
+            requiresAuth: false
+        )
+    }
+    
+    /// 获取美食详情
+    func getDessertDetail(id: String) -> AnyPublisher<DessertDetailResponse, APIServiceError> {
+        return processAPIRequest(
+            endpoint: "/desserts/\(id)",
+            method: .get,
+            parameters: nil,
+            requiresAuth: false
+        )
+    }
+    
+    /// 获取美食分类
+    func getCategories(parentID: String? = nil) -> AnyPublisher<CategoryListResponse, APIServiceError> {
+        var params: [String: String]? = nil
+        if let parentID = parentID {
+            params = ["parent_id": parentID]
+        }
+        
+        return processAPIRequest(
+            endpoint: "/categories",
+            method: .get,
+            parameters: params,
+            requiresAuth: false
+        )
+    }
+    
+    // MARK: - 通用请求处理
+    
+    /// 处理API请求
+    private func processAPIRequest<T: Decodable>(endpoint: String, method: HTTPMethod, 
+                                              parameters: [String: String]?, 
+                                              requiresAuth: Bool = true) -> AnyPublisher<T, APIServiceError> {
+        // 构建URL
+        var urlComponents = URLComponents(string: Config.API.baseURL + endpoint)
+        
+        // 添加查询参数(GET请求)
+        if method == .get && parameters != nil {
+            urlComponents?.queryItems = parameters?.map { URLQueryItem(name: $0.key, value: $0.value) }
+        }
+        
+        guard let url = urlComponents?.url else {
+            return Fail(error: APIServiceError.unknown).eraseToAnyPublisher()
+        }
+        
+        // 创建请求
+        var request = URLRequest(url: url)
+        request.httpMethod = method.rawValue
+        request.timeoutInterval = Config.API.timeout
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        // 添加认证令牌(如果需要)
+        if requiresAuth, let token = UserDefaults.standard.string(forKey: Config.UserData.tokenKey) {
+            request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        
+        // 添加请求体(非GET请求)
+        if method != .get && parameters != nil {
+            do {
+                let jsonData = try JSONSerialization.data(withJSONObject: parameters as Any)
+                request.httpBody = jsonData
+            } catch {
+                return Fail(error: APIServiceError.unknown).eraseToAnyPublisher()
+            }
+        }
+        
+        // 执行请求
+        return URLSession.shared.dataTaskPublisher(for: request)
+            .tryMap { data, response -> Data in
+                // 验证HTTP响应
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    throw NetworkError.invalidResponse
+                }
+                
+                // 打印响应信息(调试)
+                print("API响应: \(endpoint), 状态码=\(httpResponse.statusCode), 数据大小=\(data.count)字节")
+                
+                // 根据状态码处理响应
+                switch httpResponse.statusCode {
+                case 200..<300:
+                    return data
+                case 400:
+                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let message = json["message"] as? String {
+                        throw NetworkError.badRequest(message)
+                    } else {
+                        throw NetworkError.badRequest("请求参数无效")
+                    }
+                case 401:
+                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let message = json["message"] as? String {
+                        throw NetworkError.unauthorized(message)
+                    } else {
+                        throw NetworkError.unauthorized("未授权")
+                    }
+                case 404:
+                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let message = json["message"] as? String {
+                        throw NetworkError.notFound(message)
+                    } else {
+                        throw NetworkError.notFound("资源不存在")
+                    }
+                default:
+                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let message = json["message"] as? String {
+                        throw NetworkError.serverError(httpResponse.statusCode, message)
+                    } else {
+                        throw NetworkError.serverError(httpResponse.statusCode, "服务器错误")
+                    }
+                }
+            }
+            .decode(type: APIResponse<T>.self, decoder: JSONDecoder())
+            .map { $0.data }
+            .mapError { error -> APIServiceError in
+                if let networkError = error as? NetworkError {
+                    return .networkError(APINetworkError(error: networkError))
+                } else if let decodingError = error as? DecodingError {
+                    return .networkError(APINetworkError(error: .decodingFailed(decodingError)))
+                } else {
+                    return .networkError(APINetworkError(error: .unknown(error)))
+                }
+            }
+            .eraseToAnyPublisher()
+    }
+    
     // MARK: - 私有辅助方法
     
     /// 处理网络错误
@@ -414,11 +576,26 @@ class APIService {
 // MARK: - 数据模型
 
 /// 用于处理APIService中网络错误的包装类
-struct APINetworkError {
+struct APINetworkError: Error {
     let error: NetworkError
     
     var errorMessage: String {
-        return error.errorMessage
+        switch error {
+        case .badRequest(let message):
+            return message
+        case .unauthorized(let message):
+            return message
+        case .notFound(let message):
+            return message
+        case .serverError(_, let message):
+            return message
+        case .invalidResponse:
+            return "无效的响应"
+        case .decodingFailed(_):
+            return "数据解析失败"
+        case .unknown(_):
+            return "未知错误"
+        }
     }
 }
 
@@ -550,4 +727,11 @@ struct UpdateProfileRequest {
     let height: Double?
     let weight: Double?
     let hasExerciseHabit: Bool?
+}
+
+/// API响应通用格式
+struct APIResponse<T: Decodable>: Decodable {
+    let code: Int
+    let message: String
+    let data: T
 } 
