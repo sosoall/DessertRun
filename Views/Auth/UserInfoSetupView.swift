@@ -5,11 +5,22 @@ struct UserInfoSetupView: View {
     @StateObject private var authService = AuthService.shared
     @StateObject private var viewModel = UserInfoSetupViewModel()
     @EnvironmentObject var appState: AppState
-    @State private var currentStep = 0
+    @State private var currentStep: Int
     @State private var showSuccessMessage = false
     @State private var navigateToMainView = false
     
+    // 是否为模态方式显示（用于单独编辑某个页面）
+    var isModal: Bool
+    var onDismiss: (() -> Void)?
+    
     private let totalSteps = 3 // 修改总步骤数：1.昵称和性别 2.身高和体重 3.运动习惯
+    
+    // 初始化方法
+    init(initialStep: Int = 0, isModal: Bool = false, onDismiss: (() -> Void)? = nil) {
+        _currentStep = State(initialValue: initialStep)
+        self.isModal = isModal
+        self.onDismiss = onDismiss
+    }
     
     var body: some View {
         NavigationStack {
@@ -19,10 +30,12 @@ struct UserInfoSetupView: View {
                         .environmentObject(appState)
                 } else {
                     VStack(spacing: 0) {
-                        // 进度条
-                        StepProgressBar(currentStep: currentStep, totalSteps: totalSteps)
-                            .padding(.top, 20)
-                            .padding(.horizontal, 30)
+                        // 进度条 - 非模态模式才显示
+                        if !isModal {
+                            StepProgressBar(currentStep: currentStep, totalSteps: totalSteps)
+                                .padding(.top, 20)
+                                .padding(.horizontal, 30)
+                        }
                         
                         // 内容区域
                         ScrollView {
@@ -54,6 +67,12 @@ struct UserInfoSetupView: View {
                     .onTapGesture {
                         dismissKeyboard()
                     }
+                    .onAppear {
+                        // 如果是模态模式，从API获取用户信息
+                        if isModal {
+                            loadCurrentUserInfo()
+                        }
+                    }
                     
                     // 显示完成动画
                     if showSuccessMessage {
@@ -62,7 +81,20 @@ struct UserInfoSetupView: View {
                 }
             }
             .navigationBarBackButtonHidden(true)
-            .navigationBarItems(leading: backButton)
+            .navigationBarItems(leading: isModal ? nil : backButton)
+        }
+    }
+    
+    // 加载当前用户信息
+    private func loadCurrentUserInfo() {
+        if let user = authService.currentUser {
+            // 从用户模型更新视图模型
+            viewModel.user.nickname = user.nickname
+            viewModel.user.gender = user.gender
+            viewModel.user.height = user.height
+            viewModel.user.weight = user.weight
+            viewModel.user.hasExerciseHabit = user.hasExerciseHabit
+            viewModel.nickname = user.nickname ?? ""
         }
     }
     
@@ -285,73 +317,218 @@ struct UserInfoSetupView: View {
     }
     
     // 底部按钮区域
+    @ViewBuilder
     private func bottomButtons() -> some View {
-        VStack {
-            Button(action: {
-                print("底部按钮被点击") // 添加调试日志
-                dismissKeyboard() // 点击按钮时隐藏键盘
-                if currentStep < totalSteps - 1 {
-                    currentStep += 1
-                } else {
-                    // 完成按钮操作
-                    finishAction()
+        VStack(spacing: 15) {
+            // 下一步按钮
+            if isModal {
+                // 模态模式下，只显示保存按钮
+                Button(action: {
+                    saveCurrentStepInfo()
+                }) {
+                    Text("保存")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color(hex: "FE2D55"))
+                        .cornerRadius(10)
                 }
-            }) {
-                Text(currentStep < totalSteps - 1 ? "下一步" : "完成")
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .frame(height: 55)
-                    .frame(maxWidth: .infinity)
-                    .background(isNextButtonDisabled() ? Color.gray : Color.blue)
-                    .cornerRadius(10)
+                .padding(.horizontal, 20)
+                
+                if let onDismiss = onDismiss {
+                    Button(action: {
+                        onDismiss()
+                    }) {
+                        Text("取消")
+                            .font(.headline)
+                            .foregroundColor(Color(hex: "FE2D55"))
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.white)
+                            .cornerRadius(10)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(Color(hex: "FE2D55"), lineWidth: 1)
+                            )
+                    }
+                    .padding(.horizontal, 20)
+                }
+            } else {
+                // 非模态模式下，显示下一步或完成按钮
+                Button(action: {
+                    if currentStep < totalSteps - 1 {
+                        // 保存当前步骤数据并转到下一步
+                        saveCurrentStepInfo()
+                        currentStep += 1
+                    } else {
+                        // 最后一步，保存所有数据并完成设置
+                        saveAllUserInfo()
+                    }
+                }) {
+                    Text(currentStep < totalSteps - 1 ? "下一步" : "完成")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color(hex: "FE2D55"))
+                        .cornerRadius(10)
+                }
+                .padding(.horizontal, 20)
+                
+                // 跳过按钮（仅在非模态模式且非最后一步时显示）
+                if currentStep < totalSteps - 1 {
+                    Button(action: {
+                        // 标记资料完整
+                        saveAllUserInfo()
+                    }) {
+                        Text("跳过，稍后设置")
+                            .font(.subheadline)
+                            .foregroundColor(Color(hex: "FE2D55"))
+                    }
+                    .padding(.bottom, 10)
+                }
             }
-            .buttonStyle(PlainButtonStyle()) // 添加这一行解决按钮不响应问题
-            .padding(.horizontal, 20)
-            .padding(.bottom, 20)
-            .disabled(isNextButtonDisabled())
         }
+        .padding(.vertical, 20)
         .background(
             Rectangle()
-                .fill(Color(.systemBackground))
-                .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: -5)
-                .edgesIgnoringSafeArea(.bottom)
+                .fill(Color.white)
+                .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: -5)
         )
     }
     
-    // 判断下一步按钮是否应该禁用
-    private func isNextButtonDisabled() -> Bool {
+    // 保存当前步骤信息
+    private func saveCurrentStepInfo() {
+        // 根据当前步骤，创建只包含当前页面字段的更新请求
+        var updateProfile: UpdateProfileRequest
+        
         switch currentStep {
         case 0:
-            // 第一步：昵称和性别必须填写
-            return viewModel.nickname.isEmpty || viewModel.user.gender == nil
+            // 第一步：昵称和性别
+            updateProfile = UpdateProfileRequest(
+                nickname: viewModel.nickname.isEmpty ? nil : viewModel.nickname,
+                avatar: nil,
+                gender: viewModel.user.gender?.toApiValue,
+                height: nil,
+                weight: nil,
+                hasExerciseHabit: nil
+            )
         case 1:
-            // 第二步：身高和体重已经有默认值，所以不需要禁用
-            return false
+            // 第二步：身高和体重
+            updateProfile = UpdateProfileRequest(
+                nickname: nil,
+                avatar: nil,
+                gender: nil,
+                height: viewModel.user.height,
+                weight: viewModel.user.weight,
+                hasExerciseHabit: nil
+            )
         case 2:
-            // 第三步：运动习惯必须选择
-            return viewModel.user.hasExerciseHabit == nil
+            // 第三步：运动习惯
+            updateProfile = UpdateProfileRequest(
+                nickname: nil,
+                avatar: nil,
+                gender: nil,
+                height: nil,
+                weight: nil,
+                hasExerciseHabit: viewModel.user.hasExerciseHabit
+            )
         default:
-            return false
+            return
         }
+        
+        // 调用API更新资料
+        APIService.shared.updateUserProfile(profile: updateProfile)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { completion in
+                    if case let .failure(error) = completion {
+                        print("更新资料失败: \(error.errorMessage)")
+                    }
+                    
+                    // 如果是模态模式，更新完成后关闭页面
+                    if isModal, let onDismiss = onDismiss {
+                        onDismiss()
+                    }
+                },
+                receiveValue: { apiUser in
+                    print("更新资料成功: \(apiUser.nickname ?? "未设置昵称")")
+                    // 更新本地用户数据
+                    authService.currentUser = apiUser.toLocalUser()
+                    authService.saveUserToStorage()
+                    
+                    // 显示成功消息
+                    if isModal {
+                        showSuccessMessage = true
+                        // 2秒后关闭成功消息并返回
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            showSuccessMessage = false
+                            if let onDismiss = onDismiss {
+                                onDismiss()
+                            }
+                        }
+                    }
+                }
+            )
+            .store(in: &authService.cancellables)
     }
     
-    // 完成按钮操作
-    private func finishAction() {
-        // 显示完成动画
-        showSuccessMessage = true
-        
-        // 保存用户信息
-        viewModel.saveUserInfo {
-            // 标记用户已登录
-             // 设置首页为"运动"标签
-            appState.selectedTabIndex = 0
+    // 保存所有用户信息
+    private func saveAllUserInfo() {
+        // 更新本地用户模型
+        if let user = authService.currentUser {
+            // 更新用户信息
+            user.nickname = viewModel.nickname.isEmpty ? nil : viewModel.nickname
+            user.gender = viewModel.user.gender
+            user.height = viewModel.user.height
+            user.weight = viewModel.user.weight
+            user.hasExerciseHabit = viewModel.user.hasExerciseHabit
+            user.isProfileCompleted = true
             
-            // 2秒后跳转到主页
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                showSuccessMessage = false
-                navigateToMainView = true
-            }
+            // 保存到本地存储
+            authService.saveUserToStorage()
         }
+        
+        // 创建完整的资料更新请求
+        let updateProfile = UpdateProfileRequest(
+            nickname: viewModel.nickname.isEmpty ? nil : viewModel.nickname,
+            avatar: nil,
+            gender: viewModel.user.gender?.toApiValue,
+            height: viewModel.user.height,
+            weight: viewModel.user.weight,
+            hasExerciseHabit: viewModel.user.hasExerciseHabit
+        )
+        
+        // 调用API更新资料
+        APIService.shared.updateUserProfile(profile: updateProfile)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { completion in
+                    if case let .failure(error) = completion {
+                        print("更新资料失败: \(error.errorMessage)")
+                    }
+                    
+                    // 显示成功消息，然后导航到主页
+                    showSuccessMessage = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        showSuccessMessage = false
+                        // 如果是模态模式，关闭页面；否则导航到主页
+                        if isModal, let onDismiss = onDismiss {
+                            onDismiss()
+                        } else {
+                            navigateToMainView = true
+                        }
+                    }
+                },
+                receiveValue: { apiUser in
+                    print("更新资料成功: \(apiUser.nickname ?? "未设置昵称")")
+                    // 更新本地用户数据
+                    authService.currentUser = apiUser.toLocalUser()
+                    authService.saveUserToStorage()
+                }
+            )
+            .store(in: &authService.cancellables)
     }
     
     // 添加隐藏键盘的方法
@@ -525,7 +702,7 @@ struct SuccessMessageView: View {
 }
 
 #Preview {
-    UserInfoSetupView()
+    UserInfoSetupView(initialStep: 0, isModal: false)
         .environmentObject(AppState.shared)
 }
 

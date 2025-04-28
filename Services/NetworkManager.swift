@@ -47,7 +47,44 @@ struct APIResponse<T: Decodable>: Decodable {
     let data: T?
     
     var success: Bool {
-        return code == 0
+        return code == 0 || code == 200
+    }
+    
+    // 自定义初始化方法，手动解析data字段
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        code = try container.decode(Int.self, forKey: .code)
+        message = try container.decode(String.self, forKey: .message)
+        
+        // 手动尝试解析data字段
+        if let dataContainer = try? container.nestedContainer(keyedBy: DynamicCodingKeys.self, forKey: .data) {
+            // 如果data是一个对象，我们需要手动构建一个新的解码器来解析它
+            let dataDecoder = try container.superDecoder(forKey: .data)
+            data = try T(from: dataDecoder)
+        } else {
+            // 如果data是null或者其他类型
+            data = try container.decodeIfPresent(T.self, forKey: .data)
+        }
+    }
+    
+    enum CodingKeys: String, CodingKey {
+        case code, message, data
+    }
+    
+    // 动态CodingKeys，用于检查data是否为对象
+    struct DynamicCodingKeys: CodingKey {
+        var stringValue: String
+        var intValue: Int?
+        
+        init?(stringValue: String) {
+            self.stringValue = stringValue
+            self.intValue = nil
+        }
+        
+        init?(intValue: Int) {
+            self.stringValue = "\(intValue)"
+            self.intValue = intValue
+        }
     }
 }
 
@@ -194,7 +231,6 @@ class NetworkManager {
                 // 尝试解析为API响应格式
                 let decoder = JSONDecoder()
                 decoder.dateDecodingStrategy = .iso8601
-                decoder.keyDecodingStrategy = .convertFromSnakeCase
                 
                 // 打印原始数据，用于调试
                 if let jsonString = String(data: data, encoding: .utf8) {
@@ -291,8 +327,8 @@ class NetworkManager {
         case 200...299:  // 成功
             do {
                 let decoder = JSONDecoder()
-                // 将下划线命名转换为驼峰命名
-                decoder.keyDecodingStrategy = .convertFromSnakeCase
+                // 不使用下划线命名转换为驼峰命名，因为模型中已经手动定义了CodingKeys
+                // decoder.keyDecodingStrategy = .convertFromSnakeCase
                 return try decoder.decode(T.self, from: data)
             } catch {
                 // 添加详细的解码错误信息

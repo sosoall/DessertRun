@@ -5,6 +5,7 @@ import Combine
 // 添加 Notification.Name 扩展
 extension Notification.Name {
     static let userRegistered = Notification.Name("userRegistered")
+    static let authStatusChanged = Notification.Name("authStatusChanged")
 }
 
 /// 认证服务，管理用户登录状态和数据
@@ -367,28 +368,20 @@ class AuthService: ObservableObject {
     
     /// 退出登录
     func logout() {
-        DRInfo("用户退出登录 - 开始")
+        DRInfo("用户退出登录")
         
-        // 先通知应用显示登录页面，确保UI状态先更新
-        DRInfo("发送登出通知")
-        NotificationCenter.default.post(name: NSNotification.Name("LogoutNotification"), object: nil)
+        // 清除用户数据和登录状态
+        self.currentUser = nil
+        self.isLoggedIn = false
+        UserDefaults.standard.removeObject(forKey: StorageKeys.currentUser)
+        UserDefaults.standard.set(false, forKey: StorageKeys.isLoggedIn)
         
-        // 然后清理数据
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            self.currentUser = nil
-            self.isLoggedIn = false
-            self.isNewUser = false
-            
-            // 清除token和用户ID
-            UserDefaults.standard.removeObject(forKey: Config.UserData.tokenKey)
-            UserDefaults.standard.removeObject(forKey: Config.UserData.userIdKey)
-            
-            // 清除用户数据
-            UserDefaults.standard.removeObject(forKey: StorageKeys.currentUser)
-            UserDefaults.standard.set(false, forKey: StorageKeys.isLoggedIn)
-            
-            DRInfo("用户登录状态已重置 - 完成")
-        }
+        // 清除令牌
+        UserDefaults.standard.removeObject(forKey: Config.UserData.tokenKey)
+        UserDefaults.standard.removeObject(forKey: Config.UserData.userIdKey)
+        
+        // 发送通知登录状态已更改
+        NotificationCenter.default.post(name: .authStatusChanged, object: nil)
     }
     
     /// 清除用户数据

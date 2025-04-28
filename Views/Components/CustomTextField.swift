@@ -57,8 +57,10 @@ struct CustomTextField: UIViewRepresentable {
         }
         
         func textFieldDidChangeSelection(_ textField: UITextField) {
-            // 更新绑定的文本
-            parent.text = textField.text ?? ""
+            // 使用异步方式更新绑定的文本，避免在视图更新周期内修改状态
+            DispatchQueue.main.async {
+                self.parent.text = textField.text ?? ""
+            }
         }
         
         func textFieldShouldReturn(_ textField: UITextField) -> Bool {

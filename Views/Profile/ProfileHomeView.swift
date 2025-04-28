@@ -18,12 +18,20 @@ struct ProfileHomeView: View {
     // 显示登录页的状态
     @State private var showLoginView = false
     
+    // 用户信息设置视图的控制状态
+    @State private var showUserInfoSetup = false
+    @State private var userInfoEditPage = 0
+    
     // 确认退出登录对话框状态
     @State private var showLogoutConfirm = false
     
+    // API加载状态
+    @State private var isLoading = false
+    @State private var errorMessage: String? = nil
+    
     // 设置项列表
     private let settingItems: [(icon: String, title: String, color: Color)] = [
-        ("person.text.rectangle.fill", "账户安全设置", Color.blue),
+        ("lock.shield.fill", "账户安全设置", Color.blue),
         ("lock.shield.fill", "隐私设置", Color.green),
         ("bell.fill", "通知设置", Color.orange),
         ("heart.fill", "健康数据集成", Color.red)
@@ -181,15 +189,70 @@ struct ProfileHomeView: View {
         .fullScreenCover(isPresented: $showLoginView) {
             LoginView()
         }
+        .fullScreenCover(isPresented: $showUserInfoSetup) {
+            UserInfoSetupPage(currentStep: userInfoEditPage, onDismiss: {
+                showUserInfoSetup = false
+                // 重新获取用户资料
+                fetchUserProfile()
+            })
+        }
         .alert("确认退出登录", isPresented: $showLogoutConfirm) {
             Button("取消", role: .cancel) { }
             Button("确认退出", role: .destructive) {
                 authService.logout()
                 appState.updateLoginStatus()
+                // 显示登录页面
+                showLoginView = true
             }
         } message: {
             Text("退出登录后需要重新登录才能使用个人功能")
         }
+        .onAppear {
+            if authService.isLoggedIn {
+                fetchUserProfile()
+            }
+        }
+    }
+    
+    // 获取用户资料
+    private func fetchUserProfile() {
+        isLoading = true
+        errorMessage = nil
+        
+        DRInfo("开始获取用户资料...")
+        
+        APIService.shared.getUserProfile()
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { completion in
+                    isLoading = false
+                    if case let .failure(error) = completion {
+                        errorMessage = error.errorMessage
+                        DRError("获取用户资料失败: \(error.errorMessage)")
+                        
+                        // 如果是无法解析的错误，尝试显示一些详细的调试信息
+                        if error.errorMessage.contains("数据解析失败") {
+                            DRInfo("可能是服务端API格式与客户端定义不匹配，请检查APIUser模型")
+                            DRInfo("API字段: id, phone_number, nickname, gender, height, weight, has_exercise_habit, created_at, updated_at, is_new_user, is_profile_completed")
+                            DRInfo("APIUser模型字段检查: \(Mirror(reflecting: APIUser.self).description)")
+                        }
+                    } else {
+                        DRInfo("获取用户资料请求完成")
+                    }
+                },
+                receiveValue: { apiUser in
+                    DRInfo("获取用户资料成功: \(apiUser.nickname ?? "未设置昵称")")
+                    DRInfo("用户详情: id=\(apiUser.id), phone=\(apiUser.phone), gender=\(apiUser.gender ?? "未设置"), height=\(apiUser.height ?? 0), weight=\(apiUser.weight ?? 0)")
+                    
+                    // 更新本地用户数据
+                    authService.currentUser = apiUser.toLocalUser()
+                    authService.saveUserToStorage()
+                    
+                    // 更新AppState中的用户资料
+                    appState.updateLoginStatus()
+                }
+            )
+            .store(in: &authService.cancellables)
     }
     
     // 用户资料卡片
@@ -197,7 +260,7 @@ struct ProfileHomeView: View {
         HStack(spacing: 16) {
             // 头像
             if authService.isLoggedIn {
-                Image(systemName: appState.userProfile.avatarName)
+                Image(systemName: "person.circle.fill")
                     .font(.system(size: 60))
                     .foregroundColor(Color(hex: "FE2D55"))
                     .frame(width: 80, height: 80)
@@ -214,14 +277,9 @@ struct ProfileHomeView: View {
             // 用户信息
             VStack(alignment: .leading, spacing: 4) {
                 if authService.isLoggedIn {
-                    Text(appState.userProfile.name)
+                    Text(authService.currentUser?.nickname ?? "甜品爱好者")
                         .font(.title2)
                         .fontWeight(.bold)
-                    if let phoneNumber = authService.currentUser?.phoneNumber {
-                        Text(phoneNumber)
-                            .font(.subheadline)
-                            .foregroundColor(.gray)
-                    }
                     Text("甜品爱好者")
                         .font(.caption)
                         .foregroundColor(Color(hex: "FE2D55"))
@@ -239,13 +297,18 @@ struct ProfileHomeView: View {
             
             // 编辑按钮
             if authService.isLoggedIn {
-                Image(systemName: "pencil")
-                    .font(.title3)
-                    .foregroundColor(Color(hex: "FE2D55"))
-                    .frame(width: 40, height: 40)
-                    .background(Color.white)
-                    .clipShape(Circle())
-                    .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+                Button(action: {
+                    userInfoEditPage = 0 // 跳转到第一页（名称和性别）
+                    showUserInfoSetup = true
+                }) {
+                    Image(systemName: "pencil")
+                        .font(.title3)
+                        .foregroundColor(Color(hex: "FE2D55"))
+                        .frame(width: 40, height: 40)
+                        .background(Color.white)
+                        .clipShape(Circle())
+                        .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+                }
             }
         }
         .padding()
@@ -264,82 +327,88 @@ struct ProfileHomeView: View {
                 .padding(.horizontal)
             
             VStack(spacing: 0) {
-                // 个人资料
-                HStack {
-                    Image(systemName: "person.fill")
-                        .foregroundColor(Color.blue)
-                        .frame(width: 30, height: 30)
-                    
-                    Text("个人资料")
-                        .font(.body)
-                    
-                    Spacer()
-                    
-                    Image(systemName: "chevron.right")
-                        .foregroundColor(.gray)
+                // 身体数据设置
+                Button(action: {
+                    userInfoEditPage = 1 // 跳转到第二页（身高和体重）
+                    showUserInfoSetup = true
+                }) {
+                    HStack {
+                        Image(systemName: "figure.walk.circle.fill")
+                            .foregroundColor(Color.orange)
+                            .frame(width: 30, height: 30)
+                        
+                        Text("身体数据")
+                            .font(.body)
+                            .foregroundColor(.primary)
+                        
+                        Spacer()
+                        
+                        if authService.isLoggedIn, let user = authService.currentUser {
+                            if let height = user.height, let weight = user.weight {
+                                Text("\(Int(height))厘米 / \(Int(weight))公斤")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            } else {
+                                Text("未设置")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            }
+                        } else {
+                            Text("请先登录")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        }
+                        
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.gray)
+                    }
+                    .padding()
+                    .background(Color.white)
                 }
-                .padding()
-                .background(Color.white)
+                .disabled(!authService.isLoggedIn)
                 
                 Divider()
                     .padding(.leading, 56)
                 
-                // 身体数据
-                HStack {
-                    Image(systemName: "figure.stand")
-                        .foregroundColor(Color.orange)
-                        .frame(width: 30, height: 30)
-                    
-                    Text("身体数据")
-                        .font(.body)
-                    
-                    Spacer()
-                    
-                    Image(systemName: "chevron.right")
-                        .foregroundColor(.gray)
+                // 运动偏好设置
+                Button(action: {
+                    userInfoEditPage = 2 // 跳转到第三页（运动习惯）
+                    showUserInfoSetup = true
+                }) {
+                    HStack {
+                        Image(systemName: "heart.circle.fill")
+                            .foregroundColor(Color.red)
+                            .frame(width: 30, height: 30)
+                        
+                        Text("运动偏好设置")
+                            .font(.body)
+                            .foregroundColor(.primary)
+                        
+                        Spacer()
+                        
+                        if authService.isLoggedIn, let user = authService.currentUser {
+                            if let hasExerciseHabit = user.hasExerciseHabit {
+                                Text(hasExerciseHabit ? "有运动习惯" : "无运动习惯")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            } else {
+                                Text("未设置")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            }
+                        } else {
+                            Text("请先登录")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        }
+                        
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.gray)
+                    }
+                    .padding()
+                    .background(Color.white)
                 }
-                .padding()
-                .background(Color.white)
-                
-                Divider()
-                    .padding(.leading, 56)
-                
-                // 运动偏好
-                HStack {
-                    Image(systemName: "figure.run")
-                        .foregroundColor(Color.green)
-                        .frame(width: 30, height: 30)
-                    
-                    Text("运动偏好设置")
-                        .font(.body)
-                    
-                    Spacer()
-                    
-                    Image(systemName: "chevron.right")
-                        .foregroundColor(.gray)
-                }
-                .padding()
-                .background(Color.white)
-                
-                Divider()
-                    .padding(.leading, 56)
-                
-                // 运动成就
-                HStack {
-                    Image(systemName: "medal.fill")
-                        .foregroundColor(Color(hex: "FE2D55"))
-                        .frame(width: 30, height: 30)
-                    
-                    Text("运动成就")
-                        .font(.body)
-                    
-                    Spacer()
-                    
-                    Image(systemName: "chevron.right")
-                        .foregroundColor(.gray)
-                }
-                .padding()
-                .background(Color.white)
+                .disabled(!authService.isLoggedIn)
             }
             .background(Color.white)
             .cornerRadius(16)
@@ -429,6 +498,25 @@ struct ProfileHomeView: View {
             .cornerRadius(16)
             .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
             .padding(.horizontal)
+        }
+    }
+}
+
+// 用于单独编辑用户信息的包装视图
+struct UserInfoSetupPage: View {
+    var currentStep: Int
+    var onDismiss: () -> Void
+    
+    var body: some View {
+        NavigationView {
+            UserInfoSetupView(initialStep: currentStep, isModal: true, onDismiss: onDismiss)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("关闭") {
+                            onDismiss()
+                        }
+                    }
+                }
         }
     }
 }

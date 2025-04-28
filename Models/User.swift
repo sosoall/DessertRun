@@ -22,16 +22,16 @@ class User: Identifiable, Codable, ObservableObject {
         case male = "男"
         case female = "女"
         
-        // 转换为后端接受的整数格式
-        var toApiValue: Int {
-            return self == .male ? 1 : 2
+        // 转换为API期望的字符串格式（与rawValue相同）
+        var toApiValue: String {
+            return self.rawValue
         }
         
-        // 从后端整数格式转换
-        static func fromApiValue(_ value: Int) -> Gender? {
+        // 从API字符串格式转换（不再需要int转换）
+        static func fromApiString(_ value: String) -> Gender? {
             switch value {
-            case 1: return .male
-            case 2: return .female
+            case "男": return .male
+            case "女": return .female
             default: return nil
             }
         }

@@ -118,7 +118,7 @@ class APIService {
                 }
             }
             .decode(type: AuthResponseWrapper.self, decoder: JSONDecoder())
-            .map { wrapper -> APIUser in
+            .map({ wrapper -> APIUser in
                 // 保存令牌
                 UserDefaults.standard.set(wrapper.data.token, forKey: Config.UserData.tokenKey)
                 
@@ -129,12 +129,15 @@ class APIService {
                     nickname: nil,
                     avatar: nil,
                     gender: nil,
+                    height: nil,
+                    weight: nil,
+                    hasExerciseHabit: nil,
                     createdAt: nil,
                     updatedAt: nil,
                     isNewUser: wrapper.data.isNewUser,
                     isProfileCompleted: false
                 )
-            }
+            })
             .mapError { error -> APIServiceError in
                 print("登录解析错误: \(error)")
                 if let networkError = error as? NetworkError {
@@ -216,7 +219,7 @@ class APIService {
                 }
             }
             .decode(type: AuthResponseWrapper.self, decoder: JSONDecoder())
-            .map { wrapper -> APIUser in
+            .map({ wrapper -> APIUser in
                 // 保存令牌
                 UserDefaults.standard.set(wrapper.data.token, forKey: Config.UserData.tokenKey)
                 
@@ -227,12 +230,15 @@ class APIService {
                     nickname: nil,
                     avatar: nil,
                     gender: nil,
+                    height: nil,
+                    weight: nil,
+                    hasExerciseHabit: nil,
                     createdAt: nil,
                     updatedAt: nil,
                     isNewUser: wrapper.data.isNewUser,
                     isProfileCompleted: false
                 )
-            }
+            })
             .mapError { error -> APIServiceError in
                 print("登录解析错误: \(error)")
                 if let networkError = error as? NetworkError {
@@ -285,12 +291,16 @@ class APIService {
                                             print("注册成功后登录失败: \(error.errorMessage)")
                                             // 登录失败但注册成功
                                             // 创建一个基本用户对象
+                                            // APIUser构造函数需要显式指定所有参数
                                             let user = APIUser(
-                                                id: UUID().uuidString, // 使用随机生成的UUID字符串作为临时ID
+                                                id: UUID().uuidString,
                                                 phone: phone,
                                                 nickname: nickname,
                                                 avatar: nil,
                                                 gender: nil,
+                                                height: nil,
+                                                weight: nil,
+                                                hasExerciseHabit: nil,
                                                 createdAt: nil,
                                                 updatedAt: nil,
                                                 isNewUser: nil,
@@ -445,7 +455,10 @@ struct APIUser: Decodable, Identifiable {
     let phone: String
     let nickname: String?
     let avatar: String?
-    let gender: Int?
+    let gender: String?  // 从服务器接收时仍为String类型("男"/"女")
+    let height: Double?  // 添加身高字段
+    let weight: Double?  // 添加体重字段
+    let hasExerciseHabit: Bool?  // 添加运动习惯字段
     let createdAt: String?
     let updatedAt: String?
     let isNewUser: Bool?
@@ -458,22 +471,72 @@ struct APIUser: Decodable, Identifiable {
         case nickname
         case avatar
         case gender
+        case height
+        case weight
+        case hasExerciseHabit = "has_exercise_habit"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case isNewUser = "is_new_user"
         case isProfileCompleted = "is_profile_completed"
     }
     
+    // 添加直接初始化方法，方便创建实例
+    init(id: String, phone: String, nickname: String?, avatar: String?, gender: String?,
+         height: Double?, weight: Double?, hasExerciseHabit: Bool?,
+         createdAt: String?, updatedAt: String?, isNewUser: Bool?, isProfileCompleted: Bool?) {
+        self.id = id
+        self.phone = phone
+        self.nickname = nickname
+        self.avatar = avatar
+        self.gender = gender
+        self.height = height
+        self.weight = weight
+        self.hasExerciseHabit = hasExerciseHabit
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.isNewUser = isNewUser
+        self.isProfileCompleted = isProfileCompleted
+    }
+    
+    // 自定义解码初始化方法
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        id = try container.decode(String.self, forKey: .id)
+        phone = try container.decode(String.self, forKey: .phone)
+        nickname = try container.decodeIfPresent(String.self, forKey: .nickname)
+        avatar = try container.decodeIfPresent(String.self, forKey: .avatar)
+        gender = try container.decodeIfPresent(String.self, forKey: .gender)
+        height = try container.decodeIfPresent(Double.self, forKey: .height)
+        weight = try container.decodeIfPresent(Double.self, forKey: .weight)
+        hasExerciseHabit = try container.decodeIfPresent(Bool.self, forKey: .hasExerciseHabit)
+        createdAt = try container.decodeIfPresent(String.self, forKey: .createdAt)
+        updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt)
+        isNewUser = try container.decodeIfPresent(Bool.self, forKey: .isNewUser)
+        isProfileCompleted = try container.decodeIfPresent(Bool.self, forKey: .isProfileCompleted)
+    }
+    
     /// 将APIUser转换为本地User模型
     func toLocalUser() -> User {
+        // 根据性别字符串转换为枚举
+        let userGender: User.Gender?
+        if let gender = gender {
+            userGender = User.Gender.fromApiString(gender)
+        } else {
+            userGender = nil
+        }
+        
         let user = User(
             phoneNumber: phone,
             nickname: nickname,
             avatar: avatar,
-            gender: gender != nil ? User.Gender.fromApiValue(gender!) : nil,
+            gender: userGender,
+            height: height,
+            weight: weight,
+            hasExerciseHabit: hasExerciseHabit,
             isProfileCompleted: isProfileCompleted ?? false,
             isNewUser: isNewUser ?? true,
-            apiUserId: id // 直接使用字符串ID，不尝试转换为Int
+            apiUserId: id
         )
         return user
     }
@@ -483,7 +546,7 @@ struct APIUser: Decodable, Identifiable {
 struct UpdateProfileRequest {
     let nickname: String?
     let avatar: String?
-    let gender: Int?
+    let gender: String?  // 修改为String类型，值应为"男"或"女"
     let height: Double?
     let weight: Double?
     let hasExerciseHabit: Bool?

@@ -14,6 +14,9 @@ class AppState: ObservableObject {
     /// 共享的单例实例
     static let shared = AppState()
     
+    // 用于管理取消订阅
+    private var cancellables = Set<AnyCancellable>()
+    
     // MARK: - 用户相关状态
     
     /// 用户是否已登录
@@ -90,6 +93,21 @@ class AppState: ObservableObject {
         if isFirstLaunch {
             UserDefaults.standard.set(true, forKey: "hasLaunchedBefore")
         }
+        
+        // 监听登录状态变化通知
+        setupNotificationObservers()
+    }
+    
+    /// 设置通知观察者
+    private func setupNotificationObservers() {
+        // 监听认证状态变化
+        NotificationCenter.default.publisher(for: .authStatusChanged)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                DRInfo("收到认证状态变化通知")
+                self?.updateLoginStatus()
+            }
+            .store(in: &cancellables)
     }
     
     /// 检查登录状态并设置相应的应用状态
@@ -117,7 +135,10 @@ class AppState: ObservableObject {
         self.isLoggedIn = authService.isLoggedIn
         
         // 更新登录页面显示状态
-        self.showLoginView = !authService.isLoggedIn
+        if !authService.isLoggedIn {
+            self.showLoginView = true
+            DRInfo("用户未登录，显示登录页面")
+        }
         
         // 如果用户已登录，更新用户资料
         if let user = authService.currentUser {
@@ -126,6 +147,7 @@ class AppState: ObservableObject {
                 name: user.nickname ?? "用户\(Int.random(in: 1000...9999))",
                 avatarName: "person.circle.fill"
             )
+            DRInfo("已更新用户资料: \(user.nickname ?? "未设置昵称")")
         }
     }
     
