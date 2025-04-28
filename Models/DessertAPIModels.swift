@@ -3,8 +3,6 @@ import Foundation
 // MARK: - 美食列表响应
 struct DessertListResponse: Decodable {
     let total: Int
-    let page: Int
-    let limit: Int
     let items: [DessertItemResponse]
 }
 

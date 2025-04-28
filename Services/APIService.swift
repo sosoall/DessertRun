@@ -390,7 +390,7 @@ class APIService {
         return processAPIRequest(
             endpoint: "/desserts",
             method: .get,
-            parameters: ["all": "true"],
+            parameters: nil,
             requiresAuth: false
         )
     }
