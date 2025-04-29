@@ -35,14 +35,29 @@ struct DessertItemResponse: Decodable, Identifiable {
         let categoryEnum = FoodCategory(rawValue: categoryName) ?? .dessert
         let imageName = name.replacingOccurrences(of: " ", with: "")
         
+        // 转换图片数据
+        var dessertImages: [DessertImage] = []
+        for (type, url) in images {
+            dessertImages.append(DessertImage(
+                id: Int.random(in: 1000...9999),
+                url: url,
+                type: type,
+                displayOrder: 1
+            ))
+        }
+        
         return DessertItem(
             id: Int.random(in: 100...10000), // 临时ID
             name: name,
             imageName: imageName,
-            category: categoryEnum,
             calories: String(format: "%.0f", calories),
+            category: categoryEnum,
             description: description,
-            isFeatured: isImportant // 使用isImportant值设置isFeatured
+            isFeatured: isImportant, // 使用isImportant值设置isFeatured
+            categoryId: Int(categoryID) ?? 0,
+            categoryName: categoryName,
+            displayOrder: displayOrder,
+            images: dessertImages
         )
     }
 }

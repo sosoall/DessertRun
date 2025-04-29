@@ -1,12 +1,17 @@
 import Foundation
 import Combine
+import SwiftUI
 
 /// API服务错误类型
-enum APIServiceError: Error {
+enum APIServiceError: Error, CustomStringConvertible {
+    /// 网络相关错误
     case networkError(APINetworkError)
+    /// 授权令牌过期
     case tokenExpired
+    /// 未知错误
     case unknown
     
+    /// 获取用户友好的错误消息
     var errorMessage: String {
         switch self {
         case .networkError(let error):
@@ -14,10 +19,47 @@ enum APIServiceError: Error {
         case .tokenExpired:
             return "登录已过期，请重新登录"
         case .unknown:
-            return "未知错误"
+            return "未知错误，请稍后再试"
         }
     }
+    
+    /// 自定义描述信息，用于日志记录等
+    var description: String {
+        return "APIServiceError: \(errorMessage)"
+    }
+    
+    /// 判断是否为网络连接错误
+    var isNetworkConnectivityIssue: Bool {
+        if case .networkError(let error) = self, error.isNetworkConnectivityError {
+            return true
+        }
+        return false
+    }
+    
+    /// 判断是否为服务器错误
+    var isServerIssue: Bool {
+        if case .networkError(let error) = self, error.isServerError {
+            return true
+        }
+        return false
+    }
+    
+    /// 判断是否为认证相关错误
+    var isAuthIssue: Bool {
+        if case .tokenExpired = self {
+            return true
+        }
+        if case .networkError(let error) = self, error.isAuthError {
+            return true
+        }
+        return false
+    }
 }
+
+// MARK: - API响应模型
+
+// 注意：API响应类型定义在DessertRun/Models/DessertAPIModels.swift文件中
+// 包括：DessertListResponse、DessertSearchResponse、DessertDetailResponse、CategoryListResponse
 
 /// API服务类
 class APIService {
@@ -141,9 +183,33 @@ class APIService {
             .mapError { error -> APIServiceError in
                 print("登录解析错误: \(error)")
                 if let networkError = error as? NetworkError {
-                    return .networkError(APINetworkError(error: networkError))
+                    // 针对网络错误进行特殊处理
+                    if case .unauthorized = networkError {
+                        return self.handleError(networkError)
+                    } else {
+                        return .networkError(APINetworkError(error: networkError))
+                    }
+                } else if let decodingError = error as? DecodingError {
+                    // 针对解码错误提供详细的日志
+                    DRError("[APIService] 数据解析错误: \(decodingError)")
+                    
+                    // 根据解码错误类型提供更具体的信息
+                    switch decodingError {
+                    case .keyNotFound(let key, _):
+                        DRError("[APIService] 找不到键: \(key.stringValue)")
+                    case .valueNotFound(let type, _):
+                        DRError("[APIService] 找不到值，期望类型: \(type)")
+                    case .typeMismatch(let type, _):
+                        DRError("[APIService] 类型不匹配，期望类型: \(type)")
+                    default:
+                        break
+                    }
+                    
+                    return .networkError(APINetworkError(error: .decodingFailed(decodingError)))
                 } else {
-                    return .networkError(APINetworkError(error: NetworkError.decodingFailed(error)))
+                    // 处理其他未知错误
+                    DRError("[APIService] 未知错误: \(error)")
+                    return .unknown
                 }
             }
             .eraseToAnyPublisher()
@@ -242,9 +308,33 @@ class APIService {
             .mapError { error -> APIServiceError in
                 print("登录解析错误: \(error)")
                 if let networkError = error as? NetworkError {
-                    return .networkError(APINetworkError(error: networkError))
+                    // 针对网络错误进行特殊处理
+                    if case .unauthorized = networkError {
+                        return self.handleError(networkError)
+                    } else {
+                        return .networkError(APINetworkError(error: networkError))
+                    }
+                } else if let decodingError = error as? DecodingError {
+                    // 针对解码错误提供详细的日志
+                    DRError("[APIService] 数据解析错误: \(decodingError)")
+                    
+                    // 根据解码错误类型提供更具体的信息
+                    switch decodingError {
+                    case .keyNotFound(let key, _):
+                        DRError("[APIService] 找不到键: \(key.stringValue)")
+                    case .valueNotFound(let type, _):
+                        DRError("[APIService] 找不到值，期望类型: \(type)")
+                    case .typeMismatch(let type, _):
+                        DRError("[APIService] 类型不匹配，期望类型: \(type)")
+                    default:
+                        break
+                    }
+                    
+                    return .networkError(APINetworkError(error: .decodingFailed(decodingError)))
                 } else {
-                    return .networkError(APINetworkError(error: NetworkError.decodingFailed(error)))
+                    // 处理其他未知错误
+                    DRError("[APIService] 未知错误: \(error)")
+                    return .unknown
                 }
             }
             .eraseToAnyPublisher()
@@ -388,7 +478,7 @@ class APIService {
     /// 获取所有美食
     func getAllDesserts() -> AnyPublisher<DessertListResponse, APIServiceError> {
         return processAPIRequest(
-            endpoint: "/desserts",
+            endpoint: "/api/v1/desserts",
             method: .get,
             parameters: nil,
             requiresAuth: false
@@ -398,7 +488,7 @@ class APIService {
     /// 按分类获取美食
     func getDessertsByCategory(categoryID: String, page: Int = 1, limit: Int = 20) -> AnyPublisher<DessertListResponse, APIServiceError> {
         return processAPIRequest(
-            endpoint: "/desserts",
+            endpoint: "/api/v1/desserts",
             method: .get,
             parameters: [
                 "category_id": categoryID,
@@ -412,7 +502,7 @@ class APIService {
     /// 搜索美食
     func searchDesserts(query: String, limit: Int = 10) -> AnyPublisher<DessertSearchResponse, APIServiceError> {
         return processAPIRequest(
-            endpoint: "/desserts/search",
+            endpoint: "/api/v1/desserts/search",
             method: .get,
             parameters: [
                 "query": query,
@@ -425,7 +515,7 @@ class APIService {
     /// 获取美食详情
     func getDessertDetail(id: String) -> AnyPublisher<DessertDetailResponse, APIServiceError> {
         return processAPIRequest(
-            endpoint: "/desserts/\(id)",
+            endpoint: "/api/v1/desserts/\(id)",
             method: .get,
             parameters: nil,
             requiresAuth: false
@@ -440,7 +530,7 @@ class APIService {
         }
         
         return processAPIRequest(
-            endpoint: "/categories",
+            endpoint: "/api/v1/categories",
             method: .get,
             parameters: params,
             requiresAuth: false
@@ -462,8 +552,12 @@ class APIService {
         }
         
         guard let url = urlComponents?.url else {
+            print("API请求错误: 无效的URL")
             return Fail(error: APIServiceError.unknown).eraseToAnyPublisher()
         }
+        
+        // 打印请求信息(调试)
+        print("发送API请求: \(method.rawValue) \(url.absoluteString)")
         
         // 创建请求
         var request = URLRequest(url: url)
@@ -482,6 +576,7 @@ class APIService {
                 let jsonData = try JSONSerialization.data(withJSONObject: parameters as Any)
                 request.httpBody = jsonData
             } catch {
+                print("API请求错误: 无法序列化请求参数")
                 return Fail(error: APIServiceError.unknown).eraseToAnyPublisher()
             }
         }
@@ -532,14 +627,36 @@ class APIService {
                 }
             }
             .decode(type: APIResponse<T>.self, decoder: JSONDecoder())
-            .map { $0.data }
+            .map { $0.data! }  // 强制解包可选值
             .mapError { error -> APIServiceError in
                 if let networkError = error as? NetworkError {
-                    return .networkError(APINetworkError(error: networkError))
+                    // 针对网络错误进行特殊处理
+                    if case .unauthorized = networkError {
+                        return self.handleError(networkError)
+                    } else {
+                        return .networkError(APINetworkError(error: networkError))
+                    }
                 } else if let decodingError = error as? DecodingError {
+                    // 针对解码错误提供详细的日志
+                    DRError("[APIService] 数据解析错误: \(decodingError)")
+                    
+                    // 根据解码错误类型提供更具体的信息
+                    switch decodingError {
+                    case .keyNotFound(let key, _):
+                        DRError("[APIService] 找不到键: \(key.stringValue)")
+                    case .valueNotFound(let type, _):
+                        DRError("[APIService] 找不到值，期望类型: \(type)")
+                    case .typeMismatch(let type, _):
+                        DRError("[APIService] 类型不匹配，期望类型: \(type)")
+                    default:
+                        break
+                    }
+                    
                     return .networkError(APINetworkError(error: .decodingFailed(decodingError)))
                 } else {
-                    return .networkError(APINetworkError(error: .unknown(error)))
+                    // 处理其他未知错误
+                    DRError("[APIService] 未知错误: \(error)")
+                    return .unknown
                 }
             }
             .eraseToAnyPublisher()
@@ -551,51 +668,80 @@ class APIService {
     /// - Parameter error: 网络错误
     /// - Returns: API服务错误
     private func handleError(_ error: NetworkError) -> APIServiceError {
-        switch error {
-        case .unauthorized(let message):
-            // 只有消息明确提到"过期"或"token"时才认为是token过期
-            if message.contains("过期") || message.contains("token") || message.contains("Token") {
-                // 清除本地令牌
-                UserDefaults.standard.removeObject(forKey: Config.UserData.tokenKey)
-                UserDefaults.standard.removeObject(forKey: Config.UserData.userIdKey)
-                // 处理token过期，通知显示登录页面
-                DispatchQueue.main.async {
-                    AuthService.shared.handleTokenExpired()
-                }
-                return .tokenExpired
-            } else {
-                // 其他401错误，如密码错误、用户不存在等
-                return .networkError(APINetworkError(error: error))
+        // 处理token过期情况
+        if case .unauthorized(let message) = error,
+           (message.contains("过期") || message.contains("token") || message.contains("Token")) {
+            // 清除本地令牌
+            UserDefaults.standard.removeObject(forKey: Config.UserData.tokenKey)
+            UserDefaults.standard.removeObject(forKey: Config.UserData.userIdKey)
+            
+            // 通知认证服务处理token过期
+            DispatchQueue.main.async {
+                AuthService.shared.handleTokenExpired()
             }
-        default:
-            return .networkError(APINetworkError(error: error))
+            return .tokenExpired
         }
+        
+        // 处理其他所有网络错误
+        return .networkError(APINetworkError(error: error))
     }
 }
 
 // MARK: - 数据模型
 
 /// 用于处理APIService中网络错误的包装类
-struct APINetworkError: Error {
+struct APINetworkError: Error, CustomStringConvertible {
     let error: NetworkError
     
     var errorMessage: String {
         switch error {
         case .badRequest(let message):
-            return message
+            return "请求无效: \(message)"
         case .unauthorized(let message):
-            return message
+            return "未授权: \(message)"
         case .notFound(let message):
-            return message
-        case .serverError(_, let message):
-            return message
+            return "未找到资源: \(message)"
+        case .serverError(let code, let message):
+            return "服务器错误(\(code)): \(message)"
         case .invalidResponse:
-            return "无效的响应"
+            return "无效的服务器响应"
+        case .invalidURL:
+            return "无效的URL地址"
+        case .noInternet:
+            return "网络连接不可用，请检查您的网络设置"
         case .decodingFailed(_):
-            return "数据解析失败"
-        case .unknown(_):
-            return "未知错误"
+            return "数据解析失败，请稍后再试"
+        case .requestFailed(let underlyingError):
+            return "请求失败: \(underlyingError.localizedDescription)"
+        case .emptyData:
+            return "服务器返回了空数据"
         }
+    }
+    
+    var description: String {
+        return errorMessage
+    }
+    
+    var isNetworkConnectivityError: Bool {
+        if case .noInternet = error { return true }
+        if case .requestFailed(let err) = error,
+           (err as NSError).domain == NSURLErrorDomain,
+           [NSURLErrorNotConnectedToInternet, 
+            NSURLErrorNetworkConnectionLost,
+            NSURLErrorCannotConnectToHost].contains((err as NSError).code) {
+            return true
+        }
+        return false
+    }
+    
+    var isServerError: Bool {
+        if case .serverError = error { return true }
+        return false
+    }
+    
+    var isAuthError: Bool {
+        if case .unauthorized = error { return true }
+        return false
     }
 }
 
@@ -727,11 +873,4 @@ struct UpdateProfileRequest {
     let height: Double?
     let weight: Double?
     let hasExerciseHabit: Bool?
-}
-
-/// API响应通用格式
-struct APIResponse<T: Decodable>: Decodable {
-    let code: Int
-    let message: String
-    let data: T
 } 

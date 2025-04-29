@@ -1,8 +1,11 @@
 import Foundation
 import Combine
 
+/// 空数据响应类型，用于没有返回数据的API
+public struct EmptyResponseData: Decodable {}
+
 /// 网络错误类型
-enum NetworkError: Error {
+public enum NetworkError: Error {
     case invalidURL
     case requestFailed(Error)
     case invalidResponse
@@ -14,7 +17,7 @@ enum NetworkError: Error {
     case noInternet
     case emptyData
     
-    var errorMessage: String {
+    public var errorMessage: String {
         switch self {
         case .invalidURL:
             return "无效的URL"
@@ -41,17 +44,17 @@ enum NetworkError: Error {
 }
 
 /// API响应结构
-struct APIResponse<T: Decodable>: Decodable {
-    let code: Int
-    let message: String
-    let data: T?
+public struct APIResponse<T: Decodable>: Decodable {
+    public let code: Int
+    public let message: String
+    public let data: T?
     
-    var success: Bool {
+    public var success: Bool {
         return code == 0 || code == 200
     }
     
     // 自定义初始化方法，手动解析data字段
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         code = try container.decode(Int.self, forKey: .code)
         message = try container.decode(String.self, forKey: .message)
@@ -67,32 +70,29 @@ struct APIResponse<T: Decodable>: Decodable {
         }
     }
     
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
         case code, message, data
     }
     
     // 动态CodingKeys，用于检查data是否为对象
-    struct DynamicCodingKeys: CodingKey {
-        var stringValue: String
-        var intValue: Int?
+    public struct DynamicCodingKeys: CodingKey {
+        public var stringValue: String
+        public var intValue: Int?
         
-        init?(stringValue: String) {
+        public init?(stringValue: String) {
             self.stringValue = stringValue
             self.intValue = nil
         }
         
-        init?(intValue: Int) {
+        public init?(intValue: Int) {
             self.stringValue = "\(intValue)"
             self.intValue = intValue
         }
     }
 }
 
-/// 空数据响应类型
-struct EmptyResponseData: Decodable {}
-
 /// HTTP请求方法
-enum HTTPMethod: String {
+public enum HTTPMethod: String {
     case get = "GET"
     case post = "POST"
     case put = "PUT"
@@ -101,8 +101,8 @@ enum HTTPMethod: String {
 }
 
 /// 网络管理器
-class NetworkManager {
-    static let shared = NetworkManager()
+public class NetworkManager {
+    public static let shared = NetworkManager()
     
     private init() {}
     
@@ -113,7 +113,7 @@ class NetworkManager {
     ///   - parameters: 请求参数
     ///   - requiresAuth: 是否需要认证令牌
     /// - Returns: 包含解码后数据的发布者
-    func request<T: Decodable>(
+    public func request<T: Decodable>(
         endpoint: String,
         method: HTTPMethod,
         parameters: [String: Any]? = nil,

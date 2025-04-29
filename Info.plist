@@ -4,18 +4,18 @@
 <dict>
 	<key>UIBackgroundModes</key>
 	<array>
-		<string>location</string>
 		<string>processing</string>
 	</array>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>DessertRun需要访问您的位置来记录运动轨迹、计算距离和速度数据。</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>DessertRun需要在后台访问您的位置以持续记录运动数据，即使应用不在前台运行。</string>
 	<key>NSMotionUsageDescription</key>
 	<string>DessertRun需要访问运动和健身数据来计算步数、爬楼层数和消耗的卡路里。</string>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>com.dessertrun.workoutprocessing</string>
 	</array>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
 </dict>
 </plist>

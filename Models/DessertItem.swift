@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftUI
+import Combine
 
 /// 美食图片模型
 struct DessertImage: Codable, Hashable {
@@ -240,31 +241,44 @@ struct DessertData {
     /// 缓存的美食数据
     private static var cachedDesserts: [DessertItem]?
     
+    // 用于保存订阅的集合
+    private static var cancellables = Set<AnyCancellable>()
+    
     /// 获取所有美食数据（优先从API获取，失败则使用本地数据）
     static func getAllDesserts(completion: @escaping ([DessertItem]) -> Void) {
         // 如果已有缓存，直接返回
         if let cached = cachedDesserts {
+            DRDebug("使用缓存的甜品数据，共\(cached.count)项")
             completion(cached)
             return
         }
         
+        // 添加日志
+        DRInfo("开始从API加载甜品数据...")
+        
         // 尝试从API获取
-        let _ = APIService.shared.getAllDesserts()
+        APIService.shared.getAllDesserts()
             .receive(on: DispatchQueue.main)
             .sink(
                 receiveCompletion: { result in
-                    if case .failure(_) = result {
+                    switch result {
+                    case .failure(let error):
                         // API获取失败，使用本地数据
+                        DRError("API获取甜品数据失败: \(error)，使用本地数据")
                         completion(getSampleDesserts())
+                    case .finished:
+                        DRDebug("API请求甜品数据完成")
                     }
                 },
                 receiveValue: { response in
                     // 将API响应转换为DessertItem模型
+                    DRInfo("收到API甜品数据响应: \(response.items.count)个甜品")
                     let desserts = response.items.map { $0.toDessertItem() }
                     cachedDesserts = desserts
                     completion(desserts)
                 }
             )
+            .store(in: &cancellables) // 保存订阅，防止过早释放
     }
     
     /// 获取示例美食数据（本地数据）
@@ -378,5 +392,87 @@ extension UIColor {
                       lroundf(r * 255),
                       lroundf(g * 255),
                       lroundf(b * 255))
+    }
+}
+
+// MARK: - 图片加载扩展
+
+extension DessertItem {
+    /// 食物图片类型
+    enum ImageType: String {
+        case regular = "regular"      // 常规图片
+        case animated = "animated"    // 动画图片
+        case paused = "paused"        // 暂停状态图片
+        case celebration = "celebration" // 庆祝图片
+        case voucher = "voucher"      // 优惠券图片
+        case icon = "icon"            // 图标
+    }
+    
+    /// 加载指定类型的图片
+    /// - Parameters:
+    ///   - type: 图片类型
+    ///   - completion: 完成回调，返回加载的图片
+    func loadImage(type: ImageType = .regular, completion: @escaping (UIImage?) -> Void) {
+        // 查找特定类型的图片URL
+        if let imageObject = images.first(where: { $0.type == type.rawValue }) {
+            // 如果有URL，从缓存服务获取或下载图片
+            let imageUrl = imageObject.url
+            if !imageUrl.isEmpty {
+                DRDebug("[DessertItem] 加载图片: \(name) - \(type.rawValue), URL: \(imageUrl)")
+                ImageCacheService.shared.downloadAndCacheImage(url: imageUrl) { image in
+                    completion(image)
+                }
+                return
+            }
+        }
+        
+        // 如果没有找到URL或URL为空，使用本地图片
+        let localImageName = "\(self.imageName)_\(type.rawValue)"
+        DRDebug("[DessertItem] 使用本地图片: \(localImageName)")
+        completion(UIImage(named: localImageName))
+    }
+    
+    /// 预加载所有图片
+    func preloadAllImages() {
+        DRInfo("[DessertItem] 开始预加载图片: \(name)")
+        
+        for imageType in [ImageType.regular, .animated, .paused, .celebration, .voucher, .icon] {
+            loadImage(type: imageType) { _ in
+                // 仅加载到缓存，不做其他操作
+                DRDebug("[DessertItem] 预加载完成: \(self.name) - \(imageType.rawValue)")
+            }
+        }
+    }
+}
+
+// MARK: - 缓存管理扩展
+
+extension DessertData {
+    /// 清除所有缓存数据
+    static func clearCache() {
+        DRInfo("[DessertData] 清除美食数据缓存")
+        cachedDesserts = nil
+    }
+    
+    /// 预加载所有美食图片
+    static func preloadAllImages() {
+        getAllDesserts { desserts in
+            DRInfo("[DessertData] 开始预加载所有美食图片，共\(desserts.count)项")
+            
+            // 在后台队列中预加载
+            DispatchQueue.global(qos: .utility).async {
+                // 先预加载前10项重要的图片
+                let featuredItems = desserts.filter { $0.isFeatured }.prefix(10)
+                for item in featuredItems {
+                    item.preloadAllImages()
+                }
+                
+                // 再预加载其他项的常规图片
+                let otherItems = desserts.filter { !$0.isFeatured }
+                for item in otherItems {
+                    item.loadImage { _ in }
+                }
+            }
+        }
     }
 } 
