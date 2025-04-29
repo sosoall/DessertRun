@@ -131,7 +131,7 @@ struct DessertGridView: View {
     /// - Parameter size: 屏幕尺寸
     /// - Returns: 布局配置
     private func createConfig(for size: CGSize) -> BubbleLayoutConfiguration {
-        return BubbleLayoutConfiguration.forScreenSize(size)
+        return BubbleLayoutConfiguration.forScreenSize(size, bubbleCount: desserts.count)
     }
     
     /// 加载美食数据

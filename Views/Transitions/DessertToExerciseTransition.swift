@@ -236,24 +236,14 @@ struct DessertToExerciseTransition: View {
     private var dessertImageView: some View {
         Group {
             if let dessert = animationState.selectedDessert {
-                // 使用getFullImageName获取新的图片名称格式
-                let imageName = dessert.getFullImageName(for: .regular)
-                // 如果找到甜品图片名称，使用该图片，否则使用默认图标
-                if UIImage(named: imageName) != nil {
-                    Image(imageName)
-                        .resizable()
-                        .scaledToFit() // 使用scaledToFit保持图片比例
-                        .frame(width: currentPosition.width, height: currentPosition.height)
-                        .shadow(color: .black.opacity(0.3), radius: 15, x: 0, y: 8)
-                } else {
-                    // 默认图标
-                    Image(systemName: "cup.and.saucer.fill")
-                        .resizable()
-                        .scaledToFit()
-                        .foregroundColor(dessert.backgroundColor ?? .orange)
-                        .frame(width: currentPosition.width, height: currentPosition.height)
-                        .shadow(color: .black.opacity(0.3), radius: 15, x: 0, y: 8)
-                }
+                // 使用DessertImageView组件显示甜品图片
+                DessertImageView(
+                    dessert: dessert,
+                    type: .regular
+                    // 不指定size，让外部frame控制大小
+                )
+                .frame(width: currentPosition.width, height: currentPosition.height)
+                .shadow(color: .black.opacity(0.3), radius: 15, x: 0, y: 8)
             }
         }
     }
@@ -315,19 +305,21 @@ struct DessertToExerciseTransition: View {
         Group {
             if let dessert = animationState.selectedDessert {
                 VStack(alignment: .center, spacing: 0) {
+                    // 不需要额外图片，因为从气泡移动过来的图片已经使用DessertImageView
+                    
                     Text("运动目标：\(dessert.name)")
                         .font(.system(size: 28, weight: .bold))
                         .foregroundColor(.black)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
-                        .padding(.top, 10)
+                        .padding(.bottom, 10)
                     
                     Text("（约\(Int(calories))卡路里）")
                         .font(.system(size: 16))
                         .foregroundColor(.black)
-                        .padding(.top, 5)
+                        .padding(.bottom, 5)
                 }
-                .padding(.bottom, 25)
+                .padding(.bottom, 15)
             }
         }
     }

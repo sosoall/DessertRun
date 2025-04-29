@@ -33,7 +33,8 @@ struct DessertImageView: View {
                 fallbackView
             }
         }
-        .frame(width: size, height: size)
+        // 仅当size有值时设置frame
+        .modifier(OptionalFrameModifier(size: size))
         .onAppear {
             loadImage()
         }
@@ -115,6 +116,19 @@ struct DessertImageView: View {
     }
 }
 
+/// 可选frame修饰器
+struct OptionalFrameModifier: ViewModifier {
+    let size: CGFloat?
+    
+    func body(content: Content) -> some View {
+        if let size = size {
+            content.frame(width: size, height: size)
+        } else {
+            content // 不设置frame，依赖外部约束
+        }
+    }
+}
+
 // 预览
 struct DessertImageView_Previews: PreviewProvider {
     static var previews: some View {
@@ -140,11 +154,31 @@ struct DessertImageView_Previews: PreviewProvider {
                 size: 150
             )
             
-            // 占位图
+            // 不指定大小的示例（由外部约束控制）
             DessertImageView(
                 dessert: DessertItem(
                     id: 2,
                     name: "示例甜点2",
+                    imageName: "IceCream",
+                    calories: "200",
+                    category: .iceCream,
+                    description: "示例描述",
+                    isFeatured: false,
+                    categoryId: 3,
+                    categoryName: "冰品",
+                    displayOrder: 1,
+                    images: []
+                ),
+                type: .regular
+            )
+            .frame(width: 100, height: 100)
+            .background(Color.yellow.opacity(0.3))
+            
+            // 占位图
+            DessertImageView(
+                dessert: DessertItem(
+                    id: 3,
+                    name: "示例甜点3",
                     imageName: "IceCream",
                     calories: "200",
                     category: .iceCream,

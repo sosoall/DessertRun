@@ -31,16 +31,44 @@ struct BubbleLayoutConfiguration {
     var maxSize: CGFloat { bubbleSize }
     var minSize: CGFloat { minBubbleSize }
     
+    /// 基于气泡数量计算最佳偏移量
+    /// - Parameters:
+    ///   - bubbleCount: 气泡数量
+    ///   - screenSize: 屏幕尺寸
+    /// - Returns: (maxOffsetX, maxOffsetY) 元组
+    static func calculateOptimalOffsets(bubbleCount: Int, screenSize: CGSize, config: BubbleLayoutConfiguration) -> (CGFloat, CGFloat) {
+        // 计算气泡布局需要的行数
+        let rows = ceil(Double(bubbleCount) / Double(config.numCols))
+        
+        // 计算每行所需的高度 (气泡高度 + 行间距)
+        let rowHeight = config.bubbleSize + config.rowGap
+        
+        // 计算X轴最大偏移量 - 确保边缘气泡可以移动到中心区域
+        // 为简化计算，我们使用屏幕宽度的一定比例，但不小于气泡尺寸的2倍
+        let minOffsetX = config.bubbleSize * 2
+        let calculatedOffsetX = max(minOffsetX, screenSize.width * 0.4)
+        
+        // 计算Y轴最大偏移量 - 确保足够的垂直空间来容纳所有行
+        // 确保所有气泡都有机会进入中心区域
+        let minOffsetY = config.bubbleSize * 2
+        let calculatedOffsetY = max(minOffsetY, CGFloat(rows) * rowHeight * 0.8)
+        
+        return (calculatedOffsetX, calculatedOffsetY)
+    }
+    
     /// 创建适配屏幕尺寸的配置
     /// - Parameter size: 屏幕尺寸
     /// - Returns: 适合的布局配置
-    static func forScreenSize(_ size: CGSize) -> BubbleLayoutConfiguration {
+    static func forScreenSize(_ size: CGSize, bubbleCount: Int = 20) -> BubbleLayoutConfiguration {
         let smallerDimension = min(size.width, size.height)
         let multiplier = smallerDimension / 400 // 基准尺寸
         
+        // 创建初始配置
+        var config: BubbleLayoutConfiguration
+        
         // 屏幕较小时（如iPhone SE、iPhone mini等）
         if smallerDimension < 380 {
-            return BubbleLayoutConfiguration(
+            config = BubbleLayoutConfiguration(
                 bubbleSize: 120 * multiplier,
                 minBubbleSize: 60 * multiplier,
                 rowGap: 14 * multiplier,     // 行间距
@@ -54,13 +82,11 @@ struct BubbleLayoutConfiguration {
                 showGuides: false,
                 compact: true,
                 gravitation: 0.2,
-                maxOffsetX: 150 * multiplier,
-                maxOffsetY: 200 * multiplier,
                 initialSpreadMultiplier: 1.0
             )
         } else {
             // 大屏幕配置（iPhone标准尺寸及以上）
-            return BubbleLayoutConfiguration(
+            config = BubbleLayoutConfiguration(
                 bubbleSize: 180 * multiplier,
                 minBubbleSize: 120 * multiplier,
                 rowGap: 35 * multiplier,     // 行间距
@@ -74,10 +100,15 @@ struct BubbleLayoutConfiguration {
                 showGuides: false,
                 compact: true,
                 gravitation: 0.1,
-                maxOffsetX: 200 * multiplier,
-                maxOffsetY: 900 * multiplier,
                 initialSpreadMultiplier: 1.0
             )
         }
+        
+        // 计算最佳偏移量并更新配置
+        let (optimalOffsetX, optimalOffsetY) = calculateOptimalOffsets(bubbleCount: bubbleCount, screenSize: size, config: config)
+        config.maxOffsetX = optimalOffsetX
+        config.maxOffsetY = optimalOffsetY
+        
+        return config
     }
 } 
