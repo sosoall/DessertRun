@@ -6,12 +6,21 @@
 //
 
 import SwiftUI
+import Combine
 
 // 注意: 使用 Extensions/View/CornerRadiusExtension.swift 中的共享扩展实现圆角
 // 文件底部的扩展已被删除以避免冲突
 
 // 在文件开头添加全局常量
 let globalCoordinateSpaceName = "dessertRunGlobalSpace"
+
+// 添加存储取消令牌的类
+private class CancellableStorage {
+    static let shared = CancellableStorage()
+    var cancellables = Set<AnyCancellable>()
+    
+    private init() {}
+}
 
 /// 甜品到运动类型的过渡动画视图
 struct DessertToExerciseTransition: View {
@@ -42,6 +51,23 @@ struct DessertToExerciseTransition: View {
     /// 展示成功提示
     @State private var showingSuccessAlert: Bool = false
     
+    /// API返回的运动类型列表
+    @State private var apiExerciseTypes: [APIExerciseType] = []
+    
+    /// 是否正在加载运动类型
+    @State private var isLoadingExerciseTypes: Bool = false
+    
+    /// 加载错误信息
+    @State private var loadingError: String? = nil
+    
+    /// 在文件中添加成员变量，用于存储API响应状态
+    @State private var isLoading: Bool = false
+    @State private var errorMessage: String? = nil
+    
+    /// 存储每个运动类型的计算结果
+    @State private var calculatedDurations: [ExerciseType: Double] = [:]
+    @State private var calculatedDistances: [ExerciseType: Double] = [:]
+    
     /// 计算甜品图片的位置
     private var currentPosition: CGRect {
         // 如果没有选中的甜品，返回零框架
@@ -67,25 +93,98 @@ struct DessertToExerciseTransition: View {
         return resultFrame
     }
     
-    /// 计算目标框架（甜品在顶部的位置）
-    private func calculateTargetFrame() -> CGRect {
-        // 计算顶部中心的小图片位置：居中，宽度为屏幕宽度的1/3
-        let screenWidth = UIScreen.main.bounds.width
-        let size: CGFloat = 120
-        let x = (screenWidth - size) / 2
-        let y = UIScreen.main.bounds.height * 0.05  // 顶部5%位置
+    // 初始化方法
+    init(animationState: TransitionAnimationState, screenSize: CGSize) {
+        self.animationState = animationState
+        self.screenSize = screenSize
         
-        return CGRect(x: x, y: y, width: size, height: size)
+        // 初始化时加载运动类型
+        _isLoadingExerciseTypes = State(initialValue: true)
     }
     
-    /// 计算两个框架之间的中间帧
-    private func calculateIntermediateFrame(from: CGRect, to: CGRect, progress: CGFloat) -> CGRect {
-        let x = from.origin.x + (to.origin.x - from.origin.x) * progress
-        let y = from.origin.y + (to.origin.y - from.origin.y) * progress
-        let width = from.width + (to.width - from.width) * progress
-        let height = from.height + (to.height - from.height) * progress
+    // 获取运动类型列表（兼容两种方式）
+    private var exerciseTypes: [ExerciseType] {
+        // 直接返回API返回的运动类型，不进行任何转换
+        return apiExerciseTypes
+    }
+    
+    /// 计算目标框架（甜品在顶部的位置）
+    private func calculateTargetFrame() -> CGRect {
+        // 获取屏幕尺寸
+        let screenWidth = screenSize.width
+        
+        // 图像尺寸
+        let imageSize: CGFloat = min(screenWidth * 0.3, 100)
+        
+        // 卡片到顶部的距离
+        let topPadding: CGFloat = 80
+        
+        // 设置图像在顶部居中
+        let imageX = (screenWidth - imageSize) / 2
+        let imageY = topPadding
+        
+        return CGRect(x: imageX, y: imageY, width: imageSize, height: imageSize)
+    }
+    
+    /// 计算两个框架之间的插值
+    private func calculateIntermediateFrame(from: CGRect, to: CGRect, progress: Double) -> CGRect {
+        let clampedProgress = min(max(progress, 0), 1)
+        
+        let x = from.origin.x + (to.origin.x - from.origin.x) * clampedProgress
+        let y = from.origin.y + (to.origin.y - from.origin.y) * clampedProgress
+        let width = from.width + (to.width - from.width) * clampedProgress
+        let height = from.height + (to.height - from.height) * clampedProgress
         
         return CGRect(x: x, y: y, width: width, height: height)
+    }
+    
+    /// 获取甜品卡路里
+    private var calories: Double {
+        guard let selectedDessert = animationState.selectedDessert else { return 0 }
+        if let calValue = Double(selectedDessert.calories.replacingOccurrences(of: "kcal", with: "")) {
+            return calValue
+        }
+        return 0
+    }
+    
+    /// 不需要在前端计算建议时长，直接使用API返回值
+    
+    /// 不需要在前端计算建议距离，直接使用API返回值
+    
+    /// 从API加载运动类型
+    private func loadExerciseTypes() {
+        isLoadingExerciseTypes = true
+        loadingError = nil
+        
+        APIService.shared.fetchExerciseTypes()
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { completion in
+                    isLoadingExerciseTypes = false
+                    if case .failure(let error) = completion {
+                        loadingError = error.errorMessage
+                        // 加载失败时使用本地定义的运动类型
+                        print("加载运动类型失败: \(error.errorMessage)")
+                    }
+                },
+                receiveValue: { types in
+                    apiExerciseTypes = types
+                    isLoadingExerciseTypes = false
+                    
+                    // 获取到运动类型后立即计算所有类型的建议时间/距离
+                    if let dessert = animationState.selectedDessert,
+                       let caloriesValue = Double(dessert.calories.replacingOccurrences(of: "kcal", with: "")) {
+                        self.preloadAllExerciseCalculations(calories: caloriesValue)
+                    }
+                }
+            )
+            .store(in: &CancellableStorage.shared.cancellables)
+    }
+    
+    /// 加载运动计算结果
+    private func loadExerciseCalculation(for exerciseType: ExerciseType) {
+        // 使用新的方法选择运动类型
+        selectExerciseType(exerciseType)
     }
     
     /// 获取面板偏移量
@@ -107,40 +206,6 @@ struct DessertToExerciseTransition: View {
         return min(1.0, progress * 2.0) // 加快背景变暗速度
     }
     
-    /// 卡路里值
-    private var calories: Double {
-        guard let selectedDessert = animationState.selectedDessert else { return 0 }
-        if let calValue = Double(selectedDessert.calories.replacingOccurrences(of: "kcal", with: "")) {
-            return calValue
-        }
-        return 0
-    }
-    
-    /// 计算建议的运动时长（分钟）
-    private func suggestedDuration(for exerciseType: ExerciseType) -> Double {
-        let targetCalories = calories
-        
-        // 使用ExerciseType中的方法计算时间
-        let hours = exerciseType.calculateExerciseTime(calories: targetCalories)
-        
-        // 转换为分钟
-        let minutes = hours * 60
-        
-        // 向上取整到最接近的5分钟
-        return ceil(minutes / 5) * 5
-    }
-    
-    /// 计算建议的运动距离（米）
-    private func suggestedDistance(for exerciseType: ExerciseType) -> Double {
-        let targetCalories = calories
-        
-        // 使用ExerciseType中的方法计算距离（公里）
-        let distanceInKm = exerciseType.calculateRunningDistance(calories: targetCalories)
-        
-        // 转换为米并向上取整到最接近的100米
-        return ceil(distanceInKm * 1000 / 100) * 100
-    }
-    
     /// 提交运动记录
     private func submitWorkout() {
         guard let dessert = animationState.selectedDessert,
@@ -148,21 +213,21 @@ struct DessertToExerciseTransition: View {
             return
         }
         
-        // 计算消耗的卡路里
+        // 计算消耗的卡路里 - 根据API返回的数据计算
         var caloriesBurned: Double = 0
         
         if exerciseType.usesDistance {
             // 基于距离计算卡路里
-            caloriesBurned = exerciseType.calculateCaloriesForDistance(
-                distance: exerciseDistance,
-                weight: 65 // 使用默认体重65kg
-            )
+            // 使用已经从API获取的计算结果的比例
+            if let baseDistance = calculatedDistances[exerciseType], baseDistance > 0 {
+                caloriesBurned = (exerciseDistance / baseDistance) * calories
+            }
         } else {
             // 基于时间计算卡路里
-            caloriesBurned = exerciseType.calculateCaloriesForTime(
-                minutes: exerciseDuration,
-                weight: 65 // 使用默认体重65kg
-            )
+            // 使用已经从API获取的计算结果的比例
+            if let baseDuration = calculatedDurations[exerciseType], baseDuration > 0 {
+                caloriesBurned = (exerciseDuration / baseDuration) * calories
+            }
         }
         
         // 创建运动记录
@@ -227,6 +292,34 @@ struct DessertToExerciseTransition: View {
             .edgesIgnoringSafeArea(.bottom) // 忽略底部安全区域，避免出现白条
             .coordinateSpace(name: globalCoordinateSpaceName)
             .environmentObject(animationState) // 确保所有子视图都能访问animationState
+            .onAppear {
+                // 在视图出现时加载运动类型数据
+                DispatchQueue.main.async {
+                    // 通过APIService直接请求数据
+                    APIService.shared.fetchExerciseTypes()
+                        .receive(on: DispatchQueue.main)
+                        .sink(
+                            receiveCompletion: { completion in
+                                self.isLoadingExerciseTypes = false
+                                if case .failure(let error) = completion {
+                                    self.loadingError = error.errorMessage
+                                    print("加载运动类型失败: \(error.errorMessage)")
+                                }
+                            },
+                            receiveValue: { types in
+                                self.apiExerciseTypes = types
+                                self.isLoadingExerciseTypes = false
+                                
+                                // 获取到运动类型后立即计算所有类型的建议时间/距离
+                                if let dessert = animationState.selectedDessert,
+                                   let caloriesValue = Double(dessert.calories.replacingOccurrences(of: "kcal", with: "")) {
+                                    self.preloadAllExerciseCalculations(calories: caloriesValue)
+                                }
+                            }
+                        )
+                        .store(in: &CancellableStorage.shared.cancellables)
+                }
+            }
         }
     }
     
@@ -328,7 +421,7 @@ struct DessertToExerciseTransition: View {
     private var exerciseListView: some View {
         ScrollView {
             VStack(spacing: 12) {
-                ForEach(ExerciseType.allCases, id: \.self) { exerciseType in
+                ForEach(exerciseTypes, id: \.self) { exerciseType in
                     exerciseRowView(for: exerciseType)
                 }
             }
@@ -338,15 +431,23 @@ struct DessertToExerciseTransition: View {
     
     /// 单个运动类型行视图
     private func exerciseRowView(for exerciseType: ExerciseType) -> some View {
-        // 替换为简单的布尔值检查，消除未使用变量警告
+        // 使用预计算的结果
         let requiredValueText: String
         if animationState.selectedDessert != nil {
             if exerciseType.usesDistance {
-                let distance = suggestedDistance(for: exerciseType)
-                requiredValueText = "约\(String(format: "%.1f", distance / 1000))公里"
+                // 优先使用预计算的距离，如果没有则显示加载中
+                if let distance = calculatedDistances[exerciseType] {
+                    requiredValueText = "约\(String(format: "%.1f", distance / 1000))公里"
+                } else {
+                    requiredValueText = "加载中..."
+                }
             } else {
-                let duration = suggestedDuration(for: exerciseType)
-                requiredValueText = "约\(Int(duration))分钟"
+                // 优先使用预计算的时间，如果没有则显示加载中
+                if let duration = calculatedDurations[exerciseType] {
+                    requiredValueText = "约\(Int(duration))分钟"
+                } else {
+                    requiredValueText = "加载中..."
+                }
             }
         } else {
             requiredValueText = "选择甜品计算所需运动量"
@@ -356,21 +457,17 @@ struct DessertToExerciseTransition: View {
             // 主要卡片
         Button(action: {
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                    if expandedExerciseID == exerciseType.rawValue {
+                    if expandedExerciseID == exerciseType.type.hashValue {
                         // 如果已经展开，则关闭
                         expandedExerciseID = nil
                         selectedExercise = nil
                     } else {
                         // 展开此运动类型
-                        expandedExerciseID = exerciseType.rawValue
+                        expandedExerciseID = exerciseType.type.hashValue
                         selectedExercise = exerciseType
                         
-                        // 设置默认值为建议的时长/距离
-                        if exerciseType.usesDistance {
-                            exerciseDistance = suggestedDistance(for: exerciseType)
-                        } else {
-                            exerciseDuration = suggestedDuration(for: exerciseType)
-                        }
+                        // 尝试从服务器获取计算结果
+                        loadExerciseCalculation(for: exerciseType)
                     }
                 }
         }) {
@@ -378,7 +475,7 @@ struct DessertToExerciseTransition: View {
                     // 直接显示彩色图标，不使用圆圈
                     Image(systemName: exerciseType.iconName)
                         .font(.system(size: 24, weight: .semibold))
-                        .foregroundColor(exerciseType.backgroundColor)
+                        .foregroundColor(exerciseType.color)
                         .padding(.leading, 20)
                 
                 // 中间文本内容
@@ -398,7 +495,7 @@ struct DessertToExerciseTransition: View {
                     Spacer()
                     
                     // 右侧按钮文本
-                    if expandedExerciseID == exerciseType.rawValue {
+                    if expandedExerciseID == exerciseType.type.hashValue {
                         Image(systemName: "chevron.up")
                             .font(.system(size: 16, weight: .medium))
                             .foregroundColor(.gray)
@@ -411,7 +508,7 @@ struct DessertToExerciseTransition: View {
                             .padding(.vertical, 8)
                     .background(
                         Capsule()
-                                    .fill(exerciseType.backgroundColor)
+                                    .fill(exerciseType.color)
                             )
                             .padding(.trailing, 16)
                     }
@@ -419,14 +516,14 @@ struct DessertToExerciseTransition: View {
                 .frame(height: 80)
                 .background(
                     RoundedRectangle(cornerRadius: 16)
-                        .fill(Color.white)
-                        .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
+                        .fill(Color(hex: "F8F8F8") ?? Color.gray.opacity(0.1))
+                        .shadow(color: Color.black.opacity(0.05), radius: 6, x: 0, y: 3)
                 )
             }
             .buttonStyle(CustomScaleButtonStyle())
             
             // 展开的配置区域
-            if expandedExerciseID == exerciseType.rawValue {
+            if expandedExerciseID == exerciseType.type.hashValue {
                 expandedExerciseOptions(for: exerciseType)
                     .padding(.top, 2)
                     .transition(.asymmetric(
@@ -441,26 +538,54 @@ struct DessertToExerciseTransition: View {
     
     /// 展开的运动选项
     private func expandedExerciseOptions(for exerciseType: ExerciseType) -> some View {
-        // 提前计算预估卡路里和消耗数量
+        // 设置当前选择的运动类型
+        let isCurrentType = selectedExercise == exerciseType
+        
+        // 声明指示是否使用距离的变量
+        @State var localUsesDistance: Bool = exerciseType.usesDistance
+        
+        // 食品消息状态变量
+        @State var foodMessageForDistance: String = "计算中..."
+        @State var foodMessageForTime: String = "计算中..."
+        
+        // 当选择一个新的运动类型时，加载计算结果
+        if !isCurrentType {
+            DispatchQueue.main.async {
+                self.selectedExercise = exerciseType
+                
+                // 重置输入，加载新计算
+                if exerciseType.usesDistance {
+                    self.exerciseDuration = 0
+                } else {
+                    self.exerciseDistance = 0
+                }
+                
+                // 立即加载计算结果
+                self.loadExerciseCalculation(for: exerciseType)
+                
+                // 如果已经计算过这个运动类型，使用之前的计算结果
+                if let duration = self.calculatedDurations[exerciseType], self.exerciseDuration == 0 {
+                    self.exerciseDuration = duration
+                }
+                
+                if let distance = self.calculatedDistances[exerciseType], self.exerciseDistance == 0 {
+                    self.exerciseDistance = distance
+                }
+                
+                // 更新甜点消耗估算
+                self.updateFoodConsumptionMessage(for: exerciseType)
+            }
+        }
+        
+        // 提取当前的甜点名称
         let dessertName = animationState.selectedDessert?.name ?? ""
         
-        // 获取推荐运动时长和距离
-        let suggestedDurationValue = suggestedDuration(for: exerciseType)
-        let suggestedDistanceValue = suggestedDistance(for: exerciseType)
-        
-        // 使用实际运动时长/推荐运动时长的比值计算消耗美食个数
-        // 距离模式的计算
-        let foodCountForDistance = exerciseType.usesDistance ? 
-            exerciseDistance / suggestedDistanceValue : 0
-        let foodMessageForDistance = "预计消耗\(String(format: "%.1f", foodCountForDistance))个\(dessertName)"
-        
-        // 时间模式的计算
-        let foodCountForTime = !exerciseType.usesDistance ? 
-            exerciseDuration / suggestedDurationValue : 0
-        let foodMessageForTime = "预计消耗\(String(format: "%.1f", foodCountForTime))个\(dessertName)"
+        // 计算食品消息
+        let currentFoodMessageForDistance = calculateFoodMessageForDistance(exerciseType: exerciseType, dessertName: dessertName)
+        let currentFoodMessageForTime = calculateFoodMessageForTime(exerciseType: exerciseType, dessertName: dessertName)
         
         return VStack(spacing: 20) {
-            if let dessert = animationState.selectedDessert {
+            if animationState.selectedDessert != nil {
                 if exerciseType.usesDistance {
                     // 距离选择
                     VStack(alignment: .center, spacing: 8) {
@@ -471,6 +596,7 @@ struct DessertToExerciseTransition: View {
                         HStack {
                             Button(action: {
                                 exerciseDistance = max(100, exerciseDistance - 500)
+                                updateFoodConsumptionMessage(for: exerciseType)
                             }) {
                                 Image(systemName: "minus")
                                     .font(.system(size: 18, weight: .bold))
@@ -498,17 +624,18 @@ struct DessertToExerciseTransition: View {
                             
                             Button(action: {
                                 exerciseDistance += 500
+                                updateFoodConsumptionMessage(for: exerciseType)
                             }) {
                                 Image(systemName: "plus")
                                     .font(.system(size: 18, weight: .bold))
                                     .foregroundColor(.white)
                                     .frame(width: 36, height: 36)
-                                    .background(exerciseType.backgroundColor)
+                                    .background(exerciseType.color)
                             }
                         }
                         .padding(.horizontal, 32)
                         
-                        Text(foodMessageForDistance)
+                        Text(currentFoodMessageForDistance)
                             .font(.system(size: 15))
                             .foregroundColor(.gray)
                             .padding(.top, 8)
@@ -525,6 +652,7 @@ struct DessertToExerciseTransition: View {
                         HStack {
                             Button(action: {
                                 exerciseDuration = max(5, exerciseDuration - 5)
+                                updateFoodConsumptionMessage(for: exerciseType)
                             }) {
                                 Image(systemName: "minus")
                                     .font(.system(size: 18, weight: .bold))
@@ -552,17 +680,18 @@ struct DessertToExerciseTransition: View {
                             
                             Button(action: {
                                 exerciseDuration += 5
+                                updateFoodConsumptionMessage(for: exerciseType)
                             }) {
                                 Image(systemName: "plus")
                                     .font(.system(size: 18, weight: .bold))
                                     .foregroundColor(.white)
                                     .frame(width: 36, height: 36)
-                                    .background(exerciseType.backgroundColor)
+                                    .background(exerciseType.color)
                             }
                         }
                         .padding(.horizontal, 32)
                         
-                        Text(foodMessageForTime)
+                        Text(currentFoodMessageForTime)
                             .font(.system(size: 15))
                             .foregroundColor(.gray)
                             .padding(.top, 8)
@@ -577,7 +706,7 @@ struct DessertToExerciseTransition: View {
                     .padding()
             }
             
-            // 打卡按钮 - 恢复颜色
+            // 打卡按钮
             Button(action: {
                 submitWorkout()
             }) {
@@ -601,15 +730,239 @@ struct DessertToExerciseTransition: View {
         }
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color(hex: "F8F8F8"))
+                .fill(Color(hex: "F8F8F8") ?? Color.gray.opacity(0.1))
                 .shadow(color: Color.black.opacity(0.05), radius: 6, x: 0, y: 3)
         )
     }
     
+    // 计算距离对应的食品消息
+    private func calculateFoodMessageForDistance(exerciseType: ExerciseType, dessertName: String) -> String {
+        // 使用guard let安全解包
+        guard let baseDistance = calculatedDistances[exerciseType] else {
+            return "计算中..."
+        }
+        
+        if baseDistance > 0 {
+            let foodCount = exerciseDistance / baseDistance
+            return "预计消耗\(String(format: "%.1f", foodCount))个\(dessertName)"
+        } else {
+            return "计算中..."
+        }
+    }
+    
+    // 计算时间对应的食品消息
+    private func calculateFoodMessageForTime(exerciseType: ExerciseType, dessertName: String) -> String {
+        // 使用guard let安全解包
+        guard let baseDuration = calculatedDurations[exerciseType] else {
+            return "计算中..."
+        }
+        
+        if baseDuration > 0 {
+            let foodCount = exerciseDuration / baseDuration
+            return "预计消耗\(String(format: "%.1f", foodCount))个\(dessertName)"
+        } else {
+            return "计算中..."
+        }
+    }
+    
+    // 更新甜点消耗估算信息
+    private func updateFoodConsumptionMessage(for exerciseType: ExerciseType) {
+        // 方法实现不需要包含任何代码，因为我们已经将计算逻辑移到了独立的函数中
+    }
+    
     /// 获取运动类型专属渐变色
     private func getGradientColors(for exerciseType: ExerciseType) -> [Color] {
-        return [exerciseType.backgroundColor, exerciseType.backgroundColor]
+        return [exerciseType.color, exerciseType.color]
         }
+    
+    /// 添加方法来预加载所有运动类型的计算结果
+    private func preloadAllExerciseCalculations(calories: Double) {
+        for exerciseType in apiExerciseTypes {
+            let typeStr = exerciseType.type
+            
+            if exerciseType.usesDistance {
+                // 距离类型运动 - 直接使用API返回的usesDistance字段
+                let cacheKey = "distance_\(typeStr)_\(Int(calories))"
+                // 检查是否有缓存
+                let cachedDistance = UserDefaults.standard.double(forKey: cacheKey)
+                if cachedDistance > 0 {
+                    print("使用缓存的距离计算: \(cachedDistance)公里")
+                    self.calculatedDistances[exerciseType] = cachedDistance * 1000
+                } else {
+                    // 没有缓存，进行网络请求，最多重试3次
+                    requestExerciseDistance(exerciseType: exerciseType, typeStr: typeStr, calories: calories, retryCount: 3, cacheKey: cacheKey)
+                }
+            } else {
+                // 时间类型运动
+                let cacheKey = "duration_\(typeStr)_\(Int(calories))"
+                // 检查是否有缓存
+                let cachedDuration = UserDefaults.standard.double(forKey: cacheKey)
+                if cachedDuration > 0 {
+                    print("使用缓存的时间计算: \(cachedDuration)分钟")
+                    self.calculatedDurations[exerciseType] = cachedDuration
+                } else {
+                    // 没有缓存，进行网络请求，最多重试3次
+                    requestExerciseDuration(exerciseType: exerciseType, typeStr: typeStr, calories: calories, retryCount: 3, cacheKey: cacheKey)
+                }
+            }
+        }
+    }
+    
+    /// 请求运动距离（带重试机制）
+    private func requestExerciseDistance(exerciseType: ExerciseType, typeStr: String, calories: Double, retryCount: Int, cacheKey: String) {
+        if retryCount <= 0 {
+            print("距离计算请求失败: 已达最大重试次数")
+            return
+        }
+        
+        APIService.shared.calculateExerciseDistance(exerciseType: typeStr, calories: calories)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { completion in
+                    if case .failure(let error) = completion {
+                        print("距离计算请求失败(\(4-retryCount)/3): \(error.errorMessage)")
+                        // 重试
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                            self.requestExerciseDistance(exerciseType: exerciseType, typeStr: typeStr, calories: calories, retryCount: retryCount - 1, cacheKey: cacheKey)
+                        }
+                    }
+                },
+                receiveValue: { response in
+                    if let response = response {
+                        // 直接使用API返回的距离结果，不进行任何计算
+                        let distance = response.distance * 1000 // 仅转换单位：公里→米
+                        print("获取到距离计算结果: \(distance)米")
+                        self.calculatedDistances[exerciseType] = distance
+                        // 缓存结果
+                        UserDefaults.standard.set(response.distance, forKey: cacheKey)
+                    }
+                }
+            )
+            .store(in: &CancellableStorage.shared.cancellables)
+    }
+    
+    /// 请求运动时间（带重试机制）
+    private func requestExerciseDuration(exerciseType: ExerciseType, typeStr: String, calories: Double, retryCount: Int, cacheKey: String) {
+        if retryCount <= 0 {
+            print("时间计算请求失败: 已达最大重试次数")
+            return
+        }
+        
+        APIService.shared.calculateExerciseTime(exerciseType: typeStr, calories: calories)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { completion in
+                    if case .failure(let error) = completion {
+                        print("时间计算请求失败(\(4-retryCount)/3): \(error.errorMessage)")
+                        // 重试
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                            self.requestExerciseDuration(exerciseType: exerciseType, typeStr: typeStr, calories: calories, retryCount: retryCount - 1, cacheKey: cacheKey)
+                        }
+                    }
+                },
+                receiveValue: { response in
+                    if let response = response {
+                        // 直接使用API返回的时间结果，不进行任何计算
+                        print("获取到时间计算结果: \(response.duration)分钟")
+                        self.calculatedDurations[exerciseType] = response.duration
+                        // 缓存结果
+                        UserDefaults.standard.set(response.duration, forKey: cacheKey)
+                    }
+                }
+            )
+            .store(in: &CancellableStorage.shared.cancellables)
+    }
+    
+    /// 选择运动类型
+    private func selectExerciseType(_ exerciseType: ExerciseType) {
+        self.selectedExercise = exerciseType
+        self.expandedExerciseID = exerciseType.type.hashValue
+        
+        // 清除数据
+        errorMessage = nil
+        isLoading = true
+        
+        // 根据API返回的usesDistance字段直接决定使用哪种计算方式
+        if exerciseType.usesDistance {
+            self.calculateDistance(exerciseType)
+        } else {
+            self.calculateTime(exerciseType)
+        }
+    }
+    
+    /// 计算运动时间
+    private func calculateTime(_ exerciseType: ExerciseType) {
+        guard let dessert = animationState.selectedDessert, let calories = Double(dessert.calories.replacingOccurrences(of: "kcal", with: "")) else {
+            isLoading = false
+            return
+        }
+        
+        DRInfo("请求计算运动时间: 类型=\(exerciseType.name), 卡路里=\(calories)")
+        
+        APIService.shared.calculateExerciseTime(exerciseType: exerciseType.type, calories: calories)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { completion in
+                    self.isLoading = false
+                    if case .failure(let error) = completion {
+                        self.errorMessage = error.errorMessage
+                        DRError("计算运动时间失败: \(error.errorMessage)")
+                    }
+                },
+                receiveValue: { response in
+                    self.isLoading = false
+                    guard let response = response else {
+                        DRError("API返回空数据")
+                        self.errorMessage = "服务器返回空数据，请稍后再试"
+                        return
+                    }
+                    
+                    // 保存API返回的计算结果
+                    let duration = response.duration
+                    self.exerciseDuration = duration
+                    self.calculatedDurations[exerciseType] = duration
+                    DRInfo("API计算运动时间: \(duration)分钟，体重: \(response.weight)kg")
+                }
+            )
+            .store(in: &CancellableStorage.shared.cancellables)
+    }
+    
+    /// 计算运动距离
+    private func calculateDistance(_ exerciseType: ExerciseType) {
+        guard let dessert = animationState.selectedDessert, let calories = Double(dessert.calories.replacingOccurrences(of: "kcal", with: "")) else {
+            isLoading = false
+            return
+        }
+        
+        DRInfo("请求计算运动距离: 类型=\(exerciseType.name), 卡路里=\(calories)")
+        
+        APIService.shared.calculateExerciseDistance(exerciseType: exerciseType.type, calories: calories)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { completion in
+                    self.isLoading = false
+                    if case .failure(let error) = completion {
+                        self.errorMessage = error.errorMessage
+                        DRError("计算运动距离失败: \(error.errorMessage)")
+                    }
+                },
+                receiveValue: { response in
+                    self.isLoading = false
+                    guard let response = response else {
+                        DRError("API返回空数据")
+                        self.errorMessage = "服务器返回空数据，请稍后再试"
+                        return
+                    }
+                    
+                    // 保存API返回的计算结果，直接使用API结果，不在前端进行任何计算
+                    let distance = response.distance * 1000 // 仅转换单位：公里→米
+                    self.exerciseDistance = distance
+                    self.calculatedDistances[exerciseType] = distance
+                    DRInfo("API计算运动距离: \(distance)米，体重: \(response.weight)kg")
+                }
+            )
+            .store(in: &CancellableStorage.shared.cancellables)
+    }
 }
 
 // MARK: - 自定义按钮样式
@@ -656,97 +1009,5 @@ struct ScaleButtonStyle: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: configuration.isPressed)
-    }
-}
-
-// 在文件顶部添加扩展，为ExerciseType添加渐变色属性
-extension ExerciseType {
-    var gradientColors: [Color] {
-        switch self {
-        case .houseCleaning:
-            return [Color(hex: "825AE2"), Color(hex: "5D42B5")]
-        case .dogWalking:
-            return [Color(hex: "FF9F2F"), Color(hex: "F27121")]
-        case .running:
-            return [Color(hex: "FF6928"), Color(hex: "FF3F1A")]
-        case .walking:
-            return [Color(hex: "4CB8C4"), Color(hex: "3CD3AD")]
-        case .homeWorkout:
-            return [Color(hex: "FF4B91"), Color(hex: "E61E5A")]
-        case .hiitWorkout:
-            return [Color(hex: "FF2D55"), Color(hex: "D81547")]
-        case .stairClimbing:
-            return [Color(hex: "4CD964"), Color(hex: "2CA94C")]
-        default:
-            return [Color(hex: "8A2387"), Color(hex: "E94057")]
-        }
-    }
-}
-
-// 在ExerciseType扩展中添加新的方法
-extension ExerciseType {
-    /// 获取每分钟每公斤体重消耗的卡路里
-    func getCaloriesPerMinutePerKg() -> Double {
-        switch self {
-        case .houseCleaning:
-            return 0.05
-        case .dogWalking:
-            return 0.06
-        case .walking:
-            return 0.07
-        case .running:
-            return 0.12
-        case .homeWorkout:
-            return 0.08
-        case .hiitWorkout:
-            return 0.14
-        case .stairClimbing:
-            return 0.11
-        }
-    }
-    
-    /// 计算指定时间消耗的卡路里
-    func calculateCaloriesForTime(minutes: Double, weight: Double = 65.0) -> Double {
-        return minutes * getCaloriesPerMinutePerKg() * weight
-    }
-    
-    /// 获取每公里每公斤体重消耗的卡路里
-    func getCaloriesPerKmPerKg() -> Double {
-        switch self {
-        case .walking:
-            return 0.8
-        case .running:
-            return 1.2
-        default:
-            return 1.0
-        }
-    }
-    
-    /// 计算指定距离消耗的卡路里
-    func calculateCaloriesForDistance(distance: Double, weight: Double = 65.0) -> Double {
-        // 距离转换为公里
-        let distanceInKm = distance / 1000.0
-        return distanceInKm * getCaloriesPerKmPerKg() * weight
-    }
-}
-
-// 修复永不执行的默认情况
-/// 获取运动类型按钮的背景颜色
-private func getExerciseGradientColors(for exerciseType: ExerciseType) -> [Color] {
-    switch exerciseType {
-    case .running:
-        return [Color(hex: "FF9500"), Color(hex: "FF3B30")]
-    case .walking:
-        return [Color(hex: "4CB8C4"), Color(hex: "3CD3AD")]
-    case .homeWorkout:
-        return [Color(hex: "FF4B91"), Color(hex: "E61E5A")]
-    case .hiitWorkout:
-        return [Color(hex: "FF2D55"), Color(hex: "D81547")]
-    case .stairClimbing:
-        return [Color(hex: "4CD964"), Color(hex: "2CA94C")]
-    case .houseCleaning, .dogWalking:
-        return [Color(hex: "8A2387"), Color(hex: "E94057")]
-    default:
-        return [Color(hex: "8A2387"), Color(hex: "E94057")]
     }
 } 

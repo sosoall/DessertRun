@@ -26,6 +26,16 @@ enum ApiEndpoints {
         static let detail = base + "/"  // 需要附加ID: detail + "{id}"
     }
     
+    // 运动相关
+    struct Exercise {
+        static let base = "/api/v1/exercises"
+        static let types = base + "/types"  // 获取所有运动类型
+        static let calculateTime = base + "/calculate/time"
+        static let calculateDistance = base + "/calculate/distance"
+        static let calculateCalories = base + "/calculate/calories"
+        static let records = base + "/records"
+    }
+    
     // 运动记录相关
     struct Workout {
         static let base = "/api/v1/workouts"

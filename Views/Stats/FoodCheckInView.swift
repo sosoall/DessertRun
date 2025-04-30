@@ -324,7 +324,7 @@ struct FoodRecordCard: View {
                         .foregroundColor(.white)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(record.exerciseType.backgroundColor)
+                        .background(record.exerciseType.color)
                         .cornerRadius(12)
                     
                     // 时间/距离信息

@@ -16,6 +16,7 @@ public enum NetworkError: Error {
     case badRequest(String)
     case noInternet
     case emptyData
+    case customError(String)
     
     public var errorMessage: String {
         switch self {
@@ -39,6 +40,8 @@ public enum NetworkError: Error {
             return "网络连接不可用，请检查您的网络设置"
         case .emptyData:
             return "服务器返回了空数据"
+        case .customError(let message):
+            return message
         }
     }
 }
@@ -249,6 +252,20 @@ public class NetworkManager {
                     .decode(type: APIResponse<T>.self, decoder: decoder)
                     .mapError { error -> NetworkError in
                         DRError("[NetworkManager] 解析API响应失败: \(error.localizedDescription)")
+                        
+                        // 特殊处理ExerciseTypesResponse类型
+                        if T.self == ExerciseTypesResponse.self {
+                            DRInfo("[NetworkManager] 尝试直接解析为ExerciseTypesResponse类型")
+                            do {
+                                // 直接解析为ExerciseTypesResponse
+                                let response = try decoder.decode(ExerciseTypesResponse.self, from: data)
+                                // 这里不会真正执行，只是为了抛出错误并在catch中捕获
+                                throw NetworkError.customError("直接解析成功，请捕获此错误")
+                            } catch {
+                                DRError("[NetworkManager] 直接解析为ExerciseTypesResponse也失败: \(error.localizedDescription)")
+                            }
+                        }
+                        
                         if let decodingError = error as? DecodingError {
                             switch decodingError {
                             case .keyNotFound(let key, let context):
@@ -288,6 +305,19 @@ public class NetworkManager {
                     .catch { error -> AnyPublisher<T, NetworkError> in
                         // 如果不是标准响应格式，尝试直接解析为目标类型
                         DRInfo("[NetworkManager] 尝试直接解析为目标类型 \(T.self)")
+                        
+                        // 特殊处理ExerciseTypesResponse类型的情况
+                        if T.self == ExerciseTypesResponse.self {
+                            do {
+                                let result = try decoder.decode(ExerciseTypesResponse.self, from: data)
+                                return Just(result as! T)
+                                    .setFailureType(to: NetworkError.self)
+                                    .eraseToAnyPublisher()
+                            } catch {
+                                DRError("[NetworkManager] 直接解析ExerciseTypesResponse失败: \(error)")
+                            }
+                        }
+                        
                         // 检查是否为解码错误
                         if case .decodingFailed(let decodingError) = error,
                            decodingError is DecodingError {

@@ -141,12 +141,8 @@ struct WorkoutRecord: Identifiable, Codable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UUID.self, forKey: .id)
         dessert = try container.decode(DessertItem.self, forKey: .dessert)
-        // 解码ExerciseType(需要特殊处理，因为它是枚举)
-        let exerciseTypeRawValue = try container.decode(Int.self, forKey: .exerciseType)
-        guard let decodedExerciseType = ExerciseType(rawValue: exerciseTypeRawValue) else {
-            throw DecodingError.dataCorruptedError(forKey: .exerciseType, in: container, debugDescription: "无效的运动类型")
-        }
-        exerciseType = decodedExerciseType
+        // 解码ExerciseType
+        exerciseType = try container.decode(ExerciseType.self, forKey: .exerciseType)
         completionDate = try container.decode(Date.self, forKey: .completionDate)
         duration = try container.decode(Double.self, forKey: .duration)
         caloriesBurned = try container.decode(Double.self, forKey: .caloriesBurned)
@@ -160,7 +156,7 @@ struct WorkoutRecord: Identifiable, Codable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
         try container.encode(dessert, forKey: .dessert)
-        try container.encode(exerciseType.rawValue, forKey: .exerciseType)
+        try container.encode(exerciseType, forKey: .exerciseType)
         try container.encode(completionDate, forKey: .completionDate)
         try container.encode(duration, forKey: .duration)
         try container.encode(caloriesBurned, forKey: .caloriesBurned)
@@ -177,7 +173,18 @@ extension WorkoutRecord {
     /// 创建测试用运动记录
     static func createSample(date: Date = Date()) -> WorkoutRecord {
         let dessert = DessertData.getSampleDesserts().randomElement()!
-        let exerciseType = ExerciseType.allCases.randomElement()!
+        // 使用固定的测试运动类型
+        let exerciseType = ExerciseType(
+            type: "running",
+            name: "跑步",
+            description: "跑步是一种有氧运动，可以有效燃烧卡路里",
+            iconName: "figure.run",
+            usesDistance: true,
+            backgroundColor: "#FF6B6B",
+            caloriesPerMinPerKg: 0.1,
+            caloriesPerKmPerKg: 0.8,
+            displayOrder: 1
+        )
         
         return WorkoutRecord(
             dessert: dessert,

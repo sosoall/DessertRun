@@ -83,11 +83,8 @@ class StatsViewModel: ObservableObject {
         filterRecordsByMonth()
         filterRecordsByYear()
         
-        // 异步加载模拟数据，避免在视图更新周期内修改状态
-        DispatchQueue.main.async { [weak self] in
-            self?.loadMockData()
-            self?.calculateStats()
-        }
+        // 加载模拟数据
+        loadMockData()
     }
     
     // MARK: - 计算属性
@@ -427,45 +424,56 @@ class StatsViewModel: ObservableObject {
             }
         }
         
-        // 获取样本甜品和运动类型
+        // 获取样本甜品
         let desserts = DessertData.getSampleDesserts()
-        let exerciseTypes = ExerciseType.allCases
         
-        // 创建10天的模拟数据，每天使用不同的甜品和运动类型
-        var mockRecords: [WorkoutRecord] = []
-        
-        for (index, date) in targetDates.enumerated() {
-            // 每天使用不同的甜品和运动类型
-            let dessert = desserts[index % desserts.count]
-            let exerciseType = exerciseTypes[index % exerciseTypes.count]
-            
-            // 运动时长 20-60分钟
-            let duration = Double(30 + index * 3) // 递增时长
-            
-            // 消耗的卡路里
-            let targetCalories = Double(dessert.calories) ?? 300
-            let caloriesBurned = index % 3 == 0 ?
-                targetCalories * 0.8 : // 未达成目标
-                targetCalories * 1.2   // 达成目标
-            
-            // 创建记录
-            let record = WorkoutRecord(
-                dessert: dessert,
-                exerciseType: exerciseType,
-                completionDate: date,
-                duration: duration,
-                caloriesBurned: caloriesBurned
-            )
-            
-            mockRecords.append(record)
-        }
-        
-        // 保存模拟数据
-        appState.workoutRecords = mockRecords
-        
-        // 筛选记录
-        filterRecordsByMonth()
-        filterRecordsByYear()
+        // 使用Combine获取运动类型
+        APIService.shared.fetchExerciseTypes()
+            .receive(on: DispatchQueue.main)
+            .sink(receiveCompletion: { completion in
+                if case .failure(let error) = completion {
+                    print("获取运动类型失败: \(error)")
+                }
+            }, receiveValue: { [weak self] exerciseTypes in
+                guard let self = self else { return }
+                
+                // 创建10天的模拟数据，每天使用不同的甜品和运动类型
+                var mockRecords: [WorkoutRecord] = []
+                
+                for (index, date) in targetDates.enumerated() {
+                    // 每天使用不同的甜品和运动类型
+                    let dessert = desserts[index % desserts.count]
+                    let exerciseType = exerciseTypes[index % exerciseTypes.count]
+                    
+                    // 运动时长 20-60分钟
+                    let duration = Double(30 + index * 3) // 递增时长
+                    
+                    // 消耗的卡路里
+                    let targetCalories = Double(dessert.calories) ?? 300
+                    let caloriesBurned = index % 3 == 0 ?
+                        targetCalories * 0.8 : // 未达成目标
+                        targetCalories * 1.2   // 达成目标
+                    
+                    // 创建记录
+                    let record = WorkoutRecord(
+                        dessert: dessert,
+                        exerciseType: exerciseType,
+                        completionDate: date,
+                        duration: duration,
+                        caloriesBurned: caloriesBurned
+                    )
+                    
+                    mockRecords.append(record)
+                }
+                
+                // 保存模拟数据
+                self.appState.workoutRecords = mockRecords
+                
+                // 筛选记录
+                self.filterRecordsByMonth()
+                self.filterRecordsByYear()
+            })
+            .store(in: &cancellables)
     }
     
     /// 计算统计数据
