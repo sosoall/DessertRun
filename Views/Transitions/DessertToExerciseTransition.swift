@@ -780,13 +780,18 @@ struct DessertToExerciseTransition: View {
         for exerciseType in apiExerciseTypes {
             let typeStr = exerciseType.type
             
+            // 获取当前登录用户的体重
+            let weight = AuthService.shared.currentUser?.weight ?? 0.0
+            let weightInt = Int(weight)
+            
             if exerciseType.usesDistance {
                 // 距离类型运动 - 直接使用API返回的usesDistance字段
-                let cacheKey = "distance_\(typeStr)_\(Int(calories))"
+                // 在缓存键中添加用户体重，确保体重变化时会重新计算
+                let cacheKey = "distance_\(typeStr)_\(Int(calories))_w\(weightInt)"
                 // 检查是否有缓存
                 let cachedDistance = UserDefaults.standard.double(forKey: cacheKey)
                 if cachedDistance > 0 {
-                    print("使用缓存的距离计算: \(cachedDistance)公里")
+                    print("使用缓存的距离计算: \(cachedDistance)公里 (体重:\(weightInt)kg)")
                     self.calculatedDistances[exerciseType] = cachedDistance * 1000
                 } else {
                     // 没有缓存，进行网络请求，最多重试3次
@@ -794,11 +799,12 @@ struct DessertToExerciseTransition: View {
                 }
             } else {
                 // 时间类型运动
-                let cacheKey = "duration_\(typeStr)_\(Int(calories))"
+                // 在缓存键中添加用户体重，确保体重变化时会重新计算
+                let cacheKey = "duration_\(typeStr)_\(Int(calories))_w\(weightInt)"
                 // 检查是否有缓存
                 let cachedDuration = UserDefaults.standard.double(forKey: cacheKey)
                 if cachedDuration > 0 {
-                    print("使用缓存的时间计算: \(cachedDuration)分钟")
+                    print("使用缓存的时间计算: \(cachedDuration)分钟 (体重:\(weightInt)kg)")
                     self.calculatedDurations[exerciseType] = cachedDuration
                 } else {
                     // 没有缓存，进行网络请求，最多重试3次
@@ -1009,5 +1015,24 @@ struct ScaleButtonStyle: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: configuration.isPressed)
+    }
+}
+
+// MARK: - 缓存管理
+extension DessertToExerciseTransition {
+    /// 清除所有运动计算缓存
+    static func clearAllExerciseCalculationCaches() {
+        // 获取所有UserDefaults键
+        let userDefaults = UserDefaults.standard
+        let allKeys = userDefaults.dictionaryRepresentation().keys
+        
+        // 清除所有距离和时间计算缓存
+        for key in allKeys {
+            if key.starts(with: "distance_") || key.starts(with: "duration_") {
+                userDefaults.removeObject(forKey: key)
+            }
+        }
+        
+        DRInfo("已清除所有运动计算缓存")
     }
 } 

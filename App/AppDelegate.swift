@@ -118,10 +118,14 @@ extension AppDelegate {
     
     /// 预加载数据
     private func preloadData() {
-        // 异步预加载美食数据和图片
+        // 异步预加载美食数据，但不启动图片预加载
         DispatchQueue.global(qos: .utility).async {
             DRInfo("[AppDelegate] 开始预加载应用数据")
-            DessertData.preloadAllImages()
+            
+            // 仅在首次启动时预加载数据样本，避免图片预加载导致的问题
+            DessertData.getAllDesserts { _ in 
+                DRInfo("[AppDelegate] 美食数据预加载完成")
+            }
         }
     }
     

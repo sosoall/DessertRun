@@ -8,6 +8,8 @@
 import Foundation
 import SwiftUI
 import Combine
+// 导入日志功能
+import OSLog
 
 /// 美食图片模型
 struct DessertImage: Codable, Hashable {
@@ -242,7 +244,10 @@ struct DessertData {
     private static var cachedDesserts: [DessertItem]?
     
     // 用于保存订阅的集合
-    private static var cancellables = Set<AnyCancellable>()
+    private static var cancellables: Set<AnyCancellable> = Set<AnyCancellable>()
+    
+    // 用于线程安全访问订阅集合的队列
+    private static let queue = DispatchQueue(label: "com.dessertrun.cancellables", attributes: .concurrent)
     
     /// 获取所有美食数据（优先从API获取，失败则使用本地数据）
     static func getAllDesserts(completion: @escaping ([DessertItem]) -> Void) {
@@ -256,8 +261,11 @@ struct DessertData {
         // 添加日志
         DRInfo("开始从API加载甜品数据...")
         
+        // 创建本地变量存储订阅
+        var subscription: AnyCancellable?
+        
         // 尝试从API获取
-        APIService.shared.getAllDesserts()
+        subscription = APIService.shared.getAllDesserts()
             .receive(on: DispatchQueue.main)
             .sink(
                 receiveCompletion: { result in
@@ -269,6 +277,8 @@ struct DessertData {
                     case .finished:
                         DRDebug("API请求甜品数据完成")
                     }
+                    // 完成后清理订阅
+                    subscription = nil
                 },
                 receiveValue: { response in
                     // 将API响应转换为DessertItem模型
@@ -278,7 +288,13 @@ struct DessertData {
                     completion(desserts)
                 }
             )
-            .store(in: &cancellables) // 保存订阅，防止过早释放
+        
+        // 线程安全地将订阅添加到集合中
+        if let sub = subscription {
+            queue.async(flags: .barrier) {
+                cancellables.insert(sub)
+            }
+        }
     }
     
     /// 获取示例美食数据（本地数据）
@@ -347,6 +363,39 @@ struct DessertData {
                     return allDesserts.first { $0.id == id }
                 }
                 completion(related)
+            }
+        }
+    }
+    
+    /// 清除所有缓存数据
+    static func clearCache() {
+        DRInfo("[DessertData] 清除美食数据缓存")
+        cachedDesserts = nil
+        
+        // 清除所有订阅
+        queue.async(flags: .barrier) {
+            cancellables.removeAll()
+        }
+    }
+    
+    /// 预加载所有美食图片
+    static func preloadAllImages() {
+        getAllDesserts { desserts in
+            DRInfo("[DessertData] 开始预加载所有美食图片，共\(desserts.count)项")
+            
+            // 在后台队列中预加载
+            DispatchQueue.global(qos: .utility).async {
+                // 先预加载前10项重要的图片
+                let featuredItems = desserts.filter { $0.isFeatured }.prefix(10)
+                for item in featuredItems {
+                    item.preloadAllImages()
+                }
+                
+                // 再预加载其他项的常规图片
+                let otherItems = desserts.filter { !$0.isFeatured }
+                for item in otherItems {
+                    item.loadImage { _ in }
+                }
             }
         }
     }
@@ -440,38 +489,6 @@ extension DessertItem {
             loadImage(type: imageType) { _ in
                 // 仅加载到缓存，不做其他操作
                 DRDebug("[DessertItem] 预加载完成: \(self.name) - \(imageType.rawValue)")
-            }
-        }
-    }
-}
-
-// MARK: - 缓存管理扩展
-
-extension DessertData {
-    /// 清除所有缓存数据
-    static func clearCache() {
-        DRInfo("[DessertData] 清除美食数据缓存")
-        cachedDesserts = nil
-    }
-    
-    /// 预加载所有美食图片
-    static func preloadAllImages() {
-        getAllDesserts { desserts in
-            DRInfo("[DessertData] 开始预加载所有美食图片，共\(desserts.count)项")
-            
-            // 在后台队列中预加载
-            DispatchQueue.global(qos: .utility).async {
-                // 先预加载前10项重要的图片
-                let featuredItems = desserts.filter { $0.isFeatured }.prefix(10)
-                for item in featuredItems {
-                    item.preloadAllImages()
-                }
-                
-                // 再预加载其他项的常规图片
-                let otherItems = desserts.filter { !$0.isFeatured }
-                for item in otherItems {
-                    item.loadImage { _ in }
-                }
             }
         }
     }

@@ -309,6 +309,9 @@ class AuthService: ObservableObject {
         
         DRInfo("更新用户资料: \(user.phoneNumber)")
         
+        // 记录原始体重，用于检测变化
+        let oldWeight = user.weight
+        
         if let nickname = nickname { 
             DRInfo("更新昵称: \(nickname)")
             user.nickname = nickname 
@@ -324,6 +327,12 @@ class AuthService: ObservableObject {
         if let weight = weight { 
             DRInfo("更新体重: \(weight)")
             user.weight = weight 
+            
+            // 如果体重有变化，清除运动计算缓存
+            if oldWeight != weight {
+                DRInfo("体重已变更，清除运动计算缓存")
+                DessertToExerciseTransition.clearAllExerciseCalculationCaches()
+            }
         }
         if let hasExerciseHabit = hasExerciseHabit { 
             DRInfo("更新运动习惯: \(hasExerciseHabit)")

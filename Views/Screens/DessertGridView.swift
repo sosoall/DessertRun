@@ -139,7 +139,8 @@ struct DessertGridView: View {
         isLoading = true
         errorMessage = nil
         
-        DessertData.getAllDesserts { loadedDesserts in
+        // 使用更安全的方法获取甜品数据，避免使用全局订阅集合
+        DessertData.getAllDesserts { [self] loadedDesserts in
             let allDesserts = loadedDesserts
             
             // 使用isImportant字段过滤重要甜品
@@ -170,10 +171,12 @@ struct DessertGridView: View {
                 result[middleStart + index] = item
             }
             
-            // 更新UI
-            self.desserts = result
-            self.isLoading = false
-            self.forceLayoutUpdate.toggle() // 强制刷新布局
+            // 在主线程更新UI
+            DispatchQueue.main.async {
+                self.desserts = result
+                self.isLoading = false
+                self.forceLayoutUpdate.toggle() // 强制刷新布局
+            }
         }
     }
 } 
