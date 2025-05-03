@@ -17,6 +17,9 @@ enum ApiEndpoints {
         static let base = "/api/v1/users"
         static let profile = base + "/profile"
         static let updateProfile = base + "/profile"
+        static let bodyData = base + "/body"        // 身体数据
+        static let exerciseHabit = base + "/exercise-habit"  // 运动习惯
+        static let basicInfo = base + "/basic-info"  // 基本信息
     }
     
     // 甜品相关

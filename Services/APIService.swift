@@ -171,9 +171,7 @@ class APIService {
                     nickname: nil,
                     avatar: nil,
                     gender: nil,
-                    height: nil,
-                    weight: nil,
-                    hasExerciseHabit: nil,
+                    birthYear: nil,
                     createdAt: nil,
                     updatedAt: nil,
                     isNewUser: wrapper.data.isNewUser,
@@ -296,9 +294,7 @@ class APIService {
                     nickname: nil,
                     avatar: nil,
                     gender: nil,
-                    height: nil,
-                    weight: nil,
-                    hasExerciseHabit: nil,
+                    birthYear: nil,
                     createdAt: nil,
                     updatedAt: nil,
                     isNewUser: wrapper.data.isNewUser,
@@ -388,9 +384,7 @@ class APIService {
                                                 nickname: nickname,
                                                 avatar: nil,
                                                 gender: nil,
-                                                height: nil,
-                                                weight: nil,
-                                                hasExerciseHabit: nil,
+                                                birthYear: nil,
                                                 createdAt: nil,
                                                 updatedAt: nil,
                                                 isNewUser: nil,
@@ -468,6 +462,129 @@ class APIService {
             endpoint: endpoint,
             method: .put,
             parameters: parameters
+        )
+        .mapError { self.handleError($0) }
+        .eraseToAnyPublisher()
+    }
+    
+    /// 更新用户基本信息（昵称、头像、性别等）
+    /// - Parameter info: 用户基本信息
+    /// - Returns: 包含更新后用户基本信息的发布者
+    func updateUserBasicInfo(info: UpdateBasicInfoRequest) -> AnyPublisher<UserBasicInfoResponse, APIServiceError> {
+        let endpoint = ApiEndpoints.User.basicInfo
+        
+        var parameters: [String: Any] = [:]
+        if let nickname = info.nickname {
+            parameters["nickname"] = nickname
+        }
+        if let avatar = info.avatar {
+            parameters["avatar"] = avatar
+        }
+        if let gender = info.gender {
+            parameters["gender"] = gender
+        }
+        if let birthYear = info.birthYear {
+            parameters["birth_year"] = birthYear
+        }
+        
+        print("发送用户基本信息更新请求: \(parameters)")
+        
+        return networkManager.request(
+            endpoint: endpoint,
+            method: .put,
+            parameters: parameters
+        )
+        .mapError { self.handleError($0) }
+        .eraseToAnyPublisher()
+    }
+    
+    /// 获取用户基本信息
+    /// - Returns: 包含用户基本信息的发布者
+    func getUserBasicInfo() -> AnyPublisher<UserBasicInfoResponse, APIServiceError> {
+        let endpoint = ApiEndpoints.User.basicInfo
+        
+        return networkManager.request(
+            endpoint: endpoint,
+            method: .get
+        )
+        .mapError { self.handleError($0) }
+        .eraseToAnyPublisher()
+    }
+    
+    /// 更新用户身体数据（身高、体重）
+    /// - Parameter bodyData: 用户身体数据
+    /// - Returns: 包含更新后用户身体数据的发布者
+    func updateUserBodyData(bodyData: UpdateBodyDataRequest) -> AnyPublisher<UserBodyDataResponse, APIServiceError> {
+        let endpoint = ApiEndpoints.User.bodyData
+        
+        var parameters: [String: Any] = [:]
+        if let height = bodyData.height {
+            parameters["height"] = height
+        }
+        if let weight = bodyData.weight {
+            parameters["weight"] = weight
+        }
+        
+        print("发送用户身体数据更新请求: \(parameters)")
+        
+        return networkManager.request(
+            endpoint: endpoint,
+            method: .put,
+            parameters: parameters
+        )
+        .mapError { self.handleError($0) }
+        .eraseToAnyPublisher()
+    }
+    
+    /// 获取用户身体数据
+    /// - Returns: 包含用户身体数据的发布者
+    func getUserBodyData() -> AnyPublisher<UserBodyDataResponse, APIServiceError> {
+        let endpoint = ApiEndpoints.User.bodyData
+        
+        return networkManager.request(
+            endpoint: endpoint,
+            method: .get
+        )
+        .mapError { self.handleError($0) }
+        .eraseToAnyPublisher()
+    }
+    
+    /// 更新用户运动习惯
+    /// - Parameter exerciseHabit: 用户运动习惯
+    /// - Returns: 包含更新后用户运动习惯的发布者
+    func updateUserExerciseHabit(exerciseHabit: UpdateExerciseHabitRequest) -> AnyPublisher<UserExerciseHabitResponse, APIServiceError> {
+        let endpoint = ApiEndpoints.User.exerciseHabit
+        
+        var parameters: [String: Any] = [:]
+        if let hasExerciseHabit = exerciseHabit.hasExerciseHabit {
+            parameters["has_exercise_habit"] = hasExerciseHabit
+        }
+        if let exerciseFrequency = exerciseHabit.exerciseFrequency {
+            parameters["exercise_frequency"] = exerciseFrequency
+        }
+        if let exerciseDuration = exerciseHabit.exerciseDuration {
+            parameters["exercise_duration"] = exerciseDuration
+        }
+        
+        print("发送用户运动习惯更新请求: \(parameters)")
+        
+        return networkManager.request(
+            endpoint: endpoint,
+            method: .put,
+            parameters: parameters
+        )
+        .mapError { self.handleError($0) }
+        .eraseToAnyPublisher()
+    }
+    
+    /// 获取用户运动习惯
+    /// - Returns: 包含用户运动习惯的发布者
+    func getUserExerciseHabit() -> AnyPublisher<UserExerciseHabitResponse, APIServiceError> {
+        let endpoint = ApiEndpoints.User.exerciseHabit
+        
+        return networkManager.request(
+            endpoint: endpoint,
+            method: .get
         )
         .mapError { self.handleError($0) }
         .eraseToAnyPublisher()
@@ -921,9 +1038,7 @@ struct APIUser: Decodable, Identifiable {
     let nickname: String?
     let avatar: String?
     let gender: String?  // 从服务器接收时仍为String类型("男"/"女")
-    let height: Double?  // 添加身高字段
-    let weight: Double?  // 添加体重字段
-    let hasExerciseHabit: Bool?  // 添加运动习惯字段
+    let birthYear: Int?  // 添加出生年份字段
     let createdAt: String?
     let updatedAt: String?
     let isNewUser: Bool?
@@ -936,9 +1051,7 @@ struct APIUser: Decodable, Identifiable {
         case nickname
         case avatar
         case gender
-        case height
-        case weight
-        case hasExerciseHabit = "has_exercise_habit"
+        case birthYear = "birth_year"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case isNewUser = "is_new_user"
@@ -947,16 +1060,13 @@ struct APIUser: Decodable, Identifiable {
     
     // 添加直接初始化方法，方便创建实例
     init(id: String, phone: String, nickname: String?, avatar: String?, gender: String?,
-         height: Double?, weight: Double?, hasExerciseHabit: Bool?,
-         createdAt: String?, updatedAt: String?, isNewUser: Bool?, isProfileCompleted: Bool?) {
+         birthYear: Int?, createdAt: String?, updatedAt: String?, isNewUser: Bool?, isProfileCompleted: Bool?) {
         self.id = id
         self.phone = phone
         self.nickname = nickname
         self.avatar = avatar
         self.gender = gender
-        self.height = height
-        self.weight = weight
-        self.hasExerciseHabit = hasExerciseHabit
+        self.birthYear = birthYear
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.isNewUser = isNewUser
@@ -972,9 +1082,7 @@ struct APIUser: Decodable, Identifiable {
         nickname = try container.decodeIfPresent(String.self, forKey: .nickname)
         avatar = try container.decodeIfPresent(String.self, forKey: .avatar)
         gender = try container.decodeIfPresent(String.self, forKey: .gender)
-        height = try container.decodeIfPresent(Double.self, forKey: .height)
-        weight = try container.decodeIfPresent(Double.self, forKey: .weight)
-        hasExerciseHabit = try container.decodeIfPresent(Bool.self, forKey: .hasExerciseHabit)
+        birthYear = try container.decodeIfPresent(Int.self, forKey: .birthYear)
         createdAt = try container.decodeIfPresent(String.self, forKey: .createdAt)
         updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt)
         isNewUser = try container.decodeIfPresent(Bool.self, forKey: .isNewUser)
@@ -996,9 +1104,7 @@ struct APIUser: Decodable, Identifiable {
             nickname: nickname,
             avatar: avatar,
             gender: userGender,
-            height: height,
-            weight: weight,
-            hasExerciseHabit: hasExerciseHabit,
+            birthYear: birthYear,
             isProfileCompleted: isProfileCompleted ?? false,
             isNewUser: isNewUser ?? true,
             apiUserId: id
@@ -1015,4 +1121,78 @@ struct UpdateProfileRequest {
     let height: Double?
     let weight: Double?
     let hasExerciseHabit: Bool?
+}
+
+// MARK: - 新增用户信息API模型
+
+/// 用户基本信息请求
+struct UpdateBasicInfoRequest: Codable {
+    let nickname: String?
+    let avatar: String?
+    let gender: String?  // "男"或"女"
+    let birthYear: Int?
+    
+    enum CodingKeys: String, CodingKey {
+        case nickname, avatar, gender
+        case birthYear = "birth_year"
+    }
+}
+
+/// 用户身体数据请求
+struct UpdateBodyDataRequest: Codable {
+    let height: Double?  // 单位：厘米
+    let weight: Double?  // 单位：公斤
+    
+    enum CodingKeys: String, CodingKey {
+        case height, weight
+    }
+}
+
+/// 用户运动习惯请求
+struct UpdateExerciseHabitRequest: Codable {
+    let hasExerciseHabit: Bool?  // 是否有运动习惯
+    let exerciseFrequency: Int?  // 运动频率（次/周）
+    let exerciseDuration: Int?   // 运动时长（分钟/次）
+    
+    enum CodingKeys: String, CodingKey {
+        case hasExerciseHabit = "has_exercise_habit"
+        case exerciseFrequency = "exercise_frequency"
+        case exerciseDuration = "exercise_duration"
+    }
+}
+
+/// 用户基本信息响应
+struct UserBasicInfoResponse: Codable {
+    let nickname: String?
+    let avatar: String?
+    let gender: String?
+    let birthYear: Int?
+    
+    enum CodingKeys: String, CodingKey {
+        case nickname, avatar, gender
+        case birthYear = "birth_year"
+    }
+}
+
+/// 用户身体数据响应
+struct UserBodyDataResponse: Codable {
+    let height: Double?
+    let weight: Double?
+    
+    enum CodingKeys: String, CodingKey {
+        case height, weight
+    }
+}
+
+/// 用户运动习惯响应
+struct UserExerciseHabitResponse: Codable {
+    let hasExerciseHabit: Bool?
+    let exerciseFrequency: Int?
+    let exerciseDuration: Int?
+    
+    enum CodingKeys: String, CodingKey {
+        case hasExerciseHabit = "has_exercise_habit"
+        case exerciseFrequency = "exercise_frequency"
+        case exerciseDuration = "exercise_duration"
+    }
 } 

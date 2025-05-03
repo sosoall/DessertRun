@@ -221,38 +221,113 @@ struct ProfileHomeView: View {
         
         DRInfo("开始获取用户资料...")
         
+        // 创建组，等待所有API调用完成
+        let group = DispatchGroup()
+        
+        // 1. 获取基本用户资料
+        group.enter()
         APIService.shared.getUserProfile()
             .receive(on: DispatchQueue.main)
             .sink(
                 receiveCompletion: { completion in
-                    isLoading = false
                     if case let .failure(error) = completion {
                         errorMessage = error.errorMessage
-                        DRError("获取用户资料失败: \(error.errorMessage)")
-                        
-                        // 如果是无法解析的错误，尝试显示一些详细的调试信息
-                        if error.errorMessage.contains("数据解析失败") {
-                            DRInfo("可能是服务端API格式与客户端定义不匹配，请检查APIUser模型")
-                            DRInfo("API字段: id, phone_number, nickname, gender, height, weight, has_exercise_habit, created_at, updated_at, is_new_user, is_profile_completed")
-                            DRInfo("APIUser模型字段检查: \(Mirror(reflecting: APIUser.self).description)")
-                        }
-                    } else {
-                        DRInfo("获取用户资料请求完成")
+                        DRError("获取用户基本资料失败: \(error.errorMessage)")
                     }
+                    group.leave()
                 },
                 receiveValue: { apiUser in
-                    DRInfo("获取用户资料成功: \(apiUser.nickname ?? "未设置昵称")")
-                    DRInfo("用户详情: id=\(apiUser.id), phone=\(apiUser.phone), gender=\(apiUser.gender ?? "未设置"), height=\(apiUser.height ?? 0), weight=\(apiUser.weight ?? 0)")
+                    DRInfo("获取用户基本资料成功: \(apiUser.nickname ?? "未设置昵称")")
                     
-                    // 更新本地用户数据
-                    authService.currentUser = apiUser.toLocalUser()
-                    authService.saveUserToStorage()
-                    
-                    // 更新AppState中的用户资料
-                    appState.updateLoginStatus()
+                    // 更新本地用户数据 - 基本信息
+                    if let currentUser = authService.currentUser {
+                        // 将API返回的数据更新到现有用户对象
+                        currentUser.nickname = apiUser.nickname
+                        currentUser.avatar = apiUser.avatar
+                        currentUser.gender = apiUser.gender.flatMap { User.Gender.fromApiString($0) }
+                        currentUser.birthYear = apiUser.birthYear
+                        currentUser.apiUserId = apiUser.id
+                        currentUser.isNewUser = apiUser.isNewUser ?? false
+                        currentUser.isProfileCompleted = apiUser.isProfileCompleted ?? false
+                    } else {
+                        // 如果没有当前用户，创建一个新的
+                        authService.currentUser = apiUser.toLocalUser()
+                    }
                 }
             )
             .store(in: &authService.cancellables)
+        
+        // 2. 获取身体数据
+        group.enter()
+        APIService.shared.getUserBodyData()
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { completion in
+                    if case let .failure(error) = completion {
+                        DRError("获取身体数据失败: \(error.errorMessage)")
+                    }
+                    group.leave()
+                },
+                receiveValue: { bodyData in
+                    DRInfo("获取身体数据成功: 身高=\(bodyData.height ?? 0), 体重=\(bodyData.weight ?? 0)")
+                    
+                    // 更新本地用户数据 - 身体数据
+                    if let currentUser = authService.currentUser {
+                        // 如果没有身体数据对象，创建一个
+                        if currentUser.bodyData == nil {
+                            currentUser.bodyData = BodyData()
+                        }
+                        
+                        // 更新身体数据
+                        currentUser.bodyData?.height = bodyData.height
+                        currentUser.bodyData?.weight = bodyData.weight
+                    }
+                }
+            )
+            .store(in: &authService.cancellables)
+        
+        // 3. 获取运动习惯
+        group.enter()
+        APIService.shared.getUserExerciseHabit()
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { completion in
+                    if case let .failure(error) = completion {
+                        DRError("获取运动习惯失败: \(error.errorMessage)")
+                    }
+                    group.leave()
+                },
+                receiveValue: { exerciseHabit in
+                    DRInfo("获取运动习惯成功: 是否有运动习惯=\(exerciseHabit.hasExerciseHabit ?? false)")
+                    
+                    // 更新本地用户数据 - 运动习惯
+                    if let currentUser = authService.currentUser {
+                        // 如果没有运动习惯对象，创建一个
+                        if currentUser.exerciseHabit == nil {
+                            currentUser.exerciseHabit = ExerciseHabit()
+                        }
+                        
+                        // 更新运动习惯
+                        currentUser.exerciseHabit?.hasExerciseHabit = exerciseHabit.hasExerciseHabit
+                        currentUser.exerciseHabit?.exerciseFrequency = exerciseHabit.exerciseFrequency
+                        currentUser.exerciseHabit?.exerciseDuration = exerciseHabit.exerciseDuration
+                    }
+                }
+            )
+            .store(in: &authService.cancellables)
+        
+        // 所有API调用完成后
+        group.notify(queue: .main) {
+            isLoading = false
+            
+            // 保存到本地存储
+            authService.saveUserToStorage()
+            
+            // 更新AppState中的用户资料
+            appState.updateLoginStatus()
+            
+            DRInfo("所有用户资料获取完成")
+        }
     }
     
     // 用户资料卡片
@@ -344,7 +419,7 @@ struct ProfileHomeView: View {
                         Spacer()
                         
                         if authService.isLoggedIn, let user = authService.currentUser {
-                            if let height = user.height, let weight = user.weight {
+                            if let bodyData = user.bodyData, let height = bodyData.height, let weight = bodyData.weight {
                                 Text("\(Int(height))厘米 / \(Int(weight))公斤")
                                     .font(.caption)
                                     .foregroundColor(.gray)
@@ -387,7 +462,7 @@ struct ProfileHomeView: View {
                         Spacer()
                         
                         if authService.isLoggedIn, let user = authService.currentUser {
-                            if let hasExerciseHabit = user.hasExerciseHabit {
+                            if let exerciseHabit = user.exerciseHabit, let hasExerciseHabit = exerciseHabit.hasExerciseHabit {
                                 Text(hasExerciseHabit ? "有运动习惯" : "无运动习惯")
                                     .font(.caption)
                                     .foregroundColor(.gray)

@@ -222,8 +222,8 @@ struct UserInfoSetupView: View {
                     
                     HStack {
                         Picker("", selection: Binding(
-                            get: { Int(viewModel.user.height ?? 170) },
-                            set: { viewModel.user.height = Double($0) }
+                            get: { Int(viewModel.user.bodyData?.height ?? 170) },
+                            set: { viewModel.user.bodyData?.height = Double($0) }
                         )) {
                             ForEach(100...220, id: \.self) { height in
                                 Text("\(height)").tag(height)
@@ -245,8 +245,8 @@ struct UserInfoSetupView: View {
                     
                     HStack {
                         Picker("", selection: Binding(
-                            get: { Int(viewModel.user.weight ?? 60) },
-                            set: { viewModel.user.weight = Double($0) }
+                            get: { Int(viewModel.user.bodyData?.weight ?? 60) },
+                            set: { viewModel.user.bodyData?.weight = Double($0) }
                         )) {
                             ForEach(35...150, id: \.self) { weight in
                                 Text("\(weight)").tag(weight)
@@ -273,41 +273,41 @@ struct UserInfoSetupView: View {
                         print("是按钮被点击") // 添加调试日志
                         dismissKeyboard() // 首先隐藏键盘
                         withAnimation {
-                            viewModel.user.hasExerciseHabit = true
+                            viewModel.user.exerciseHabit?.hasExerciseHabit = true
                             // 强制视图刷新
                             viewModel.objectWillChange.send()
                         }
                     }) {
                         Text("是")
                             .font(.headline)
-                            .foregroundColor(viewModel.user.hasExerciseHabit == true ? .white : .primary)
+                            .foregroundColor(viewModel.user.exerciseHabit?.hasExerciseHabit == true ? .white : .primary)
                             .frame(height: 50)
                             .frame(maxWidth: .infinity)
-                            .background(viewModel.user.hasExerciseHabit == true ? Color.blue : Color(.systemGray6))
+                            .background(viewModel.user.exerciseHabit?.hasExerciseHabit == true ? Color.blue : Color(.systemGray6))
                             .cornerRadius(10)
                     }
                     .buttonStyle(PlainButtonStyle()) // 添加这一行解决按钮不响应问题
-                    .id("yesButton-\(viewModel.user.hasExerciseHabit == true)") // 添加动态ID，强制视图刷新
+                    .id("yesButton-\(viewModel.user.exerciseHabit?.hasExerciseHabit == true)") // 添加动态ID，强制视图刷新
                     
                     Button(action: {
                         print("否按钮被点击") // 添加调试日志
                         dismissKeyboard() // 首先隐藏键盘
                         withAnimation {
-                            viewModel.user.hasExerciseHabit = false
+                            viewModel.user.exerciseHabit?.hasExerciseHabit = false
                             // 强制视图刷新
                             viewModel.objectWillChange.send()
                         }
                     }) {
                         Text("否")
                             .font(.headline)
-                            .foregroundColor(viewModel.user.hasExerciseHabit == false ? .white : .primary)
+                            .foregroundColor(viewModel.user.exerciseHabit?.hasExerciseHabit == false ? .white : .primary)
                             .frame(height: 50)
                             .frame(maxWidth: .infinity)
-                            .background(viewModel.user.hasExerciseHabit == false ? Color.blue : Color(.systemGray6))
+                            .background(viewModel.user.exerciseHabit?.hasExerciseHabit == false ? Color.blue : Color(.systemGray6))
                             .cornerRadius(10)
                     }
                     .buttonStyle(PlainButtonStyle()) // 添加这一行解决按钮不响应问题
-                    .id("noButton-\(viewModel.user.hasExerciseHabit == false)") // 添加动态ID，强制视图刷新
+                    .id("noButton-\(viewModel.user.exerciseHabit?.hasExerciseHabit == false)") // 添加动态ID，强制视图刷新
                 }
             }
             
@@ -400,78 +400,169 @@ struct UserInfoSetupView: View {
     
     // 保存当前步骤信息
     private func saveCurrentStepInfo() {
-        // 根据当前步骤，创建只包含当前页面字段的更新请求
-        var updateProfile: UpdateProfileRequest
-        
+        // 根据当前步骤调用对应的API
         switch currentStep {
         case 0:
-            // 第一步：昵称和性别
-            updateProfile = UpdateProfileRequest(
+            // 第一步：昵称和性别 - 调用基本信息API
+            let basicInfo = UpdateBasicInfoRequest(
                 nickname: viewModel.nickname.isEmpty ? nil : viewModel.nickname,
                 avatar: nil,
                 gender: viewModel.user.gender?.toApiValue,
-                height: nil,
-                weight: nil,
-                hasExerciseHabit: nil
+                birthYear: viewModel.user.birthYear
             )
-        case 1:
-            // 第二步：身高和体重
-            updateProfile = UpdateProfileRequest(
-                nickname: nil,
-                avatar: nil,
-                gender: nil,
-                height: viewModel.user.height,
-                weight: viewModel.user.weight,
-                hasExerciseHabit: nil
-            )
-        case 2:
-            // 第三步：运动习惯
-            updateProfile = UpdateProfileRequest(
-                nickname: nil,
-                avatar: nil,
-                gender: nil,
-                height: nil,
-                weight: nil,
-                hasExerciseHabit: viewModel.user.hasExerciseHabit
-            )
-        default:
-            return
-        }
-        
-        // 调用API更新资料
-        APIService.shared.updateUserProfile(profile: updateProfile)
-            .receive(on: DispatchQueue.main)
-            .sink(
-                receiveCompletion: { completion in
-                    if case let .failure(error) = completion {
-                        print("更新资料失败: \(error.errorMessage)")
-                    }
-                    
-                    // 如果是模态模式，更新完成后关闭页面
-                    if isModal, let onDismiss = onDismiss {
-                        onDismiss()
-                    }
-                },
-                receiveValue: { apiUser in
-                    print("更新资料成功: \(apiUser.nickname ?? "未设置昵称")")
-                    // 更新本地用户数据
-                    authService.currentUser = apiUser.toLocalUser()
-                    authService.saveUserToStorage()
-                    
-                    // 显示成功消息
-                    if isModal {
-                        showSuccessMessage = true
-                        // 2秒后关闭成功消息并返回
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                            showSuccessMessage = false
-                            if let onDismiss = onDismiss {
-                                onDismiss()
+            
+            APIService.shared.updateUserBasicInfo(info: basicInfo)
+                .receive(on: DispatchQueue.main)
+                .sink(
+                    receiveCompletion: { completion in
+                        if case let .failure(error) = completion {
+                            print("更新基本信息失败: \(error.errorMessage)")
+                        }
+                        
+                        // 如果是模态模式，更新完成后关闭页面
+                        if isModal, let onDismiss = onDismiss {
+                            onDismiss()
+                        }
+                    },
+                    receiveValue: { response in
+                        print("更新基本信息成功: \(response.nickname ?? "未设置昵称")")
+                        
+                        // 更新本地用户数据
+                        if let user = authService.currentUser {
+                            user.nickname = response.nickname
+                            user.gender = response.gender.flatMap { User.Gender.fromApiString($0) }
+                            user.birthYear = response.birthYear
+                            
+                            // 保存到本地存储
+                            authService.saveUserToStorage()
+                        }
+                        
+                        // 显示成功消息
+                        if isModal {
+                            showSuccessMessage = true
+                            // 2秒后关闭成功消息并返回
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                showSuccessMessage = false
+                                if let onDismiss = onDismiss {
+                                    onDismiss()
+                                }
                             }
                         }
                     }
-                }
+                )
+                .store(in: &authService.cancellables)
+            
+        case 1:
+            // 第二步：身高和体重 - 调用身体数据API
+            let bodyData = UpdateBodyDataRequest(
+                height: viewModel.user.bodyData?.height,
+                weight: viewModel.user.bodyData?.weight
             )
-            .store(in: &authService.cancellables)
+            
+            APIService.shared.updateUserBodyData(bodyData: bodyData)
+                .receive(on: DispatchQueue.main)
+                .sink(
+                    receiveCompletion: { completion in
+                        if case let .failure(error) = completion {
+                            print("更新身体数据失败: \(error.errorMessage)")
+                        }
+                        
+                        // 如果是模态模式，更新完成后关闭页面
+                        if isModal, let onDismiss = onDismiss {
+                            onDismiss()
+                        }
+                    },
+                    receiveValue: { response in
+                        print("更新身体数据成功: 身高=\(response.height ?? 0), 体重=\(response.weight ?? 0)")
+                        
+                        // 更新本地用户数据
+                        if let user = authService.currentUser {
+                            // 如果没有身体数据对象，创建一个
+                            if user.bodyData == nil {
+                                user.bodyData = BodyData()
+                            }
+                            
+                            // 更新身体数据
+                            user.bodyData?.height = response.height
+                            user.bodyData?.weight = response.weight
+                            
+                            // 保存到本地存储
+                            authService.saveUserToStorage()
+                        }
+                        
+                        // 显示成功消息
+                        if isModal {
+                            showSuccessMessage = true
+                            // 2秒后关闭成功消息并返回
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                showSuccessMessage = false
+                                if let onDismiss = onDismiss {
+                                    onDismiss()
+                                }
+                            }
+                        }
+                    }
+                )
+                .store(in: &authService.cancellables)
+            
+        case 2:
+            // 第三步：运动习惯 - 调用运动习惯API
+            let exerciseHabit = UpdateExerciseHabitRequest(
+                hasExerciseHabit: viewModel.user.exerciseHabit?.hasExerciseHabit,
+                exerciseFrequency: nil, // 这里暂时没有收集这些数据
+                exerciseDuration: nil
+            )
+            
+            APIService.shared.updateUserExerciseHabit(exerciseHabit: exerciseHabit)
+                .receive(on: DispatchQueue.main)
+                .sink(
+                    receiveCompletion: { completion in
+                        if case let .failure(error) = completion {
+                            print("更新运动习惯失败: \(error.errorMessage)")
+                        }
+                        
+                        // 如果是模态模式，更新完成后关闭页面
+                        if isModal, let onDismiss = onDismiss {
+                            onDismiss()
+                        }
+                    },
+                    receiveValue: { response in
+                        print("更新运动习惯成功: 是否有运动习惯=\(response.hasExerciseHabit ?? false)")
+                        
+                        // 更新本地用户数据
+                        if let user = authService.currentUser {
+                            // 如果没有运动习惯对象，创建一个
+                            if user.exerciseHabit == nil {
+                                user.exerciseHabit = ExerciseHabit()
+                            }
+                            
+                            // 更新运动习惯
+                            user.exerciseHabit?.hasExerciseHabit = response.hasExerciseHabit
+                            user.exerciseHabit?.exerciseFrequency = response.exerciseFrequency
+                            user.exerciseHabit?.exerciseDuration = response.exerciseDuration
+                            
+                            // 保存到本地存储
+                            authService.saveUserToStorage()
+                        }
+                        
+                        // 显示成功消息
+                        if isModal {
+                            showSuccessMessage = true
+                            // 2秒后关闭成功消息并返回
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                showSuccessMessage = false
+                                if let onDismiss = onDismiss {
+                                    onDismiss()
+                                }
+                            }
+                        }
+                    }
+                )
+                .store(in: &authService.cancellables)
+            
+        default:
+            return
+        }
     }
     
     // 保存所有用户信息
@@ -481,54 +572,122 @@ struct UserInfoSetupView: View {
             // 更新用户信息
             user.nickname = viewModel.nickname.isEmpty ? nil : viewModel.nickname
             user.gender = viewModel.user.gender
-            user.height = viewModel.user.height
-            user.weight = viewModel.user.weight
-            user.hasExerciseHabit = viewModel.user.hasExerciseHabit
+            
+            // 确保身体数据对象存在
+            if user.bodyData == nil {
+                user.bodyData = BodyData()
+            }
+            user.bodyData?.height = viewModel.user.bodyData?.height
+            user.bodyData?.weight = viewModel.user.bodyData?.weight
+            
+            // 确保运动习惯对象存在
+            if user.exerciseHabit == nil {
+                user.exerciseHabit = ExerciseHabit()
+            }
+            user.exerciseHabit?.hasExerciseHabit = viewModel.user.exerciseHabit?.hasExerciseHabit
+            
             user.isProfileCompleted = true
             
             // 保存到本地存储
             authService.saveUserToStorage()
         }
         
-        // 创建完整的资料更新请求
-        let updateProfile = UpdateProfileRequest(
+        // 分步骤调用API更新所有数据
+        let group = DispatchGroup()
+        var hasError = false
+        
+        // 1. 更新基本信息
+        group.enter()
+        let basicInfo = UpdateBasicInfoRequest(
             nickname: viewModel.nickname.isEmpty ? nil : viewModel.nickname,
             avatar: nil,
             gender: viewModel.user.gender?.toApiValue,
-            height: viewModel.user.height,
-            weight: viewModel.user.weight,
-            hasExerciseHabit: viewModel.user.hasExerciseHabit
+            birthYear: viewModel.user.birthYear
         )
         
-        // 调用API更新资料
-        APIService.shared.updateUserProfile(profile: updateProfile)
+        APIService.shared.updateUserBasicInfo(info: basicInfo)
             .receive(on: DispatchQueue.main)
             .sink(
                 receiveCompletion: { completion in
                     if case let .failure(error) = completion {
-                        print("更新资料失败: \(error.errorMessage)")
+                        print("更新基本信息失败: \(error.errorMessage)")
+                        hasError = true
                     }
-                    
-                    // 显示成功消息，然后导航到主页
-                    showSuccessMessage = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                        showSuccessMessage = false
-                        // 如果是模态模式，关闭页面；否则导航到主页
-                        if isModal, let onDismiss = onDismiss {
-                            onDismiss()
-                        } else {
-                            navigateToMainView = true
-                        }
-                    }
+                    group.leave()
                 },
-                receiveValue: { apiUser in
-                    print("更新资料成功: \(apiUser.nickname ?? "未设置昵称")")
-                    // 更新本地用户数据
-                    authService.currentUser = apiUser.toLocalUser()
-                    authService.saveUserToStorage()
+                receiveValue: { _ in
+                    print("更新基本信息成功")
                 }
             )
             .store(in: &authService.cancellables)
+        
+        // 2. 更新身体数据
+        group.enter()
+        let bodyData = UpdateBodyDataRequest(
+            height: viewModel.user.bodyData?.height,
+            weight: viewModel.user.bodyData?.weight
+        )
+        
+        APIService.shared.updateUserBodyData(bodyData: bodyData)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { completion in
+                    if case let .failure(error) = completion {
+                        print("更新身体数据失败: \(error.errorMessage)")
+                        hasError = true
+                    }
+                    group.leave()
+                },
+                receiveValue: { _ in
+                    print("更新身体数据成功")
+                }
+            )
+            .store(in: &authService.cancellables)
+        
+        // 3. 更新运动习惯
+        group.enter()
+        let exerciseHabit = UpdateExerciseHabitRequest(
+            hasExerciseHabit: viewModel.user.exerciseHabit?.hasExerciseHabit,
+            exerciseFrequency: nil,
+            exerciseDuration: nil
+        )
+        
+        APIService.shared.updateUserExerciseHabit(exerciseHabit: exerciseHabit)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { completion in
+                    if case let .failure(error) = completion {
+                        print("更新运动习惯失败: \(error.errorMessage)")
+                        hasError = true
+                    }
+                    group.leave()
+                },
+                receiveValue: { _ in
+                    print("更新运动习惯成功")
+                }
+            )
+            .store(in: &authService.cancellables)
+        
+        // 所有API调用完成后的处理
+        group.notify(queue: .main) {
+            if hasError {
+                print("部分信息更新失败")
+            } else {
+                print("所有信息更新成功")
+            }
+            
+            // 显示成功消息，然后导航到主页
+            showSuccessMessage = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                showSuccessMessage = false
+                // 如果是模态模式，关闭页面；否则导航到主页
+                if isModal, let onDismiss = onDismiss {
+                    onDismiss()
+                } else {
+                    navigateToMainView = true
+                }
+            }
+        }
     }
     
     // 添加隐藏键盘的方法
@@ -614,20 +773,28 @@ class UserInfoSetupViewModel: ObservableObject {
             self.user = currentUser
             self.nickname = currentUser.nickname ?? ""
             
-            // 确保身高体重初始值设置，即使未滚动拨盘
-            if self.user.height == nil {
-                self.user.height = 170.0
+            // 确保身体数据和运动习惯对象存在
+            if self.user.bodyData == nil {
+                self.user.bodyData = BodyData(height: 170.0, weight: 60.0)
+            } else if self.user.bodyData?.height == nil {
+                self.user.bodyData?.height = 170.0
             }
-            if self.user.weight == nil {
-                self.user.weight = 60.0
+            
+            if self.user.bodyData?.weight == nil {
+                self.user.bodyData?.weight = 60.0
+            }
+            
+            if self.user.exerciseHabit == nil {
+                self.user.exerciseHabit = ExerciseHabit(hasExerciseHabit: false)
             }
         } else {
             // Fallback to a new User instance if somehow no current user exists
             self.user = User(phoneNumber: "")
             self.nickname = ""
-            // 设置默认身高体重
-            self.user.height = 170.0
-            self.user.weight = 60.0
+            
+            // 创建默认的身体数据和运动习惯
+            self.user.bodyData = BodyData(height: 170.0, weight: 60.0)
+            self.user.exerciseHabit = ExerciseHabit(hasExerciseHabit: false)
         }
     }
     
@@ -646,28 +813,81 @@ class UserInfoSetupViewModel: ObservableObject {
         // 保存到本地存储
         AuthService.shared.saveUserToStorage()
         
-        // 如果已经通过API登录，更新用户资料到服务器
+        // 如果已经通过API登录，分别更新各部分用户资料到服务器
         if user.apiUserId != nil {
-            // 准备更新请求
-            let updateRequest = user.prepareProfileUpdateRequest()
+            let group = DispatchGroup()
+            var hasError = false
             
-            // 调用API更新用户资料
-            APIService.shared.updateUserProfile(profile: updateRequest)
-                .receive(on: DispatchQueue.main) // 确保在主线程接收结果
+            // 1. 更新基本信息
+            group.enter()
+            let basicInfoRequest = user.prepareBasicInfoUpdateRequest()
+            
+            APIService.shared.updateUserBasicInfo(info: basicInfoRequest)
+                .receive(on: DispatchQueue.main)
                 .sink(
                     receiveCompletion: { result in
-                        // 处理可能的错误
                         if case let .failure(error) = result {
-                            print("更新用户资料失败: \(error.errorMessage)")
+                            print("更新基本信息失败: \(error.errorMessage)")
+                            hasError = true
                         }
-                        // 无论成功或失败都调用完成回调
-                        completion()
+                        group.leave()
                     },
                     receiveValue: { _ in
-                        print("用户资料已同步到服务器")
+                        print("基本信息更新成功")
                     }
                 )
                 .store(in: &AuthService.shared.cancellables)
+            
+            // 2. 更新身体数据
+            group.enter()
+            let bodyDataRequest = user.prepareBodyDataUpdateRequest()
+            
+            APIService.shared.updateUserBodyData(bodyData: bodyDataRequest)
+                .receive(on: DispatchQueue.main)
+                .sink(
+                    receiveCompletion: { result in
+                        if case let .failure(error) = result {
+                            print("更新身体数据失败: \(error.errorMessage)")
+                            hasError = true
+                        }
+                        group.leave()
+                    },
+                    receiveValue: { _ in
+                        print("身体数据更新成功")
+                    }
+                )
+                .store(in: &AuthService.shared.cancellables)
+            
+            // 3. 更新运动习惯
+            group.enter()
+            let exerciseHabitRequest = user.prepareExerciseHabitUpdateRequest()
+            
+            APIService.shared.updateUserExerciseHabit(exerciseHabit: exerciseHabitRequest)
+                .receive(on: DispatchQueue.main)
+                .sink(
+                    receiveCompletion: { result in
+                        if case let .failure(error) = result {
+                            print("更新运动习惯失败: \(error.errorMessage)")
+                            hasError = true
+                        }
+                        group.leave()
+                    },
+                    receiveValue: { _ in
+                        print("运动习惯更新成功")
+                    }
+                )
+                .store(in: &AuthService.shared.cancellables)
+            
+            // 所有API调用完成后的处理
+            group.notify(queue: .main) {
+                if hasError {
+                    print("部分信息更新失败，但继续完成注册流程")
+                } else {
+                    print("所有信息已同步到服务器")
+                }
+                // 无论成功或失败都调用完成回调
+                completion()
+            }
         } else {
             // 如果没有API用户ID，直接完成
             completion()

@@ -155,20 +155,32 @@ struct DessertGridView: View {
             // 计算重要甜品和其他甜品各自应该占用的位置
             var result: [DessertItem] = Array(repeating: allDesserts[0], count: totalCount)
             
+            // 确保中间部分空间足够放置所有重要甜品
+            let middleSpace = totalCount - 2 * middleStart
+            if important.count > middleSpace {
+                DRWarning("重要甜品数量(\(important.count))超过中间区域空间(\(middleSpace))，将只显示部分重要甜品")
+            }
+            
             // 先填充前1/3和后1/3位置为其他甜品
             for (index, item) in others.enumerated() {
                 if index < middleStart {
                     // 放在前面1/3
                     result[index] = item
                 } else if index >= middleStart && index - middleStart < others.count - middleStart {
-                    // 放在后面1/3
-                    result[index - middleStart + middleStart + important.count] = item
+                    // 计算后1/3部分的索引，确保不越界
+                    let targetIndex = middleStart + min(important.count, middleSpace) + (index - middleStart)
+                    if targetIndex < result.count {
+                        result[targetIndex] = item
+                    }
                 }
             }
             
             // 中间1/3位置放置重要甜品
             for (index, item) in important.enumerated() {
-                result[middleStart + index] = item
+                // 确保不会越界
+                if index < middleSpace && middleStart + index < result.count {
+                    result[middleStart + index] = item
+                }
             }
             
             // 在主线程更新UI
