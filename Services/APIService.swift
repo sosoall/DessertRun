@@ -1113,53 +1113,7 @@ struct APIUser: Decodable, Identifiable {
     }
 }
 
-/// 更新用户资料请求
-struct UpdateProfileRequest {
-    let nickname: String?
-    let avatar: String?
-    let gender: String?  // 修改为String类型，值应为"男"或"女"
-    let height: Double?
-    let weight: Double?
-    let hasExerciseHabit: Bool?
-}
-
 // MARK: - 新增用户信息API模型
-
-/// 用户基本信息请求
-struct UpdateBasicInfoRequest: Codable {
-    let nickname: String?
-    let avatar: String?
-    let gender: String?  // "男"或"女"
-    let birthYear: Int?
-    
-    enum CodingKeys: String, CodingKey {
-        case nickname, avatar, gender
-        case birthYear = "birth_year"
-    }
-}
-
-/// 用户身体数据请求
-struct UpdateBodyDataRequest: Codable {
-    let height: Double?  // 单位：厘米
-    let weight: Double?  // 单位：公斤
-    
-    enum CodingKeys: String, CodingKey {
-        case height, weight
-    }
-}
-
-/// 用户运动习惯请求
-struct UpdateExerciseHabitRequest: Codable {
-    let hasExerciseHabit: Bool?  // 是否有运动习惯
-    let exerciseFrequency: Int?  // 运动频率（次/周）
-    let exerciseDuration: Int?   // 运动时长（分钟/次）
-    
-    enum CodingKeys: String, CodingKey {
-        case hasExerciseHabit = "has_exercise_habit"
-        case exerciseFrequency = "exercise_frequency"
-        case exerciseDuration = "exercise_duration"
-    }
-}
 
 /// 用户基本信息响应
 struct UserBasicInfoResponse: Codable {
@@ -1195,4 +1149,7 @@ struct UserExerciseHabitResponse: Codable {
         case exerciseFrequency = "exercise_frequency"
         case exerciseDuration = "exercise_duration"
     }
-} 
+}
+
+// MARK: - 导入API请求模型
+// 这里不再重复定义这些类型 

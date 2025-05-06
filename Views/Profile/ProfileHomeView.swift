@@ -484,6 +484,74 @@ struct ProfileHomeView: View {
                     .background(Color.white)
                 }
                 .disabled(!authService.isLoggedIn)
+                
+                Divider()
+                    .padding(.leading, 56)
+                
+                // 星币钱包
+                NavigationLink(destination: StarWalletView()) {
+                    HStack {
+                        Image(systemName: "star.circle.fill")
+                            .foregroundColor(Color.yellow)
+                            .frame(width: 30, height: 30)
+                        
+                        Text("星币钱包")
+                            .font(.body)
+                        
+                        Spacer()
+                        
+                        if authService.isLoggedIn {
+                            // 更多信息，比如星币余额（需要从API获取）
+                            Text("查看详情")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        } else {
+                            Text("请先登录")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        }
+                        
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.gray)
+                    }
+                    .padding()
+                    .background(Color.white)
+                }
+                .disabled(!authService.isLoggedIn)
+                
+                Divider()
+                    .padding(.leading, 56)
+                
+                // VIP会员
+                NavigationLink(destination: VIPMembershipView()) {
+                    HStack {
+                        Image(systemName: "crown.fill")
+                            .foregroundColor(Color.orange)
+                            .frame(width: 30, height: 30)
+                        
+                        Text("VIP会员")
+                            .font(.body)
+                        
+                        Spacer()
+                        
+                        if authService.isLoggedIn {
+                            // 更多信息，比如VIP状态（需要从API获取）
+                            Text("查看详情")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        } else {
+                            Text("请先登录")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        }
+                        
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.gray)
+                    }
+                    .padding()
+                    .background(Color.white)
+                }
+                .disabled(!authService.isLoggedIn)
             }
             .background(Color.white)
             .cornerRadius(16)
