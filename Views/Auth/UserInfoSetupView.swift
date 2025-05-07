@@ -91,9 +91,25 @@ struct UserInfoSetupView: View {
             // 从用户模型更新视图模型
             viewModel.user.nickname = user.nickname
             viewModel.user.gender = user.gender
-            viewModel.user.height = user.height
-            viewModel.user.weight = user.weight
-            viewModel.user.hasExerciseHabit = user.hasExerciseHabit
+            
+            // 确保bodyData和exerciseHabit存在
+            if viewModel.user.bodyData == nil {
+                viewModel.user.bodyData = BodyData()
+            }
+            if viewModel.user.exerciseHabit == nil {
+                viewModel.user.exerciseHabit = ExerciseHabit()
+            }
+            
+            // 确保源user也有这些对象
+            if user.bodyData != nil {
+                viewModel.user.bodyData?.height = user.bodyData?.height
+                viewModel.user.bodyData?.weight = user.bodyData?.weight
+            }
+            
+            if user.exerciseHabit != nil {
+                viewModel.user.exerciseHabit?.hasExerciseHabit = user.exerciseHabit?.hasExerciseHabit
+            }
+            
             viewModel.nickname = user.nickname ?? ""
         }
     }
@@ -269,7 +285,11 @@ struct UserInfoSetupView: View {
                     .font(.headline)
                 
                 HStack(spacing: 20) {
-                    Button(action: {
+                    // "是"按钮
+                    ExerciseHabitButton(
+                        title: "是",
+                        isSelected: viewModel.user.exerciseHabit?.hasExerciseHabit == true
+                    ) {
                         print("是按钮被点击") // 添加调试日志
                         dismissKeyboard() // 首先隐藏键盘
                         withAnimation {
@@ -277,19 +297,13 @@ struct UserInfoSetupView: View {
                             // 强制视图刷新
                             viewModel.objectWillChange.send()
                         }
-                    }) {
-                        Text("是")
-                            .font(.headline)
-                            .foregroundColor(viewModel.user.exerciseHabit?.hasExerciseHabit == true ? .white : .primary)
-                            .frame(height: 50)
-                            .frame(maxWidth: .infinity)
-                            .background(viewModel.user.exerciseHabit?.hasExerciseHabit == true ? Color.blue : Color(.systemGray6))
-                            .cornerRadius(10)
                     }
-                    .buttonStyle(PlainButtonStyle()) // 添加这一行解决按钮不响应问题
-                    .id("yesButton-\(viewModel.user.exerciseHabit?.hasExerciseHabit == true)") // 添加动态ID，强制视图刷新
                     
-                    Button(action: {
+                    // "否"按钮
+                    ExerciseHabitButton(
+                        title: "否",
+                        isSelected: viewModel.user.exerciseHabit?.hasExerciseHabit == false
+                    ) {
                         print("否按钮被点击") // 添加调试日志
                         dismissKeyboard() // 首先隐藏键盘
                         withAnimation {
@@ -297,17 +311,7 @@ struct UserInfoSetupView: View {
                             // 强制视图刷新
                             viewModel.objectWillChange.send()
                         }
-                    }) {
-                        Text("否")
-                            .font(.headline)
-                            .foregroundColor(viewModel.user.exerciseHabit?.hasExerciseHabit == false ? .white : .primary)
-                            .frame(height: 50)
-                            .frame(maxWidth: .infinity)
-                            .background(viewModel.user.exerciseHabit?.hasExerciseHabit == false ? Color.blue : Color(.systemGray6))
-                            .cornerRadius(10)
                     }
-                    .buttonStyle(PlainButtonStyle()) // 添加这一行解决按钮不响应问题
-                    .id("noButton-\(viewModel.user.exerciseHabit?.hasExerciseHabit == false)") // 添加动态ID，强制视图刷新
                 }
             }
             
@@ -536,8 +540,8 @@ struct UserInfoSetupView: View {
                                 user.exerciseHabit = ExerciseHabit()
                             }
                             
-                            // 更新运动习惯
-                            user.exerciseHabit?.hasExerciseHabit = response.hasExerciseHabit
+                            // 更新运动习惯 - 确保hasExerciseHabit不为nil
+                            user.exerciseHabit?.hasExerciseHabit = response.hasExerciseHabit ?? false
                             user.exerciseHabit?.exerciseFrequency = response.exerciseFrequency
                             user.exerciseHabit?.exerciseDuration = response.exerciseDuration
                             

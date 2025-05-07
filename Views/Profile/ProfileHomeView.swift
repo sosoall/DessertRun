@@ -19,8 +19,9 @@ struct ProfileHomeView: View {
     @State private var showLoginView = false
     
     // 用户信息设置视图的控制状态
-    @State private var showUserInfoSetup = false
-    @State private var userInfoEditPage = 0
+    @State private var showBasicInfoSetup = false
+    @State private var showBodyDataSetup = false
+    @State private var showExerciseHabitSetup = false
     
     // 确认退出登录对话框状态
     @State private var showLogoutConfirm = false
@@ -28,6 +29,10 @@ struct ProfileHomeView: View {
     // API加载状态
     @State private var isLoading = false
     @State private var errorMessage: String? = nil
+    
+    // 钱包和VIP信息
+    @State private var walletInfo: UserWallet? = nil
+    @State private var vipInfo: VIPInfo? = nil
     
     // 设置项列表
     private let settingItems: [(icon: String, title: String, color: Color)] = [
@@ -189,9 +194,23 @@ struct ProfileHomeView: View {
         .fullScreenCover(isPresented: $showLoginView) {
             LoginView()
         }
-        .fullScreenCover(isPresented: $showUserInfoSetup) {
-            UserInfoSetupPage(currentStep: userInfoEditPage, onDismiss: {
-                showUserInfoSetup = false
+        .fullScreenCover(isPresented: $showBasicInfoSetup) {
+            UserInfoSetupPage(currentStep: 0, onDismiss: {
+                showBasicInfoSetup = false
+                // 重新获取用户资料
+                fetchUserProfile()
+            })
+        }
+        .fullScreenCover(isPresented: $showBodyDataSetup) {
+            UserInfoSetupPage(currentStep: 1, onDismiss: {
+                showBodyDataSetup = false
+                // 重新获取用户资料
+                fetchUserProfile()
+            })
+        }
+        .fullScreenCover(isPresented: $showExerciseHabitSetup) {
+            UserInfoSetupPage(currentStep: 2, onDismiss: {
+                showExerciseHabitSetup = false
                 // 重新获取用户资料
                 fetchUserProfile()
             })
@@ -210,6 +229,8 @@ struct ProfileHomeView: View {
         .onAppear {
             if authService.isLoggedIn {
                 fetchUserProfile()
+                fetchWalletInfo()
+                fetchVIPInfo()
             }
         }
     }
@@ -307,8 +328,8 @@ struct ProfileHomeView: View {
                             currentUser.exerciseHabit = ExerciseHabit()
                         }
                         
-                        // 更新运动习惯
-                        currentUser.exerciseHabit?.hasExerciseHabit = exerciseHabit.hasExerciseHabit
+                        // 更新运动习惯 - 确保hasExerciseHabit不为nil
+                        currentUser.exerciseHabit?.hasExerciseHabit = exerciseHabit.hasExerciseHabit ?? false
                         currentUser.exerciseHabit?.exerciseFrequency = exerciseHabit.exerciseFrequency
                         currentUser.exerciseHabit?.exerciseDuration = exerciseHabit.exerciseDuration
                     }
@@ -328,6 +349,42 @@ struct ProfileHomeView: View {
             
             DRInfo("所有用户资料获取完成")
         }
+    }
+    
+    // 获取钱包信息
+    private func fetchWalletInfo() {
+        APIService.shared.getWalletInfo()
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { completion in
+                    if case let .failure(error) = completion {
+                        DRError("获取钱包信息失败: \(error.errorMessage)")
+                    }
+                },
+                receiveValue: { wallet in
+                    DRInfo("获取钱包信息成功: 星币余额=\(wallet.stars)")
+                    self.walletInfo = wallet
+                }
+            )
+            .store(in: &authService.cancellables)
+    }
+    
+    // 获取VIP信息
+    private func fetchVIPInfo() {
+        APIService.shared.getVIPInfo()
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { completion in
+                    if case let .failure(error) = completion {
+                        DRError("获取VIP信息失败: \(error.errorMessage)")
+                    }
+                },
+                receiveValue: { vipInfo in
+                    DRInfo("获取VIP信息成功: 是否为VIP=\(vipInfo.isVIP)")
+                    self.vipInfo = vipInfo
+                }
+            )
+            .store(in: &authService.cancellables)
     }
     
     // 用户资料卡片
@@ -373,8 +430,7 @@ struct ProfileHomeView: View {
             // 编辑按钮
             if authService.isLoggedIn {
                 Button(action: {
-                    userInfoEditPage = 0 // 跳转到第一页（名称和性别）
-                    showUserInfoSetup = true
+                    showBasicInfoSetup = true
                 }) {
                     Image(systemName: "pencil")
                         .font(.title3)
@@ -404,8 +460,7 @@ struct ProfileHomeView: View {
             VStack(spacing: 0) {
                 // 身体数据设置
                 Button(action: {
-                    userInfoEditPage = 1 // 跳转到第二页（身高和体重）
-                    showUserInfoSetup = true
+                    showBodyDataSetup = true
                 }) {
                     HStack {
                         Image(systemName: "figure.walk.circle.fill")
@@ -447,8 +502,7 @@ struct ProfileHomeView: View {
                 
                 // 运动偏好设置
                 Button(action: {
-                    userInfoEditPage = 2 // 跳转到第三页（运动习惯）
-                    showUserInfoSetup = true
+                    showExerciseHabitSetup = true
                 }) {
                     HStack {
                         Image(systemName: "heart.circle.fill")
@@ -501,10 +555,16 @@ struct ProfileHomeView: View {
                         Spacer()
                         
                         if authService.isLoggedIn {
-                            // 更多信息，比如星币余额（需要从API获取）
-                            Text("查看详情")
-                                .font(.caption)
-                                .foregroundColor(.gray)
+                            // 显示星币余额
+                            if let walletStars = walletInfo?.stars {
+                                Text("\(walletStars) 星币")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            } else {
+                                Text("点击查看")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            }
                         } else {
                             Text("请先登录")
                                 .font(.caption)
@@ -535,10 +595,22 @@ struct ProfileHomeView: View {
                         Spacer()
                         
                         if authService.isLoggedIn {
-                            // 更多信息，比如VIP状态（需要从API获取）
-                            Text("查看详情")
-                                .font(.caption)
-                                .foregroundColor(.gray)
+                            // 显示VIP状态
+                            if let vip = vipInfo {
+                                if vip.isVIP {
+                                    Text("剩余\(vip.remainingDays ?? 0)天")
+                                        .font(.caption)
+                                        .foregroundColor(Color(hex: "FE2D55"))
+                                } else {
+                                    Text("未开通")
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                }
+                            } else {
+                                Text("点击查看")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            }
                         } else {
                             Text("请先登录")
                                 .font(.caption)

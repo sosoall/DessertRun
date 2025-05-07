@@ -18,7 +18,7 @@ struct Config {
                 case .device:
                     // 这里应该设置为开发电脑的IP地址，比如192.168.1.100
                     // 注意：请替换为你的电脑的实际IP地址
-                    return "http://192.168.101.8:8080"
+                    return "http://192.168.8.33:8080"
                 case .production:
                     return "https://api.dessertrun.com/api/v1"
                 }
@@ -33,7 +33,6 @@ struct Config {
                 
                 if let savedValue = UserDefaults.standard.string(forKey: environmentKey),
                    let env = ServerEnvironment(rawValue: savedValue) {
-                    print("加载保存的环境设置: \(env.rawValue) - \(env.baseURL)")
                     return env
                 }
                 
@@ -47,7 +46,6 @@ struct Config {
                 // 保存默认值
                 UserDefaults.standard.set(defaultEnv.rawValue, forKey: environmentKey)
                 UserDefaults.standard.synchronize()
-                print("设置默认环境: \(defaultEnv.rawValue) - \(defaultEnv.baseURL)")
                 return defaultEnv
             }
             set {

@@ -516,7 +516,7 @@ struct DessertToExerciseTransition: View {
                 .frame(height: 80)
                 .background(
                     RoundedRectangle(cornerRadius: 16)
-                        .fill(Color(hex: "F8F8F8") ?? Color.gray.opacity(0.1))
+                        .fill(Color(hex: "F8F8F8"))
                         .shadow(color: Color.black.opacity(0.05), radius: 6, x: 0, y: 3)
                 )
             }
@@ -730,7 +730,7 @@ struct DessertToExerciseTransition: View {
         }
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color(hex: "F8F8F8") ?? Color.gray.opacity(0.1))
+                .fill(Color(hex: "F8F8F8"))
                 .shadow(color: Color.black.opacity(0.05), radius: 6, x: 0, y: 3)
         )
     }
@@ -781,7 +781,7 @@ struct DessertToExerciseTransition: View {
             let typeStr = exerciseType.type
             
             // 获取当前登录用户的体重
-            let weight = AuthService.shared.currentUser?.weight ?? 0.0
+            let weight = AuthService.shared.currentUser?.bodyData?.weight ?? 0.0
             let weightInt = Int(weight)
             
             if exerciseType.usesDistance {

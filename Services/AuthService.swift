@@ -242,7 +242,7 @@ class AuthService: ObservableObject {
                     }
                 },
                 receiveValue: { [weak self] apiUser in
-                    DRInfo("获取到用户数据: \(apiUser.nickname)")
+                    DRInfo("获取到用户数据: \(apiUser.nickname ?? "未设置昵称")")
                     self?.currentUser = self?.mapToAppUser(apiUser: apiUser)
                 }
             )
@@ -309,8 +309,18 @@ class AuthService: ObservableObject {
         
         DRInfo("更新用户资料: \(user.phoneNumber)")
         
+        // 创建身体数据对象（如果不存在）
+        if user.bodyData == nil {
+            user.bodyData = BodyData()
+        }
+        
+        // 创建运动习惯对象（如果不存在）
+        if user.exerciseHabit == nil {
+            user.exerciseHabit = ExerciseHabit()
+        }
+        
         // 记录原始体重，用于检测变化
-        let oldWeight = user.weight
+        let oldWeight = user.bodyData?.weight
         
         if let nickname = nickname { 
             DRInfo("更新昵称: \(nickname)")
@@ -322,11 +332,11 @@ class AuthService: ObservableObject {
         }
         if let height = height { 
             DRInfo("更新身高: \(height)")
-            user.height = height 
+            user.bodyData?.height = height 
         }
         if let weight = weight { 
             DRInfo("更新体重: \(weight)")
-            user.weight = weight 
+            user.bodyData?.weight = weight 
             
             // 如果体重有变化，清除运动计算缓存
             if oldWeight != weight {
@@ -336,13 +346,13 @@ class AuthService: ObservableObject {
         }
         if let hasExerciseHabit = hasExerciseHabit { 
             DRInfo("更新运动习惯: \(hasExerciseHabit)")
-            user.hasExerciseHabit = hasExerciseHabit 
+            user.exerciseHabit?.hasExerciseHabit = hasExerciseHabit 
         }
         
         // 检查是否完成了个人资料填写
         if user.nickname != nil && user.gender != nil && 
-           user.height != nil && user.weight != nil && 
-           user.hasExerciseHabit != nil {
+           user.bodyData?.height != nil && user.bodyData?.weight != nil && 
+           user.exerciseHabit?.hasExerciseHabit != nil {
             user.isProfileCompleted = true
             // 个人资料填写完成后，不再是新用户
             user.isNewUser = false
@@ -448,12 +458,22 @@ class AuthService: ObservableObject {
         
         DRInfo("为新用户自动填充个人信息: \(user.phoneNumber)")
         
+        // 创建身体数据对象（如果不存在）
+        if user.bodyData == nil {
+            user.bodyData = BodyData()
+        }
+        
+        // 创建运动习惯对象（如果不存在）
+        if user.exerciseHabit == nil {
+            user.exerciseHabit = ExerciseHabit()
+        }
+        
         user.nickname = "跑步达人"
         user.gender = .male
-        user.height = 175
-        user.weight = 65
+        user.bodyData?.height = 175
+        user.bodyData?.weight = 65
         user.birthYear = 1990
-        user.hasExerciseHabit = true
+        user.exerciseHabit?.hasExerciseHabit = true
         saveUserToStorage()
     }
     

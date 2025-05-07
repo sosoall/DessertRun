@@ -36,7 +36,7 @@ struct DessertGridView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                Color(hex: "FFFFFF")
+                Color.init(hex: "FFFFFF")
                 .ignoresSafeArea()
                 
                 if isLoading {

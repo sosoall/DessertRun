@@ -1,6 +1,10 @@
 import Foundation
 import Combine
 import SwiftUI
+import AVFoundation
+
+// 直接导入APIRequestModels文件（如果需要特别导入）
+// import APIRequestModels
 
 /// API服务错误类型
 enum APIServiceError: Error, CustomStringConvertible {
@@ -8,6 +12,8 @@ enum APIServiceError: Error, CustomStringConvertible {
     case networkError(APINetworkError)
     /// 授权令牌过期
     case tokenExpired
+    /// 解码错误
+    case decodeError(String)
     /// 未知错误
     case unknown
     
@@ -18,6 +24,8 @@ enum APIServiceError: Error, CustomStringConvertible {
             return error.errorMessage
         case .tokenExpired:
             return "登录已过期，请重新登录"
+        case .decodeError(let message):
+            return "数据解析错误: \(message)"
         case .unknown:
             return "未知错误，请稍后再试"
         }
@@ -529,7 +537,7 @@ class APIService {
         
         return networkManager.request(
             endpoint: endpoint,
-            method: .put,
+            method: .post,
             parameters: parameters
         )
         .mapError { self.handleError($0) }
@@ -539,7 +547,7 @@ class APIService {
     /// 获取用户身体数据
     /// - Returns: 包含用户身体数据的发布者
     func getUserBodyData() -> AnyPublisher<UserBodyDataResponse, APIServiceError> {
-        let endpoint = ApiEndpoints.User.bodyData
+        let endpoint = ApiEndpoints.User.bodyData + "/latest"
         
         return networkManager.request(
             endpoint: endpoint,
@@ -570,7 +578,7 @@ class APIService {
         
         return networkManager.request(
             endpoint: endpoint,
-            method: .put,
+            method: .post,
             parameters: parameters
         )
         .mapError { self.handleError($0) }
@@ -580,7 +588,7 @@ class APIService {
     /// 获取用户运动习惯
     /// - Returns: 包含用户运动习惯的发布者
     func getUserExerciseHabit() -> AnyPublisher<UserExerciseHabitResponse, APIServiceError> {
-        let endpoint = ApiEndpoints.User.exerciseHabit
+        let endpoint = ApiEndpoints.User.exerciseHabit + "/latest"
         
         return networkManager.request(
             endpoint: endpoint,
@@ -689,15 +697,32 @@ class APIService {
                 return data
             }
             .tryMap { data -> [APIExerciseType] in
-                let decoder = JSONDecoder()
-                let response = try decoder.decode(ExerciseTypesResponse.self, from: data)
-                
-                if response.code != 200 {
-                    throw NetworkError.serverError(response.code, response.message)
+                do {
+                    // 先尝试解码标准响应格式
+                    let decoder = JSONDecoder()
+                    let response = try decoder.decode(ExerciseTypesResponse.self, from: data)
+                    
+                    if response.code != 200 {
+                        throw NetworkError.serverError(response.code, response.message)
+                    }
+                    
+                    // 确保data字段不为nil
+                    return response.data
+                } catch {
+                    // 如果解码标准格式失败，尝试直接解码为运动类型数组
+                    DRWarning("[APIService] 标准解码失败，尝试直接解码为运动类型数组：\(error)")
+                    if let jsonObject = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
+                       let dataArray = jsonObject["data"] as? [[String: Any]] {
+                        // 有data字段但格式可能不标准，尝试手动解析
+                        let decoder = JSONDecoder()
+                        let dataData = try JSONSerialization.data(withJSONObject: dataArray, options: [])
+                        return try decoder.decode([APIExerciseType].self, from: dataData)
+                    } else {
+                        // 没有data字段，可能直接是数组
+                        let decoder = JSONDecoder()
+                        return try decoder.decode([APIExerciseType].self, from: data)
+                    }
                 }
-                
-                // 直接返回API返回的运动类型，不进行转换
-                return response.data
             }
             .mapError { error -> APIServiceError in
                 if let networkError = error as? NetworkError {
@@ -974,6 +999,8 @@ struct APINetworkError: Error, CustomStringConvertible {
             return "服务器返回了空数据"
         case .customError(let message):
             return message
+        case .businessError(let code, let message):
+            return "业务错误(\(code)): \(message)"
         }
     }
     
@@ -1115,41 +1142,8 @@ struct APIUser: Decodable, Identifiable {
 
 // MARK: - 新增用户信息API模型
 
-/// 用户基本信息响应
-struct UserBasicInfoResponse: Codable {
-    let nickname: String?
-    let avatar: String?
-    let gender: String?
-    let birthYear: Int?
-    
-    enum CodingKeys: String, CodingKey {
-        case nickname, avatar, gender
-        case birthYear = "birth_year"
-    }
-}
-
-/// 用户身体数据响应
-struct UserBodyDataResponse: Codable {
-    let height: Double?
-    let weight: Double?
-    
-    enum CodingKeys: String, CodingKey {
-        case height, weight
-    }
-}
-
-/// 用户运动习惯响应
-struct UserExerciseHabitResponse: Codable {
-    let hasExerciseHabit: Bool?
-    let exerciseFrequency: Int?
-    let exerciseDuration: Int?
-    
-    enum CodingKeys: String, CodingKey {
-        case hasExerciseHabit = "has_exercise_habit"
-        case exerciseFrequency = "exercise_frequency"
-        case exerciseDuration = "exercise_duration"
-    }
-}
+// 导入APIRequestModels.swift中的模型类型
+// 这些类型已经在APIRequestModels.swift中定义，此处移除重复定义
 
 // MARK: - 导入API请求模型
 // 这里不再重复定义这些类型 

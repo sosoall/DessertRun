@@ -229,7 +229,7 @@ struct VIPMembershipView: View {
                 Spacer()
                 
                 VStack(alignment: .trailing, spacing: 5) {
-                    Text("\(package.starPrice) 星币")
+                    Text("\(package.price) 星币")
                         .font(.headline)
                         .foregroundColor(Color(hex: "FE2D55"))
                     
@@ -264,6 +264,7 @@ class VIPMembershipViewModel: ObservableObject {
     
     // 获取VIP信息
     func fetchVIPInfo() {
+        DRInfo("[VIP] 开始获取VIP信息")
         isLoading = true
         APIService.shared.getVIPInfo()
             .receive(on: DispatchQueue.main)
@@ -274,10 +275,26 @@ class VIPMembershipViewModel: ObservableObject {
                     if case let .failure(error) = completion {
                         self.showError = true
                         self.errorMessage = error.errorMessage
+                        DRError("[VIP] 获取VIP信息失败：\(error.errorMessage), 详细信息：\(error)")
+                        
+                        // 记录更详细的错误信息
+                        switch error {
+                        case .networkError(let netError):
+                            DRError("[VIP] 网络错误详情：\(netError.description)")
+                        case .decodeError(let decodeMsg):
+                            DRError("[VIP] 解码错误详情：\(decodeMsg)")
+                        case .tokenExpired:
+                            DRError("[VIP] 令牌过期")
+                        case .unknown:
+                            DRError("[VIP] 未知错误")
+                        }
+                    } else {
+                        DRInfo("[VIP] API请求成功完成")
                     }
                 },
                 receiveValue: { [weak self] vipInfo in
                     guard let self = self else { return }
+                    DRInfo("[VIP] 收到VIP信息响应：isVIP=\(vipInfo.isVIP), userLevel=\(vipInfo.userLevel), remainingDays=\(vipInfo.remainingDays ?? 0)")
                     self.vipInfo = vipInfo
                 }
             )
@@ -286,6 +303,7 @@ class VIPMembershipViewModel: ObservableObject {
     
     // 获取VIP套餐
     func fetchVIPPackages() {
+        DRInfo("[VIP] 开始获取VIP套餐列表")
         isLoading = true
         APIService.shared.getVIPPackages()
             .receive(on: DispatchQueue.main)
@@ -296,10 +314,29 @@ class VIPMembershipViewModel: ObservableObject {
                     if case let .failure(error) = completion {
                         self.showError = true
                         self.errorMessage = error.errorMessage
+                        DRError("[VIP] 获取VIP套餐列表失败：\(error.errorMessage), 详细信息：\(error)")
+                        
+                        // 记录更详细的错误信息
+                        switch error {
+                        case .networkError(let netError):
+                            DRError("[VIP] 网络错误详情：\(netError.description)")
+                        case .decodeError(let decodeMsg):
+                            DRError("[VIP] 解码错误详情：\(decodeMsg)")
+                        case .tokenExpired:
+                            DRError("[VIP] 令牌过期")
+                        case .unknown:
+                            DRError("[VIP] 未知错误")
+                        }
+                    } else {
+                        DRInfo("[VIP] VIP套餐列表API请求成功完成")
                     }
                 },
                 receiveValue: { [weak self] packages in
                     guard let self = self else { return }
+                    DRInfo("[VIP] 收到VIP套餐列表：共\(packages.count)个套餐")
+                    for (index, package) in packages.enumerated() {
+                        DRInfo("[VIP] 套餐\(index+1): ID=\(package.id), 名称=\(package.name), 价格=\(package.price), 天数=\(package.durationDays), 奖励星币=\(package.rewardStars)")
+                    }
                     self.packages = packages
                 }
             )
@@ -308,6 +345,7 @@ class VIPMembershipViewModel: ObservableObject {
     
     // 购买VIP
     func purchaseVIP(packageID: String) {
+        DRInfo("[VIP] 开始购买VIP套餐：packageID=\(packageID)")
         isLoading = true
         APIService.shared.purchaseVIP(packageID: packageID)
             .receive(on: DispatchQueue.main)
@@ -318,13 +356,34 @@ class VIPMembershipViewModel: ObservableObject {
                     if case let .failure(error) = completion {
                         self.showError = true
                         self.errorMessage = error.errorMessage
+                        DRError("[VIP] 购买VIP套餐失败：\(error.errorMessage), 详细信息：\(error)")
+                        
+                        // 记录更详细的错误信息
+                        switch error {
+                        case .networkError(let netError):
+                            DRError("[VIP] 网络错误详情：\(netError.description)")
+                        case .decodeError(let decodeMsg):
+                            DRError("[VIP] 解码错误详情：\(decodeMsg)")
+                        case .tokenExpired:
+                            DRError("[VIP] 令牌过期")
+                        case .unknown:
+                            DRError("[VIP] 未知错误")
+                        }
+                    } else {
+                        DRInfo("[VIP] VIP购买API请求成功完成")
                     }
                 },
-                receiveValue: { [weak self] success in
+                receiveValue: { [weak self] result in
                     guard let self = self else { return }
-                    if success {
+                    DRInfo("[VIP] 购买VIP结果：success=\(result.success), message=\(result.message), 过期日期=\(result.vipExpireDate), 奖励星币=\(result.rewardStars), 当前星币=\(result.currentStars)")
+                    if result.success {
                         // 购买成功，刷新VIP信息
                         self.fetchVIPInfo()
+                    } else {
+                        // API返回了失败，但不是网络错误
+                        self.showError = true
+                        self.errorMessage = result.message
+                        DRError("[VIP] 购买VIP失败(业务逻辑)：\(result.message)")
                     }
                 }
             )

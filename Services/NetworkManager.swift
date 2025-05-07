@@ -17,6 +17,7 @@ public enum NetworkError: Error {
     case noInternet
     case emptyData
     case customError(String)
+    case businessError(Int, String)
     
     public var errorMessage: String {
         switch self {
@@ -41,6 +42,8 @@ public enum NetworkError: Error {
         case .emptyData:
             return "服务器返回了空数据"
         case .customError(let message):
+            return message
+        case .businessError(_, let message):
             return message
         }
     }

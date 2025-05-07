@@ -324,10 +324,10 @@ class StarWalletViewModel: ObservableObject {
         APIService.shared.getTransactions(page: page)
             .receive(on: DispatchQueue.main)
             .sink(
-                receiveCompletion: { [weak self] completion in
+                receiveCompletion: { [weak self] receiveCompletion in
                     guard let self = self else { return }
                     self.isLoading = false
-                    if case let .failure(error) = completion {
+                    if case let .failure(error) = receiveCompletion {
                         self.showError = true
                         self.errorMessage = error.errorMessage
                     }

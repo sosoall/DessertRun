@@ -79,7 +79,7 @@ struct DessertRunApp: App {
                 // 注册监听新用户通知
                 if !observerAdded {
                     NotificationCenter.default.addObserver(forName: .userRegistered, object: nil, queue: .main) { [self] _ in
-                        showUserInfoSetup = true
+                        showUserInfoSetup = true // 注册后显示完整的信息设置流程
                     }
                     observerAdded = true
                 }
