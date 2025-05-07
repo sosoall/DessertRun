@@ -13,12 +13,11 @@ struct FoodCheckInView: View {
             VStack(spacing: 24) {
                 // 美食记录卡片
                 foodRecordCard
-                    .padding(.horizontal)
                 
                 // 所有美食打卡记录（直接显示，不需要点击按钮）
                 foodRecordsList
-                    .padding(.horizontal)
             }
+            .padding(.horizontal, 16)
             .padding(.top, 16)
             .padding(.bottom, 32)
         }
@@ -228,39 +227,55 @@ struct FoodCheckInView: View {
     }
     
     // 筛选记录
-    private var filteredRecords: [WorkoutRecord] {
+    private var filteredRecords: [String: [WorkoutRecord]] {
         let sortedRecords = viewModel.getSortedAllRecords()
+        var groupedRecords = [String: [WorkoutRecord]]()
         
-        // 实际应用中应该根据记录状态(isUsed, isExpired等)筛选
-        // 这里简单模拟筛选逻辑
+        // 根据筛选条件获取记录
+        let filteredList: [WorkoutRecord]
         switch selectedFilter {
         case .all:
-            return sortedRecords
+            filteredList = sortedRecords
         case .active:
-            return sortedRecords.filter { !$0.isGoalAchieved }
+            filteredList = sortedRecords.filter { !$0.isGoalAchieved }
         case .used:
             // 假设25%的记录已使用
-            return sortedRecords.filter { record in
+            filteredList = sortedRecords.filter { record in
                 return record.id.hashValue % 4 == 0
             }
         case .expired:
             // 假设较早的20%记录已过期
             let count = sortedRecords.count
             let expiredCount = max(1, count / 5)
-            return Array(sortedRecords.suffix(expiredCount))
+            filteredList = Array(sortedRecords.suffix(expiredCount))
         }
+        
+        // 按日期分组记录
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy年 M月 d日"
+        
+        for record in filteredList {
+            let dateString = dateFormatter.string(from: record.completionDate)
+            if groupedRecords[dateString] == nil {
+                groupedRecords[dateString] = [record]
+            } else {
+                groupedRecords[dateString]?.append(record)
+            }
+        }
+        
+        return groupedRecords
     }
     
     // 所有美食打卡记录
     private var allFoodRecords: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 24) {
             if appState.workoutRecords.isEmpty {
                 emptyRecordsView
             } else {
-                // 获取筛选后的记录
-                let records = filteredRecords
+                // 获取筛选后的分组记录
+                let groupedRecords = filteredRecords
                 
-                if records.isEmpty {
+                if groupedRecords.isEmpty {
                     // 无筛选结果
                     VStack {
                         Image(systemName: "magnifyingglass")
@@ -275,16 +290,27 @@ struct FoodCheckInView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 40)
                 } else {
-                    ForEach(Array(records.enumerated()), id: \.element.id) { index, record in
-                        // 检查是否是新记录
-                        let isNewRecord = newRecordId == "\(record.id)" && index == 0
-                        
-                        if isNewRecord && showNewRecordAnimation {
-                            // 为新记录显示动画效果，只有从顶部出现的动画
-                            DessertVoucherCardExpanded(record: record)
-                                .transition(.move(edge: .top).combined(with: .opacity))
-                        } else {
-                            DessertVoucherCardExpanded(record: record)
+                    ForEach(groupedRecords.keys.sorted(by: >), id: \.self) { dateString in
+                        VStack(alignment: .leading, spacing: 16) {
+                            // 日期标题
+                            Text(dateString)
+                                .font(.system(size: 18, weight: .medium))
+                                .padding(.leading, 4)
+                                .padding(.top, 8)
+                            
+                            // 当天的记录
+                            ForEach(groupedRecords[dateString]!, id: \.id) { record in
+                                // 检查是否是新记录
+                                let isNewRecord = newRecordId == "\(record.id)" && dateString == filteredRecords.keys.sorted(by: >).first
+                                
+                                if isNewRecord && showNewRecordAnimation {
+                                    // 为新记录显示动画效果，只有从顶部出现的动画
+                                    DessertVoucherCardSimple(record: record)
+                                        .transition(.move(edge: .top).combined(with: .opacity))
+                                } else {
+                                    DessertVoucherCardSimple(record: record)
+                                }
+                            }
                         }
                     }
                 }

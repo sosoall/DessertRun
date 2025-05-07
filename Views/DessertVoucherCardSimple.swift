@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// 美食券卡片视图（简化版本）
-struct DessertVoucherCardExpanded: View {
+struct DessertVoucherCardSimple: View {
     /// 打卡记录
     let record: WorkoutRecord
     
@@ -52,184 +52,139 @@ struct DessertVoucherCardExpanded: View {
     
     // MARK: - 卡片主体部分
     private var cardHeader: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // 背景
-            ZStack(alignment: .top) {
-                // 背景渐变
-                LinearGradient(
-                    gradient: Gradient(stops: [
-                        .init(color: Color(hex: "#FFE5ED"), location: 0),
-                        .init(color: Color(hex: "#FFEAC0"), location: 0.59),
-                        .init(color: Color(hex: "#FF9901"), location: 1)
-                    ]),
-                    startPoint: .trailing,
-                    endPoint: .leading
-                )
+        ZStack {
+            // 背景渐变
+            LinearGradient(
+                gradient: Gradient(stops: [
+                    .init(color: Color(hex: "#FFE5ED"), location: 0),
+                    .init(color: Color(hex: "#FFEAC0"), location: 0.59),
+                    .init(color: Color(hex: "#FF9901"), location: 1)
+                ]),
+                startPoint: .trailing,
+                endPoint: .leading
+            )
+            .cornerRadius(20, corners: [.topLeft, .topRight])
+            
+            // 白色边框
+            RoundedRectangle(cornerRadius: 20)
+                .stroke(Color.white, lineWidth: 1)
                 .cornerRadius(20, corners: [.topLeft, .topRight])
+            
+            // 主要内容
+            HStack(spacing: 0) {
+                // 左侧 - 美食相关信息
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(String(format: "%.1fx", record.equivalentDessertCount))
+                        .font(.system(size: 32, weight: .bold))
+                        .foregroundColor(Color(hex: "#FE5C72"))
+                    
+                    Text(record.dessert.name)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(Color(hex: "#FE5C72"))
+                    
+                    Spacer()
+                    
+                    // 左下方奶茶图标
+                    Image("milktea_icon")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 50, height: 50)
+                        .padding(.bottom, 8)
+                }
+                .frame(width: UIScreen.main.bounds.width / 2 - 32, alignment: .leading)
+                .padding(.leading, 16)
+                .padding(.top, 16)
                 
-                // 主要内容
-                VStack(alignment: .leading, spacing: 8) {
-                    // 上半部分 - 美食名称和美食图片
-                    HStack(alignment: .top) {
-                        // 左侧美食名称
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(record.dessert.name)
-                                .font(.system(size: 16, weight: .medium))
-                            
-                            if isExpanded {
-                                Text("\(Int(Double(record.dessert.calories) ?? 0))卡")
-                                    .font(.system(size: 14, weight: .regular))
-                                    .foregroundColor(.gray)
-                            }
-                        }
-                        .padding(.top, 16)
+                // 中间分隔线
+                Rectangle()
+                    .fill(Color(hex: "#D7B8BE"))
+                    .frame(width: 1, height: 70)
+                    .padding(.vertical, 15)
+                
+                // 右侧 - 运动相关信息
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(record.exerciseType.name)
+                        .font(.system(size: 32, weight: .bold))
+                    
+                    if isExpanded {
+                        // 运动标签文本
+                        Text(record.displayWorkoutTag)
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(Color(hex: "#F8A41C"))
+                            .padding(.top, 4)
                         
+                        // 展开时显示运动详情
+                        VStack(alignment: .leading, spacing: 8) {
+                            // 运动距离
+                            HStack(spacing: 8) {
+                                Image(systemName: "figure.walk")
+                                    .foregroundColor(Color(hex: "#FF7B15"))
+                                
+                                if let distance = record.distance {
+                                    Text(String(format: "%.1f公里", distance / 1000))
+                                        .font(.system(size: 16, weight: .medium))
+                                } else {
+                                    Text("--")
+                                        .font(.system(size: 16, weight: .medium))
+                                }
+                            }
+                            
+                            // 消耗热量
+                            HStack(spacing: 8) {
+                                Image(systemName: "flame.fill")
+                                    .foregroundColor(.red)
+                                
+                                Text("\(Int(record.caloriesBurned))卡路里")
+                                    .font(.system(size: 16, weight: .medium))
+                            }
+                            
+                            // 日期时间
+                            Text(formattedDateTime(record.completionDate))
+                                .font(.system(size: 14, weight: .regular))
+                                .foregroundColor(Color(hex: "#919191"))
+                        }
+                        .padding(.top, 8)
+                    } else {
                         Spacer()
                         
-                        // 右侧美食图片
-                        Image(record.dessert.imageName)
+                        // 右侧背景图像占位，靠右对齐
+                        Image("dessert_background")
                             .resizable()
                             .scaledToFit()
-                            .frame(width: 60, height: 60)
-                            .cornerRadius(8)
-                            .padding(.top, 12)
-                            .padding(.trailing, 12)
-                    }
-                    .padding(.horizontal, 16)
-                    
-                    // 分隔线
-                    Rectangle()
-                        .fill(Color(hex: "#D7B8BE"))
-                        .frame(height: 1)
-                        .padding(.top, 4)
-                    
-                    // 下半部分
-                    HStack(alignment: .top) {
-                        // 左侧运动类型
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(record.exerciseType.name)
-                                .font(.system(size: 32, weight: .bold))
-                            
-                            // 运动标签
-                            Text(record.displayWorkoutTag)
-                                .font(.system(size: 16, weight: .bold))
-                                .foregroundColor(Color(hex: "#F8A41C"))
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.top, 4)
-                        .padding(.bottom, 16)
-                        
-                        Spacer()
-                        
-                        // 右侧等效美食数量
-                        ZStack {
-                            // 绿色背景
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(Color(hex: "#00FF2F"))
-                                .frame(height: 30)
-                            
-                            // 文字
-                            Text(String(format: "%.1f个%@", record.equivalentDessertCount, record.dessert.name))
-                                .font(.system(size: 16, weight: .medium))
-                                .padding(.horizontal, 8)
-                        }
-                        .padding(.trailing, 16)
-                        .padding(.top, 12)
-                    }
-                    
-                    // 展开状态的额外信息
-                    if isExpanded {
-                        expandedContent
+                            .frame(height: 80)
                     }
                 }
+                .frame(width: UIScreen.main.bounds.width / 2 - 32, alignment: .leading)
+                .padding(.leading, 12)
+                .padding(.trailing, 16)
+                .padding(.top, 16)
             }
         }
-    }
-    
-    // 展开状态的额外信息
-    private var expandedContent: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // 信息行
-            HStack {
-                // 左侧 - 总距离信息
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("总距离")
-                        .font(.system(size: 14, weight: .regular))
-                        .foregroundColor(.gray)
-                    
-                    HStack(spacing: 6) {
-                        // 图标
-                        Image(systemName: "figure.walk")
-                            .foregroundColor(.orange)
-                        
-                        // 距离文本
-                        if let distance = record.distance {
-                            Text(String(format: "%.1f公里", distance / 1000))
-                                .font(.system(size: 16, weight: .medium))
-                        } else {
-                            Text("--")
-                                .font(.system(size: 16, weight: .medium))
-                        }
-                    }
-                }
-                
-                Spacer()
-                
-                // 右侧 - 消耗热量信息
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("消耗热量")
-                        .font(.system(size: 14, weight: .regular))
-                        .foregroundColor(.gray)
-                    
-                    HStack(spacing: 6) {
-                        // 图标
-                        Image(systemName: "flame.fill")
-                            .foregroundColor(.red)
-                        
-                        // 热量文本
-                        Text("\(Int(record.caloriesBurned))卡路里")
-                            .font(.system(size: 16, weight: .medium))
-                    }
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 8)
-            
-            // 完成时间和数据来源
-            HStack {
-                VStack(alignment: .leading, spacing: 6) {
-                    // 格式化日期和时间
-                    Text(formattedDateTime(record.completionDate))
-                        .font(.system(size: 14, weight: .regular))
-                        .foregroundColor(.gray)
-                    
-                    Text("数据来源：苹果健康")
-                        .font(.system(size: 14, weight: .regular))
-                        .foregroundColor(.gray)
-                }
-                
-                Spacer()
-            }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 16)
-        }
+        .frame(height: 100)
     }
     
     // 日期格式化函数
     private func formattedDateTime(_ date: Date) -> String {
         let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy/MM/dd HH:mm"
+        dateFormatter.dateFormat = "yyyy/MM/dd\nHH:mm"
         return dateFormatter.string(from: date)
     }
     
     // MARK: - 卡片底部部分
     private var cardFooter: some View {
-        // 简化版实现
+        // 底部核销区域
         VStack {
             HStack {
-                // 剩余天数
-                Text("剩余29天")
-                    .font(.system(size: 14, weight: .regular))
+                VStack(alignment: .leading, spacing: 2) {
+                    if isExpanded {
+                        Text("美食券")
+                            .font(.system(size: 16, weight: .bold))
+                    }
+                    
+                    // 剩余天数
+                    Text("剩余29天")
+                        .font(.system(size: 14, weight: .regular))
+                }
                 
                 Spacer()
                 
@@ -238,17 +193,17 @@ struct DessertVoucherCardExpanded: View {
                     showRedeemConfirm = true
                 }) {
                     Text("立即核销")
-                        .font(.system(size: 16, weight: .medium))
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundColor(.white)
-                        .padding(.vertical, 8)
+                        .padding(.vertical, 6)
                         .padding(.horizontal, 16)
-                        .background(Color(hex: "#FF318D"))
+                        .background(Color(hex: isExpanded ? "#FF318D" : "#FE2D55"))
                         .cornerRadius(10)
                 }
                 .disabled(isRedeeming)
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.vertical, 8)
             .background(Color.white)
             .cornerRadius(10, corners: [.bottomLeft, .bottomRight])
             .overlay(
@@ -263,7 +218,7 @@ struct DessertVoucherCardExpanded: View {
                     .clipShape(RoundedCorner(radius: 10, corners: [.bottomLeft, .bottomRight]))
             )
         }
-        .frame(height: 60)
+        .frame(height: 45)
     }
     
     // MARK: - 核销操作
@@ -310,11 +265,11 @@ struct RoundedCorner: Shape {
 
 // MARK: - 预览
 
-struct DessertVoucherCardExpanded_Previews: PreviewProvider {
+struct DessertVoucherCardSimple_Previews: PreviewProvider {
     static var previews: some View {
         VStack(spacing: 20) {
             // 收起状态
-            DessertVoucherCardExpanded(record: WorkoutRecord.createSample())
+            DessertVoucherCardSimple(record: WorkoutRecord.createSample())
                 .frame(width: 350)
             
             // 自定义样本 - 展开状态
@@ -349,8 +304,17 @@ struct DessertVoucherCardExpanded_Previews: PreviewProvider {
                 workoutTag: "运动量super!"
             )
             
-            DessertVoucherCardExpanded(record: sampleRecord)
+            // 展开状态预览
+            DessertVoucherCardSimple(record: sampleRecord)
                 .frame(width: 350)
+                .onAppear {
+                    // 模拟展开状态
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        if let preview = Mirror(reflecting: DessertVoucherCardSimple(record: sampleRecord)).descendant("_isExpanded") as? Binding<Bool> {
+                            preview.wrappedValue = true
+                        }
+                    }
+                }
         }
         .padding()
         .background(Color.gray.opacity(0.1))
