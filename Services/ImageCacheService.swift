@@ -35,7 +35,7 @@ class ImageCacheService {
     ///   - url: 图片URL字符串
     ///   - completion: 完成回调，返回下载的图片
     func downloadAndCacheImage(url: String, completion: @escaping (UIImage?) -> Void) {
-        guard let imageUrl = URL(string: url) else {
+        guard let _ = URL(string: url) else {
             DRError("[ImageCacheService] 无效的图片URL: \(url)")
             completion(nil)
             return

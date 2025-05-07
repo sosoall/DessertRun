@@ -28,6 +28,9 @@ struct WorkoutRecord: Identifiable, Codable {
     /// 实际消耗卡路里
     let caloriesBurned: Double
     
+    /// 等效美食数量，表示此次运动可以换算成多少个同样的美食
+    let equivalentDessertCount: Double
+    
     /// 运动距离（米），仅用于跑步等类型
     var distance: Double?
     
@@ -40,12 +43,24 @@ struct WorkoutRecord: Identifiable, Codable {
     /// 备注
     var notes: String?
     
+    /// 打卡标签，表示本次运动打卡状态
+    var workoutTag: String?
+    
     /// 是否完成目标
     var isGoalAchieved: Bool {
         // 目标卡路里
         let targetCalories = Double(dessert.calories) ?? 0
         // 消耗卡路里是否达到或超过目标
         return caloriesBurned >= targetCalories
+    }
+    
+    /// 获取打卡标签
+    var displayWorkoutTag: String {
+        if let customTag = workoutTag {
+            return customTag
+        }
+        
+        return isGoalAchieved ? "运动量super!" : "已运动"
     }
     
     /// 消耗卡路里与目标的比例
@@ -55,17 +70,19 @@ struct WorkoutRecord: Identifiable, Codable {
     }
     
     /// 初始化方法
-    init(id: UUID = UUID(), dessert: DessertItem, exerciseType: ExerciseType, completionDate: Date, duration: Double, caloriesBurned: Double, distance: Double? = nil, exerciseImageURL: URL? = nil, dessertImageURL: URL? = nil, notes: String? = nil) {
+    init(id: UUID = UUID(), dessert: DessertItem, exerciseType: ExerciseType, completionDate: Date, duration: Double, caloriesBurned: Double, equivalentDessertCount: Double = 0, distance: Double? = nil, exerciseImageURL: URL? = nil, dessertImageURL: URL? = nil, notes: String? = nil, workoutTag: String? = nil) {
         self.id = id
         self.dessert = dessert
         self.exerciseType = exerciseType
         self.completionDate = completionDate
         self.duration = duration
         self.caloriesBurned = caloriesBurned
+        self.equivalentDessertCount = equivalentDessertCount > 0 ? equivalentDessertCount : (Double(dessert.calories) ?? 0 > 0 ? caloriesBurned / (Double(dessert.calories) ?? 1) : 1)
         self.distance = distance
         self.exerciseImageURL = exerciseImageURL
         self.dessertImageURL = dessertImageURL
         self.notes = notes
+        self.workoutTag = workoutTag
     }
     
     // MARK: - 格式化属性
@@ -134,7 +151,7 @@ struct WorkoutRecord: Identifiable, Codable {
     
     enum CodingKeys: String, CodingKey {
         case id, dessert, exerciseType, completionDate, duration, caloriesBurned, distance
-        case exerciseImageURL, dessertImageURL, notes
+        case exerciseImageURL, dessertImageURL, notes, workoutTag, equivalentDessertCount
     }
     
     init(from decoder: Decoder) throws {
@@ -150,6 +167,15 @@ struct WorkoutRecord: Identifiable, Codable {
         exerciseImageURL = try container.decodeIfPresent(URL.self, forKey: .exerciseImageURL)
         dessertImageURL = try container.decodeIfPresent(URL.self, forKey: .dessertImageURL)
         notes = try container.decodeIfPresent(String.self, forKey: .notes)
+        workoutTag = try container.decodeIfPresent(String.self, forKey: .workoutTag)
+        
+        // 新增equivalentDessertCount初始化
+        if let count = try? container.decodeIfPresent(Double.self, forKey: .equivalentDessertCount) {
+            equivalentDessertCount = count
+        } else {
+            let dessertCalories = Double(dessert.calories) ?? 0
+            equivalentDessertCount = dessertCalories > 0 ? caloriesBurned / dessertCalories : 1
+        }
     }
     
     func encode(to encoder: Encoder) throws {
@@ -160,10 +186,12 @@ struct WorkoutRecord: Identifiable, Codable {
         try container.encode(completionDate, forKey: .completionDate)
         try container.encode(duration, forKey: .duration)
         try container.encode(caloriesBurned, forKey: .caloriesBurned)
+        try container.encode(equivalentDessertCount, forKey: .equivalentDessertCount)
         try container.encodeIfPresent(distance, forKey: .distance)
         try container.encodeIfPresent(exerciseImageURL, forKey: .exerciseImageURL)
         try container.encodeIfPresent(dessertImageURL, forKey: .dessertImageURL)
         try container.encodeIfPresent(notes, forKey: .notes)
+        try container.encodeIfPresent(workoutTag, forKey: .workoutTag)
     }
 }
 
@@ -186,14 +214,18 @@ extension WorkoutRecord {
             displayOrder: 1
         )
         
+        let caloriesBurned = Double(dessert.calories)! * Double.random(in: 0.8...1.2)
+        let isAchieved = caloriesBurned >= Double(dessert.calories)!
+        
         return WorkoutRecord(
             dessert: dessert,
             exerciseType: exerciseType,
             completionDate: date,
             duration: Double.random(in: 20...60),
-            caloriesBurned: Double(dessert.calories)! * Double.random(in: 0.8...1.2),
+            caloriesBurned: caloriesBurned,
             distance: exerciseType.usesDistance ? Double.random(in: 1000...5000) : nil,
-            notes: Bool.random() ? "这是一条测试备注" : nil
+            notes: Bool.random() ? "这是一条测试备注" : nil,
+            workoutTag: isAchieved ? "运动量super!" : "已运动"
         )
     }
 } 

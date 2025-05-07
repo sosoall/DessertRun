@@ -66,7 +66,7 @@ public struct APIResponse<T: Decodable>: Decodable {
         message = try container.decode(String.self, forKey: .message)
         
         // 手动尝试解析data字段
-        if let dataContainer = try? container.nestedContainer(keyedBy: DynamicCodingKeys.self, forKey: .data) {
+        if let _ = try? container.nestedContainer(keyedBy: DynamicCodingKeys.self, forKey: .data) {
             // 如果data是一个对象，我们需要手动构建一个新的解码器来解析它
             let dataDecoder = try container.superDecoder(forKey: .data)
             data = try T(from: dataDecoder)
@@ -261,7 +261,7 @@ public class NetworkManager {
                             DRInfo("[NetworkManager] 尝试直接解析为ExerciseTypesResponse类型")
                             do {
                                 // 直接解析为ExerciseTypesResponse
-                                let response = try decoder.decode(ExerciseTypesResponse.self, from: data)
+                                _ = try decoder.decode(ExerciseTypesResponse.self, from: data)
                                 // 这里不会真正执行，只是为了抛出错误并在catch中捕获
                                 throw NetworkError.customError("直接解析成功，请捕获此错误")
                             } catch {

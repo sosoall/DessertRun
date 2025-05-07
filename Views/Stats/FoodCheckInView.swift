@@ -6,6 +6,7 @@ struct FoodCheckInView: View {
     @State private var newRecordId: String? = nil
     @State private var showNewRecordAnimation: Bool = false
     @EnvironmentObject var appState: AppState
+    @State private var selectedFilter: RecordFilter = .all
     
     var body: some View {
         ScrollView {
@@ -183,16 +184,70 @@ struct FoodCheckInView: View {
     // 所有美食打卡记录列表
     private var foodRecordsList: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // 标题
-            HStack {
-                Text("全部打卡记录")
-                    .font(.system(size: 20, weight: .semibold))
-                Spacer()
+            // 标题和筛选区域
+            VStack(spacing: 12) {
+                HStack {
+                    Text("全部打卡记录")
+                        .font(.system(size: 20, weight: .semibold))
+                    
+                    Spacer()
+                }
+                
+                // 筛选选项
+                filterOptions
             }
             .padding(.top, 8)
             
             // 所有打卡记录
             allFoodRecords
+        }
+    }
+    
+    // 筛选选项
+    private var filterOptions: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(RecordFilter.allCases, id: \.self) { filter in
+                    Button(action: {
+                        withAnimation {
+                            selectedFilter = filter
+                        }
+                    }) {
+                        Text(filter.rawValue)
+                            .font(.subheadline)
+                            .fontWeight(selectedFilter == filter ? .semibold : .regular)
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 16)
+                            .background(selectedFilter == filter ? Color.accentColor : Color(UIColor.secondarySystemBackground))
+                            .foregroundColor(selectedFilter == filter ? .white : .primary)
+                            .cornerRadius(20)
+                    }
+                }
+            }
+        }
+    }
+    
+    // 筛选记录
+    private var filteredRecords: [WorkoutRecord] {
+        let sortedRecords = viewModel.getSortedAllRecords()
+        
+        // 实际应用中应该根据记录状态(isUsed, isExpired等)筛选
+        // 这里简单模拟筛选逻辑
+        switch selectedFilter {
+        case .all:
+            return sortedRecords
+        case .active:
+            return sortedRecords.filter { !$0.isGoalAchieved }
+        case .used:
+            // 假设25%的记录已使用
+            return sortedRecords.filter { record in
+                return record.id.hashValue % 4 == 0
+            }
+        case .expired:
+            // 假设较早的20%记录已过期
+            let count = sortedRecords.count
+            let expiredCount = max(1, count / 5)
+            return Array(sortedRecords.suffix(expiredCount))
         }
     }
     
@@ -202,19 +257,35 @@ struct FoodCheckInView: View {
             if appState.workoutRecords.isEmpty {
                 emptyRecordsView
             } else {
-                // 获取按时间倒序排列的所有记录
-                let sortedRecords = viewModel.getSortedAllRecords()
+                // 获取筛选后的记录
+                let records = filteredRecords
                 
-                ForEach(Array(sortedRecords.enumerated()), id: \.element.id) { index, record in
-                    // 检查是否是新记录
-                    let isNewRecord = newRecordId == "\(record.id)" && index == 0
-                    
-                    if isNewRecord && showNewRecordAnimation {
-                        // 为新记录显示动画效果，只有从顶部出现的动画
-                        FoodRecordCard(record: record)
-                            .transition(.move(edge: .top).combined(with: .opacity))
-                    } else {
-                        FoodRecordCard(record: record)
+                if records.isEmpty {
+                    // 无筛选结果
+                    VStack {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 40))
+                            .foregroundColor(.gray.opacity(0.5))
+                            .padding()
+                        
+                        Text("未找到符合条件的记录")
+                            .font(.headline)
+                            .foregroundColor(.gray)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 40)
+                } else {
+                    ForEach(Array(records.enumerated()), id: \.element.id) { index, record in
+                        // 检查是否是新记录
+                        let isNewRecord = newRecordId == "\(record.id)" && index == 0
+                        
+                        if isNewRecord && showNewRecordAnimation {
+                            // 为新记录显示动画效果，只有从顶部出现的动画
+                            DessertVoucherCardExpanded(record: record)
+                                .transition(.move(edge: .top).combined(with: .opacity))
+                        } else {
+                            DessertVoucherCardExpanded(record: record)
+                        }
                     }
                 }
             }
@@ -240,7 +311,7 @@ struct FoodCheckInView: View {
 }
 
 // 单个美食打卡记录卡片
-struct FoodRecordCard: View {
+struct DessertVoucherCard: View {
     let record: WorkoutRecord
     @EnvironmentObject var appState: AppState
     
@@ -354,6 +425,17 @@ struct FoodRecordCard: View {
                             .font(.caption)
                             .foregroundColor(.green)
                     }
+                    
+                    // 等效美食数量
+                    HStack(spacing: 4) {
+                        Image(systemName: "birthday.cake")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                        
+                        Text(String(format: "%.1f 个", record.equivalentDessertCount))
+                            .font(.caption)
+                            .foregroundColor(.purple)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -386,4 +468,12 @@ struct NewRecordAnimation: ViewModifier {
                 }
             }
     }
+}
+
+// MARK: - 筛选选项枚举
+enum RecordFilter: String, CaseIterable {
+    case all = "全部"
+    case active = "可使用"
+    case used = "已使用"
+    case expired = "已过期"
 } 
