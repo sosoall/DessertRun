@@ -102,6 +102,16 @@ class AuthService: ObservableObject {
                     self?.currentUser = self?.mapToAppUser(apiUser: apiUser)
                     self?.isLoggedIn = true
                     self?.saveUserToStorage()
+                    
+                    // 确保AppState知道用户已登录，不应显示登录页面
+                    DispatchQueue.main.async {
+                        AppState.shared.isLoggedIn = true
+                        AppState.shared.showLoginView = false
+                        DRInfo("已更新AppState: 用户已登录，隐藏登录页面")
+                        
+                        // 发送认证状态变更通知
+                        NotificationCenter.default.post(name: .authStatusChanged, object: nil)
+                    }
                 }
             )
             .store(in: &cancellables)

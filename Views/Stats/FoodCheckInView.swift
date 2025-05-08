@@ -7,21 +7,35 @@ struct FoodCheckInView: View {
     @State private var showNewRecordAnimation: Bool = false
     @EnvironmentObject var appState: AppState
     @State private var selectedFilter: RecordFilter = .all
+    @State private var selectedRecord: WorkoutRecord? = nil  // 当前选中的记录
+    @State private var showExpandedCard: Bool = false  // 是否显示展开视图
     
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                // 美食记录卡片
-                foodRecordCard
-                
-                // 所有美食打卡记录（直接显示，不需要点击按钮）
-                foodRecordsList
+        ZStack {
+            // 主内容
+            ScrollView {
+                VStack(spacing: 24) {
+                    // 美食记录卡片
+                    foodRecordCard
+                    
+                    // 所有美食打卡记录（直接显示，不需要点击按钮）
+                    foodRecordsList
+                }
+                .padding(.horizontal, 20)  // 全局水平边距
+                .padding(.top, 16)
+                .padding(.bottom, 32)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 16)
-            .padding(.bottom, 32)
+            .background(Color(UIColor.systemGray6))
+            .blur(radius: showExpandedCard ? 3 : 0)  // 背景模糊效果
+            .allowsHitTesting(!showExpandedCard)  // 禁用弹出时的点击
+            
+            // 展开的卡片详情视图
+            if showExpandedCard, let record = selectedRecord {
+                ExpandedCardView(record: record, isShowing: $showExpandedCard)
+                    .transition(.opacity)
+                    .zIndex(1)
+            }
         }
-        .background(Color(UIColor.systemGray6))
         .onAppear {
             // 仅当刚完成打卡时才显示动画（通过检查应用状态中的标记来判断）
             if appState.justCompletedWorkout, let latestRecord = viewModel.getSortedAllRecords().first {
@@ -43,6 +57,28 @@ struct FoodCheckInView: View {
                     }
                 }
             }
+            
+            // 添加美食券点击通知的观察者
+            NotificationCenter.default.addObserver(
+                forName: NSNotification.Name("ShowExpandedCard"),
+                object: nil,
+                queue: .main
+            ) { notification in
+                if let record = notification.object as? WorkoutRecord {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        selectedRecord = record
+                        showExpandedCard = true
+                    }
+                }
+            }
+        }
+        .onDisappear {
+            // 移除观察者
+            NotificationCenter.default.removeObserver(
+                self,
+                name: NSNotification.Name("ShowExpandedCard"),
+                object: nil
+            )
         }
     }
     
@@ -290,26 +326,33 @@ struct FoodCheckInView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 40)
                 } else {
+                    // 确保日期按照倒序排列
                     ForEach(groupedRecords.keys.sorted(by: >), id: \.self) { dateString in
                         VStack(alignment: .leading, spacing: 16) {
-                            // 日期标题
+                            // 日期标题，增加上边距防止被卡片遮挡
                             Text(dateString)
                                 .font(.system(size: 18, weight: .medium))
                                 .padding(.leading, 4)
-                                .padding(.top, 8)
+                                .padding(.top, 16)
+                                .padding(.bottom, 8)
                             
                             // 当天的记录
                             ForEach(groupedRecords[dateString]!, id: \.id) { record in
                                 // 检查是否是新记录
                                 let isNewRecord = newRecordId == "\(record.id)" && dateString == filteredRecords.keys.sorted(by: >).first
                                 
-                                if isNewRecord && showNewRecordAnimation {
-                                    // 为新记录显示动画效果，只有从顶部出现的动画
-                                    DessertVoucherCardSimple(record: record)
-                                        .transition(.move(edge: .top).combined(with: .opacity))
-                                } else {
-                                    DessertVoucherCardSimple(record: record)
+                                VStack {
+                                    if isNewRecord && showNewRecordAnimation {
+                                        // 为新记录显示动画效果，只有从顶部出现的动画
+                                        DessertVoucherCardSimple(record: record)
+                                            .padding(.horizontal, 12)  // 额外卡片内边距
+                                            .transition(.move(edge: .top).combined(with: .opacity))
+                                    } else {
+                                        DessertVoucherCardSimple(record: record)
+                                            .padding(.horizontal, 12)  // 额外卡片内边距
+                                    }
                                 }
+                                .padding(.bottom, 12)  // 增加卡片底部边距
                             }
                         }
                     }
@@ -336,163 +379,99 @@ struct FoodCheckInView: View {
     }
 }
 
-// 单个美食打卡记录卡片
-struct DessertVoucherCard: View {
+// MARK: - 展开的卡片详情视图
+struct ExpandedCardView: View {
     let record: WorkoutRecord
-    @EnvironmentObject var appState: AppState
+    @Binding var isShowing: Bool
+    @State private var isShared: Bool = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // 顶部日期
-            HStack {
-                Text(record.formattedDate)
-                    .font(.subheadline)
-                    .foregroundColor(.gray)
-                
-                Spacer()
-                
-                // 目标状态指示器
-                if record.caloriesBurned >= (Double(record.dessert.calories) ?? 0) {
-                    HStack(spacing: 4) {
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.green.opacity(0.2))
-                            .frame(width: 14, height: 14)
-                        
-                        Text("已达成")
-                            .font(.caption)
-                            .foregroundColor(.green)
-                    }
-                } else {
-                    HStack(spacing: 4) {
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Color(UIColor.systemGray5))
-                            .frame(width: 14, height: 14)
-                        
-                        Text("未达成")
-                            .font(.caption)
-                            .foregroundColor(.gray)
+        ZStack {
+            // 半透明背景
+            Color.black.opacity(0.6)
+                .edgesIgnoringSafeArea(.all)
+                .onTapGesture {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        isShowing = false
                     }
                 }
-            }
             
-            Divider()
-            
-            // 左右分栏内容
-            HStack(alignment: .center, spacing: 12) {
-                // 左侧 - 美食信息
-                HStack(alignment: .center, spacing: 12) {
-                    // 美食图片
-                    Image(record.dessert.imageName)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 60, height: 60)
-                        .cornerRadius(8)
-                    
-                    VStack(alignment: .leading, spacing: 4) {
-                        // 美食名称
-                        Text(record.dessert.name)
-                            .font(.headline)
-                        
-                        // 美食热量
-                        HStack(spacing: 4) {
-                            Image(systemName: "flame.fill")
-                                .font(.caption)
-                                .foregroundColor(.orange)
+            // 卡片内容
+            VStack(spacing: 0) {
+                // 美食券卡片（展开状态）
+                DessertVoucherCardSimple(record: record, forceExpanded: true)
+                    .frame(width: UIScreen.main.bounds.width - 60)  // 减小宽度以匹配设计
+                
+                // 底部操作按钮
+                HStack(spacing: 40) {
+                    // 分享按钮
+                    Button(action: {
+                        // 分享逻辑
+                        isShared = true
+                    }) {
+                        VStack(spacing: 8) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color(hex: "#FF5A73").opacity(0.2))
+                                    .frame(width: 50, height: 50)
+                                
+                                Image(systemName: "square.and.arrow.up")
+                                    .font(.system(size: 22))
+                                    .foregroundColor(Color(hex: "#FF5A73"))
+                            }
                             
-                            Text("\(record.dessert.calories) 卡路里")
-                                .font(.subheadline)
-                                .foregroundColor(.orange)
-                        }
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.trailing, 8)
-                
-                // 分隔线
-                Rectangle()
-                    .fill(Color.gray.opacity(0.2))
-                    .frame(width: 1, height: 60)
-                
-                // 右侧 - 运动信息
-                VStack(alignment: .leading, spacing: 6) {
-                    // 运动类型标签
-                    Label(record.exerciseType.name, systemImage: record.exerciseType.iconName)
-                        .font(.caption)
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(record.exerciseType.color)
-                        .cornerRadius(12)
-                    
-                    // 时间/距离信息
-                    HStack(spacing: 4) {
-                        Image(systemName: "clock")
-                            .font(.caption)
-                            .foregroundColor(.gray)
-                        
-                        if let distance = record.distance, record.exerciseType.usesDistance {
-                            Text("\(String(format: "%.1f", distance/1000))公里")
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                        } else {
-                            Text(record.formattedDuration)
-                                .font(.caption)
-                                .foregroundColor(.gray)
+                            Text("分享")
+                                .font(.system(size: 14))
+                                .foregroundColor(Color(hex: "#FF5A73"))
                         }
                     }
                     
-                    // 卡路里消耗
-                    HStack(spacing: 4) {
-                        Image(systemName: "flame.fill")
-                            .font(.caption)
-                            .foregroundColor(.red)
-                        
-                        Text("\(Int(record.caloriesBurned)) 卡")
-                            .font(.caption)
-                            .foregroundColor(.green)
-                    }
-                    
-                    // 等效美食数量
-                    HStack(spacing: 4) {
-                        Image(systemName: "birthday.cake")
-                            .font(.caption)
-                            .foregroundColor(.orange)
-                        
-                        Text(String(format: "%.1f 个", record.equivalentDessertCount))
-                            .font(.caption)
-                            .foregroundColor(.purple)
+                    // 关闭按钮
+                    Button(action: {
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            isShowing = false
+                        }
+                    }) {
+                        VStack(spacing: 8) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.gray.opacity(0.2))
+                                    .frame(width: 50, height: 50)
+                                
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 22))
+                                    .foregroundColor(.gray)
+                            }
+                            
+                            Text("关闭")
+                                .font(.system(size: 14))
+                                .foregroundColor(.gray)
+                        }
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 24)
+            }
+            .background(Color.white.opacity(0.95))
+            .cornerRadius(20)
+            .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 0)
+            .padding(.horizontal, 20)
+        }
+        .sheet(isPresented: $isShared) {
+            // 分享视图
+            VStack {
+                Text("分享美食券")
+                    .font(.title)
+                    .padding()
+                
+                Text("分享\(record.dessert.name)的美食打卡记录")
+                    .padding()
+                
+                Button("关闭") {
+                    isShared = false
+                }
+                .padding()
             }
         }
-        .padding(16)
-        .background(Color.white)
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
-    }
-}
-
-// MARK: - 动画修饰器
-struct NewRecordAnimation: ViewModifier {
-    let isNewRecord: Bool
-    
-    func body(content: Content) -> some View {
-        content
-            .opacity(isNewRecord ? 0 : 1) // 初始设为透明
-            .animation(.easeIn(duration: 0.3).delay(isNewRecord ? 0.2 : 0), value: isNewRecord)
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(Color.clear, lineWidth: 2)
-            )
-            .scaleEffect(1.0) // 移除缩放效果
-            .onAppear {
-                if isNewRecord {
-                    withAnimation(.easeInOut(duration: 0.5).delay(0.3)) {
-                        // 淡入效果
-                    }
-                }
-            }
     }
 }
 

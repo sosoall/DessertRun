@@ -20,7 +20,7 @@ class AppState: ObservableObject {
     // MARK: - 用户相关状态
     
     /// 用户是否已登录
-    @Published var isLoggedIn = false
+    @Published var isLoggedIn: Bool = false
     
     /// 用户信息（临时示例数据）
     @Published var userProfile = UserProfile(
@@ -32,18 +32,20 @@ class AppState: ObservableObject {
     // MARK: - 首次启动和登录状态
     
     /// 是否是首次启动应用
-    @Published var isFirstLaunch: Bool = !UserDefaults.standard.bool(forKey: "hasLaunchedBefore")
+    var isFirstLaunch: Bool {
+        return !UserDefaults.standard.bool(forKey: "hasLaunchedBefore")
+    }
     
     /// 是否显示登录页面
-    @Published var showLoginView = false
+    @Published var showLoginView: Bool = false
     
     /// 是否正在重置应用
-    @Published var isResettingApp = false
+    @Published var isResettingApp: Bool = false
     
     // MARK: - 导航状态
     
     /// 当前选中的主标签索引（0：运动，1：甜品打卡，2：运动记录，3：我的）
-    @Published var selectedTabIndex = 0
+    @Published var selectedTabIndex: Int = 0
     
     /// 用于标记是否需要重置导航状态
     @Published var shouldResetNavigation = false
@@ -52,7 +54,7 @@ class AppState: ObservableObject {
     @Published var statsSelectedSegment = 0
     
     /// 标记是否刚完成打卡（用于动画）
-    @Published var justCompletedWorkout = false
+    @Published var justCompletedWorkout: Bool = false
     
     // MARK: - 运动相关状态
     
@@ -69,7 +71,10 @@ class AppState: ObservableObject {
     @Published var workoutRecords: [WorkoutRecord] = []
     
     /// 是否隐藏TabBar（用于拖动时）
-    @Published var hideTabBarForDrag = false
+    @Published var hideTabBarForDrag: Bool = false
+    
+    /// 是否隐藏状态栏
+    @Published var hideStatusBar: Bool = false
     
     /// TabBar是否应该被隐藏
     var shouldHideTabBar: Bool {
@@ -119,11 +124,13 @@ class AppState: ObservableObject {
             self.isLoggedIn = true
             self.showLoginView = false
             self.selectedTabIndex = 0 // 直接设置首页为默认页
+            DRInfo("AppState: 已检测到登录用户，设置登录状态")
         } else {
             // 未登录状态
             self.isLoggedIn = false
-            // 不默认显示登录页，由AppState通过其他判断决定是否显示
+            // 修改：不立即显示登录页，等待AuthService.checkTokenValidity结果
             // self.showLoginView = true
+            DRInfo("AppState: 未检测到登录用户，等待token验证")
         }
     }
     
@@ -131,23 +138,18 @@ class AppState: ObservableObject {
     func updateLoginStatus() {
         let authService = AuthService.shared
         
-        // 从AuthService获取登录状态
-        self.isLoggedIn = authService.isLoggedIn
-        
-        // 更新登录页面显示状态
-        if !authService.isLoggedIn {
-            self.showLoginView = true
-            DRInfo("用户未登录，显示登录页面")
-        }
-        
-        // 如果用户已登录，更新用户资料
-        if let user = authService.currentUser {
-            self.userProfile = UserProfile(
-                id: user.id.uuidString,
-                name: user.nickname ?? "用户\(Int.random(in: 1000...9999))",
-                avatarName: "person.circle.fill"
-            )
-            DRInfo("已更新用户资料: \(user.nickname ?? "未设置昵称")")
+        DispatchQueue.main.async {
+            // 根据AuthService的状态更新
+            self.isLoggedIn = authService.isLoggedIn
+            
+            // 如果已登录，关闭登录页面，否则显示登录页面
+            if self.isLoggedIn {
+                self.showLoginView = false
+                DRInfo("AppState: 更新为已登录状态，关闭登录页面")
+            } else {
+                self.showLoginView = true
+                DRInfo("AppState: 更新为未登录状态，显示登录页面")
+            }
         }
     }
     
@@ -251,3 +253,37 @@ struct UserProfile {
      // 更新甜品券状态
  }
 */ 
+
+/// 重置应用扩展
+extension AppState {
+    /// 重置应用状态
+    func resetApp() {
+        DRInfo("开始重置应用状态...")
+        
+        // 显示重置中状态
+        isResettingApp = true
+        
+        // 清除用户默认值
+        let domain = Bundle.main.bundleIdentifier!
+        UserDefaults.standard.removePersistentDomain(forName: domain)
+        UserDefaults.standard.synchronize()
+        
+        // 重置所有状态变量
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+            self.isLoggedIn = false
+            self.showLoginView = true
+            self.selectedTabIndex = 0
+            self.workoutRecords = []
+            self.justCompletedWorkout = false
+            self.hideTabBarForDrag = false
+            self.hideStatusBar = false
+            
+            // 清除认证服务状态
+            AuthService.shared.resetLoginState()
+            
+            // 完成重置
+            self.isResettingApp = false
+            DRInfo("应用状态已重置")
+        }
+    }
+} 

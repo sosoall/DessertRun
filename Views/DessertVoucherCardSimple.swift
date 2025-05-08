@@ -5,9 +5,6 @@ struct DessertVoucherCardSimple: View {
     /// 打卡记录
     let record: WorkoutRecord
     
-    /// 是否展开详情
-    @State private var isExpanded: Bool = false
-    
     /// 是否正在核销
     @State private var isRedeeming: Bool = false
     
@@ -17,18 +14,29 @@ struct DessertVoucherCardSimple: View {
     /// 显示核销确认
     @State private var showRedeemConfirm: Bool = false
     
+    /// 强制展开状态（用于弹窗展示）
+    var forceExpanded: Bool = false
+    
+    /// 提供一个环境变量，用于触发弹窗展示
+    @Environment(\.presentationMode) var presentationMode
+    
     var body: some View {
         VStack(spacing: 0) {
             // 卡片主体部分
             cardHeader
-                .onTapGesture {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                        isExpanded.toggle()
-                    }
-                }
             
             // 底部操作区
             cardFooter
+        }
+        .onTapGesture {
+            // 只有非强制展开状态下才触发弹窗展示
+            if !forceExpanded {
+                // 通知父视图显示弹窗
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("ShowExpandedCard"),
+                    object: record
+                )
+            }
         }
         .alert("确认核销", isPresented: $showRedeemConfirm) {
             Button("取消", role: .cancel) {}
@@ -52,64 +60,59 @@ struct DessertVoucherCardSimple: View {
     
     // MARK: - 卡片主体部分
     private var cardHeader: some View {
-        ZStack {
-            // 背景渐变
+        ZStack(alignment: .center) {
+            // 1. 背景渐变 - 放在最底层
             LinearGradient(
                 gradient: Gradient(stops: [
-                    .init(color: Color(hex: "#FFE5ED"), location: 0),
-                    .init(color: Color(hex: "#FFEAC0"), location: 0.59),
-                    .init(color: Color(hex: "#FF9901"), location: 1)
+                    .init(color: Color(hex: "#FF9D0B"), location: 0),
+                    .init(color: Color(hex: "#FFEAC5"), location: 0.44),
+                    .init(color: Color(hex: "#FFE5EC"), location: 1)
                 ]),
-                startPoint: .trailing,
-                endPoint: .leading
+                startPoint: .leading,
+                endPoint: .trailing
             )
             .cornerRadius(20, corners: [.topLeft, .topRight])
             
-            // 白色边框
+            // 2. 白色边框 - 只在上边加圆角
             RoundedRectangle(cornerRadius: 20)
                 .stroke(Color.white, lineWidth: 1)
                 .cornerRadius(20, corners: [.topLeft, .topRight])
             
-            // 主要内容
+            // 3. 内容布局 - 使用HStack将所有内容放在同一层
             HStack(spacing: 0) {
-                // 左侧 - 美食相关信息
-                VStack(alignment: .leading, spacing: 4) {
+                // 左侧奶茶图标 - 贴边显示
+                Image("milktea_icon")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 50, height: 50)
+                
+                // 食物信息 - 右对齐
+                VStack(alignment: .trailing, spacing: 4) {
                     Text(String(format: "%.1fx", record.equivalentDessertCount))
-                        .font(.system(size: 32, weight: .bold))
+                        .font(.system(size: 20, weight: .semibold))
                         .foregroundColor(Color(hex: "#FE5C72"))
                     
                     Text(record.dessert.name)
-                        .font(.system(size: 16, weight: .medium))
+                        .font(.system(size: 16, weight: .regular))
                         .foregroundColor(Color(hex: "#FE5C72"))
-                    
-                    Spacer()
-                    
-                    // 左下方奶茶图标
-                    Image("milktea_icon")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 50, height: 50)
-                        .padding(.bottom, 8)
                 }
-                .frame(width: UIScreen.main.bounds.width / 2 - 32, alignment: .leading)
-                .padding(.leading, 16)
-                .padding(.top, 16)
+                .padding(.leading, 10)
                 
-                // 中间分隔线
+                // 中间分隔线 - 固定高度70
                 Rectangle()
                     .fill(Color(hex: "#D7B8BE"))
                     .frame(width: 1, height: 70)
-                    .padding(.vertical, 15)
+                    .padding(.horizontal, 15)
                 
-                // 右侧 - 运动相关信息
+                // 右侧内容区域 - 左对齐
                 VStack(alignment: .leading, spacing: 4) {
                     Text(record.exerciseType.name)
-                        .font(.system(size: 32, weight: .bold))
+                        .font(.system(size: 20, weight: .semibold))
                     
-                    if isExpanded {
+                    if forceExpanded {
                         // 运动标签文本
                         Text(record.displayWorkoutTag)
-                            .font(.system(size: 16, weight: .bold))
+                            .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(Color(hex: "#F8A41C"))
                             .padding(.top, 4)
                         
@@ -144,21 +147,19 @@ struct DessertVoucherCardSimple: View {
                                 .foregroundColor(Color(hex: "#919191"))
                         }
                         .padding(.top, 8)
-                    } else {
-                        Spacer()
-                        
-                        // 右侧背景图像占位，靠右对齐
-                        Image("dessert_background")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(height: 80)
                     }
                 }
-                .frame(width: UIScreen.main.bounds.width / 2 - 32, alignment: .leading)
-                .padding(.leading, 12)
-                .padding(.trailing, 16)
-                .padding(.top, 16)
+                .padding(.trailing, 0)
+                
+                Spacer()
+                
+                // 右侧甜品图像 - 贴边显示
+                Image("dessert_background")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: 100)
             }
+            .frame(height: 100)
         }
         .frame(height: 100)
     }
@@ -176,7 +177,7 @@ struct DessertVoucherCardSimple: View {
         VStack {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    if isExpanded {
+                    if forceExpanded {
                         Text("美食券")
                             .font(.system(size: 16, weight: .bold))
                     }
@@ -197,7 +198,7 @@ struct DessertVoucherCardSimple: View {
                         .foregroundColor(.white)
                         .padding(.vertical, 6)
                         .padding(.horizontal, 16)
-                        .background(Color(hex: isExpanded ? "#FF318D" : "#FE2D55"))
+                        .background(Color(hex: forceExpanded ? "#FF318D" : "#FE2D55"))
                         .cornerRadius(10)
                 }
                 .disabled(isRedeeming)
@@ -305,16 +306,8 @@ struct DessertVoucherCardSimple_Previews: PreviewProvider {
             )
             
             // 展开状态预览
-            DessertVoucherCardSimple(record: sampleRecord)
+            DessertVoucherCardSimple(record: sampleRecord, forceExpanded: true)
                 .frame(width: 350)
-                .onAppear {
-                    // 模拟展开状态
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        if let preview = Mirror(reflecting: DessertVoucherCardSimple(record: sampleRecord)).descendant("_isExpanded") as? Binding<Bool> {
-                            preview.wrappedValue = true
-                        }
-                    }
-                }
         }
         .padding()
         .background(Color.gray.opacity(0.1))
