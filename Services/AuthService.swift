@@ -118,7 +118,7 @@ class AuthService: ObservableObject {
     }
     
     /// 重置登录状态
-    private func resetLoginState() {
+    public func resetLoginState() {
         DRInfo("重置登录状态")
         self.currentUser = nil
         self.isLoggedIn = false
