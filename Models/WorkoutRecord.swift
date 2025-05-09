@@ -9,80 +9,95 @@ import Foundation
 import SwiftUI
 
 /// 运动记录模型
-struct WorkoutRecord: Identifiable, Codable {
-    /// 唯一标识符
-    let id: UUID
+struct WorkoutRecord: Identifiable, Equatable {
+    /// 记录ID
+    let id: String
     
-    /// 相关甜品
+    /// 美食
     let dessert: DessertItem
     
     /// 运动类型
     let exerciseType: ExerciseType
     
     /// 完成日期
-    let completionDate: Date
+    let date: Date
     
     /// 运动时长（分钟）
-    let duration: Double
+    let duration: TimeInterval?
     
-    /// 实际消耗卡路里
+    /// 消耗卡路里
     let caloriesBurned: Double
     
-    /// 等效美食数量，表示此次运动可以换算成多少个同样的美食
+    /// 运动距离（米）
+    let distance: Double?
+    
+    /// 消耗的甜品数量
     let equivalentDessertCount: Double
     
-    /// 运动距离（米），仅用于跑步等类型
-    var distance: Double?
+    /// 运动图片URL
+    let exerciseImageURL: String?
     
-    /// 运动截图URL
-    var exerciseImageURL: URL?
-    
-    /// 甜品照片URL
-    var dessertImageURL: URL?
+    /// 美食图片URL
+    let dessertImageURL: String?
     
     /// 备注
-    var notes: String?
+    let note: String
     
-    /// 打卡标签，表示本次运动打卡状态
-    var workoutTag: String?
+    /// 打卡标签
+    let workoutTag: String
     
-    /// 是否完成目标
+    /// 用户ID
+    let userId: String
+    
+    /// 是否达成目标
     var isGoalAchieved: Bool {
-        // 目标卡路里
-        let targetCalories = Double(dessert.calories) ?? 0
-        // 消耗卡路里是否达到或超过目标
-        return caloriesBurned >= targetCalories
+        // 根据workoutTag判断是否达成目标
+        return workoutTag == "运动量super!"
     }
     
-    /// 获取打卡标签
+    /// 用于显示的工作标签
     var displayWorkoutTag: String {
-        if let customTag = workoutTag {
-            return customTag
+        // 使用原始workoutTag或根据等效甜品数量提供更友好的显示文本
+        if equivalentDessertCount >= 1.0 {
+            return workoutTag
+        } else if equivalentDessertCount >= 0.8 {
+            return "运动量不足"
+        } else {
+            return "继续加油"
         }
-        
-        return isGoalAchieved ? "运动量super!" : "已运动"
     }
     
-    /// 消耗卡路里与目标的比例
-    var progressRatio: Double {
-        let targetCalories = Double(dessert.calories) ?? 1 // 避免除以0
-        return min(caloriesBurned / targetCalories, 1.0)
-    }
-    
-    /// 初始化方法
-    init(id: UUID = UUID(), dessert: DessertItem, exerciseType: ExerciseType, completionDate: Date, duration: Double, caloriesBurned: Double, equivalentDessertCount: Double = 0, distance: Double? = nil, exerciseImageURL: URL? = nil, dessertImageURL: URL? = nil, notes: String? = nil, workoutTag: String? = nil) {
+    /// 默认初始化
+    init(
+        id: String,
+        userId: String,
+        exerciseType: ExerciseType,
+        duration: TimeInterval?,
+        distance: Double?,
+        caloriesBurned: Double,
+        dessert: DessertItem,
+        date: Date,
+        workoutTag: String,
+        equivalentDessertCount: Double
+    ) {
         self.id = id
-        self.dessert = dessert
+        self.userId = userId
         self.exerciseType = exerciseType
-        self.completionDate = completionDate
         self.duration = duration
-        self.caloriesBurned = caloriesBurned
-        self.equivalentDessertCount = equivalentDessertCount > 0 ? equivalentDessertCount : (Double(dessert.calories) ?? 0 > 0 ? caloriesBurned / (Double(dessert.calories) ?? 1) : 1)
         self.distance = distance
-        self.exerciseImageURL = exerciseImageURL
-        self.dessertImageURL = dessertImageURL
-        self.notes = notes
+        self.caloriesBurned = caloriesBurned
+        self.dessert = dessert
+        self.date = date
         self.workoutTag = workoutTag
+        self.equivalentDessertCount = equivalentDessertCount
+        self.exerciseImageURL = nil
+        self.dessertImageURL = nil
+        self.note = ""
+    }
+    
+    /// 等价性检查
+    static func == (lhs: WorkoutRecord, rhs: WorkoutRecord) -> Bool {
+        return lhs.id == rhs.id
     }
     
     // MARK: - 格式化属性
@@ -91,20 +106,20 @@ struct WorkoutRecord: Identifiable, Codable {
     var formattedDate: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy年MM月dd日"
-        return formatter.string(from: completionDate)
+        return formatter.string(from: date)
     }
     
     /// 格式化的时间
     var formattedTime: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
-        return formatter.string(from: completionDate)
+        return formatter.string(from: date)
     }
     
     /// 格式化的运动时长
     var formattedDuration: String {
-        let hours = Int(duration) / 60
-        let minutes = Int(duration) % 60
+        let hours = Int(duration ?? 0) / 60
+        let minutes = Int(duration ?? 0) % 60
         
         if hours > 0 {
             return "\(hours)小时\(minutes)分钟"
@@ -146,53 +161,6 @@ struct WorkoutRecord: Identifiable, Codable {
         
         return text
     }
-    
-    // MARK: - Codable支持
-    
-    enum CodingKeys: String, CodingKey {
-        case id, dessert, exerciseType, completionDate, duration, caloriesBurned, distance
-        case exerciseImageURL, dessertImageURL, notes, workoutTag, equivalentDessertCount
-    }
-    
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(UUID.self, forKey: .id)
-        dessert = try container.decode(DessertItem.self, forKey: .dessert)
-        // 解码ExerciseType
-        exerciseType = try container.decode(ExerciseType.self, forKey: .exerciseType)
-        completionDate = try container.decode(Date.self, forKey: .completionDate)
-        duration = try container.decode(Double.self, forKey: .duration)
-        caloriesBurned = try container.decode(Double.self, forKey: .caloriesBurned)
-        distance = try container.decodeIfPresent(Double.self, forKey: .distance)
-        exerciseImageURL = try container.decodeIfPresent(URL.self, forKey: .exerciseImageURL)
-        dessertImageURL = try container.decodeIfPresent(URL.self, forKey: .dessertImageURL)
-        notes = try container.decodeIfPresent(String.self, forKey: .notes)
-        workoutTag = try container.decodeIfPresent(String.self, forKey: .workoutTag)
-        
-        // 新增equivalentDessertCount初始化
-        if let count = try? container.decodeIfPresent(Double.self, forKey: .equivalentDessertCount) {
-            equivalentDessertCount = count
-        } else {
-            let dessertCalories = Double(dessert.calories) ?? 0
-            equivalentDessertCount = dessertCalories > 0 ? caloriesBurned / dessertCalories : 1
-        }
-    }
-    
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(id, forKey: .id)
-        try container.encode(dessert, forKey: .dessert)
-        try container.encode(exerciseType, forKey: .exerciseType)
-        try container.encode(completionDate, forKey: .completionDate)
-        try container.encode(duration, forKey: .duration)
-        try container.encode(caloriesBurned, forKey: .caloriesBurned)
-        try container.encode(equivalentDessertCount, forKey: .equivalentDessertCount)
-        try container.encodeIfPresent(distance, forKey: .distance)
-        try container.encodeIfPresent(exerciseImageURL, forKey: .exerciseImageURL)
-        try container.encodeIfPresent(dessertImageURL, forKey: .dessertImageURL)
-        try container.encodeIfPresent(notes, forKey: .notes)
-        try container.encodeIfPresent(workoutTag, forKey: .workoutTag)
-    }
 }
 
 // MARK: - 扩展功能
@@ -218,14 +186,16 @@ extension WorkoutRecord {
         let isAchieved = caloriesBurned >= Double(dessert.calories)!
         
         return WorkoutRecord(
-            dessert: dessert,
+            id: UUID().uuidString,
+            userId: UUID().uuidString,
             exerciseType: exerciseType,
-            completionDate: date,
             duration: Double.random(in: 20...60),
-            caloriesBurned: caloriesBurned,
             distance: exerciseType.usesDistance ? Double.random(in: 1000...5000) : nil,
-            notes: Bool.random() ? "这是一条测试备注" : nil,
-            workoutTag: isAchieved ? "运动量super!" : "已运动"
+            caloriesBurned: caloriesBurned,
+            dessert: dessert,
+            date: date,
+            workoutTag: isAchieved ? "运动量super!" : "已运动",
+            equivalentDessertCount: 1.0
         )
     }
 } 

@@ -55,4 +55,12 @@ enum ApiEndpoints {
         static let history = base + "/history"
         static let redeem = base + "/redeem"
     }
+    
+    // 美食券相关
+    struct Vouchers {
+        static let base = "/api/v1/vouchers"
+        static let list = base
+        static let detail = base + "/"  // 需要附加ID: detail + "{id}"
+        static let redeem = base + "/"  // 需要附加ID: redeem + "{id}/redeem"
+    }
 } 

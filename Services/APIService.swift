@@ -819,6 +819,214 @@ class APIService {
         .eraseToAnyPublisher()
     }
     
+    // MARK: - 运动与打卡相关接口
+    
+    /// 创建运动与美食打卡记录
+    func createWorkoutRecord(params: [String: Any]) -> AnyPublisher<WorkoutRecord?, APIServiceError> {
+        let endpoint = ApiEndpoints.Workout.base
+        
+        // 打印详细的请求参数
+        DRDebug("发起createWorkoutRecord请求: \(endpoint)")
+        do {
+            let jsonData = try JSONSerialization.data(withJSONObject: params, options: .prettyPrinted)
+            if let jsonString = String(data: jsonData, encoding: .utf8) {
+                DRDebug("请求参数: \n\(jsonString)")
+            }
+        } catch {
+            DRError("序列化请求参数失败: \(error.localizedDescription)")
+        }
+        
+        return networkManager.request(
+            endpoint: endpoint,
+            method: .post,
+            parameters: params,
+            requiresAuth: true
+        )
+        .handleEvents(receiveOutput: { responseData in
+            DRDebug("收到createWorkoutRecord响应")
+        })
+        .map { (responseData: EmptyResponseData) -> WorkoutRecord? in
+            // 将响应直接解析为WorkoutRecord对象
+            // 这里通常API会返回创建的记录，但如果不返回，我们可以返回nil
+            return nil
+        }
+        .mapError { [weak self] networkError -> APIServiceError in
+            guard let self = self else { return .unknown }
+            
+            DRError("createWorkoutRecord网络错误: \(networkError)")
+            
+            // 如果有响应数据，打印出来
+            if let apiError = networkError as? APIServiceError {
+                DRError("API错误详情: \(apiError)")
+                
+                if case .networkError(let networkError) = apiError {
+                    DRError("网络错误详情: \(networkError)")
+                }
+            }
+            
+            // 针对网络错误进行特殊处理
+            if case .unauthorized = networkError {
+                return self.handleError(networkError)
+            } else {
+                return .networkError(APINetworkError(error: networkError))
+            }
+        }
+        .eraseToAnyPublisher()
+    }
+    
+    /// 获取用户的打卡记录列表
+    func getUserWorkoutRecords(page: Int = 1, limit: Int = 20) -> AnyPublisher<[WorkoutRecord], APIServiceError> {
+        let endpoint = ApiEndpoints.Workout.base + "?page=\(page)&limit=\(limit)"
+        
+        // 创建一个可解码的包装类型
+        struct WorkoutRecordsResponse: Decodable {
+            let records: [WorkoutRecordDTO]
+            let total: Int
+            
+            struct WorkoutRecordDTO: Decodable {
+                let id: String
+                let user_id: String
+                let exercise_type: String
+                let exercise_name: String?
+                let duration: Int?
+                let distance: Double?
+                let calories_burned: Double
+                let start_time: String?
+                let end_time: String?
+                let dessert_id: String
+                let dessert_name: String
+                let dessert_calories: Double
+                let equivalent_dessert_count: Double
+                let workout_tag: String?
+                let created_at: String
+            }
+        }
+        
+        return networkManager.request(
+            endpoint: endpoint,
+            method: .get,
+            requiresAuth: true
+        )
+        .map { (response: WorkoutRecordsResponse) -> [WorkoutRecord] in
+            // 将DTO转换为领域模型
+            return response.records.compactMap { dto in
+                let exerciseType = APIExerciseType.fromString(dto.exercise_type)
+                
+                // 创建一个甜品对象
+                let dessert = DessertItem(
+                    id: Int(dto.dessert_id.hashValue % Int.max),
+                    name: dto.dessert_name,
+                    imageName: "dessert_\(dto.dessert_id.prefix(8))",
+                    calories: "\(dto.dessert_calories)kcal",
+                    category: .dessert,
+                    description: "",
+                    backgroundColor: nil,
+                    isFeatured: false,
+                    relatedItems: [],
+                    categoryId: 0,
+                    categoryName: "默认分类",
+                    displayOrder: 0,
+                    images: []
+                )
+                
+                // 解析日期
+                let dateFormatter = ISO8601DateFormatter()
+                let createdAtDate = dateFormatter.date(from: dto.created_at) ?? Date()
+                
+                // 创建WorkoutRecord对象
+                return WorkoutRecord(
+                    id: dto.id,
+                    userId: dto.user_id,
+                    exerciseType: exerciseType,
+                    duration: dto.duration.map { TimeInterval($0) },
+                    distance: dto.distance,
+                    caloriesBurned: dto.calories_burned,
+                    dessert: dessert,
+                    date: createdAtDate,
+                    workoutTag: dto.workout_tag ?? "",
+                    equivalentDessertCount: dto.equivalent_dessert_count
+                )
+            }
+        }
+        .mapError { [weak self] networkError -> APIServiceError in
+            guard let self = self else { return .unknown }
+            
+            // 针对网络错误进行特殊处理
+            if case .unauthorized = networkError {
+                return self.handleError(networkError)
+            } else {
+                return .networkError(APINetworkError(error: networkError))
+            }
+        }
+        .eraseToAnyPublisher()
+    }
+    
+    /// 获取用户的美食券列表
+    func getUserVouchers(status: String? = nil, page: Int = 1, limit: Int = 20) -> AnyPublisher<[DessertVoucher], APIServiceError> {
+        var endpoint = ApiEndpoints.Vouchers.list + "?page=\(page)&limit=\(limit)"
+        if let status = status {
+            endpoint += "&status=\(status)"
+        }
+        
+        // 创建一个可解码的包装类型
+        struct VouchersResponse: Decodable {
+            let vouchers: [VoucherDTO]
+            let total: Int
+            
+            struct VoucherDTO: Decodable {
+                let id: String
+                let user_id: String
+                let dessert_id: String
+                let dessert_name: String
+                let equivalent_dessert_count: Double
+                let calories_value: Double
+                let workout_record_id: String?
+                let status: String
+                let created_at: String
+                let updated_at: String?
+            }
+        }
+        
+        return networkManager.request(
+            endpoint: endpoint,
+            method: .get,
+            requiresAuth: true
+        )
+        .map { (response: VouchersResponse) -> [DessertVoucher] in
+            // 将DTO转换为领域模型
+            return response.vouchers.compactMap { dto in
+                // 解析日期
+                let dateFormatter = ISO8601DateFormatter()
+                let createdAt = dateFormatter.date(from: dto.created_at) ?? Date()
+                
+                // 创建DessertVoucher对象
+                return DessertVoucher(
+                    id: dto.id,
+                    userId: dto.user_id,
+                    dessertId: dto.dessert_id,
+                    dessertName: dto.dessert_name,
+                    equivalentDessertCount: dto.equivalent_dessert_count,
+                    caloriesValue: dto.calories_value,
+                    workoutRecordId: dto.workout_record_id,
+                    status: dto.status,
+                    createdAt: createdAt,
+                    updatedAt: dto.updated_at.flatMap { dateFormatter.date(from: $0) }
+                )
+            }
+        }
+        .mapError { [weak self] networkError -> APIServiceError in
+            guard let self = self else { return .unknown }
+            
+            // 针对网络错误进行特殊处理
+            if case .unauthorized = networkError {
+                return self.handleError(networkError)
+            } else {
+                return .networkError(APINetworkError(error: networkError))
+            }
+        }
+        .eraseToAnyPublisher()
+    }
+    
     // MARK: - 通用请求处理
     
     /// 处理API请求
@@ -967,9 +1175,63 @@ class APIService {
         // 处理其他所有网络错误
         return .networkError(APINetworkError(error: error))
     }
+    
+    /// 处理API错误（从data和response）
+    private func handleError(data: Data, response: URLResponse) -> APIServiceError {
+        if let httpResponse = response as? HTTPURLResponse {
+            // 尝试从响应数据中提取错误信息
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let message = json["message"] as? String {
+                
+                switch httpResponse.statusCode {
+                case 400..<500:
+                    if httpResponse.statusCode == 401 {
+                        return .tokenExpired
+                    } else {
+                        return .networkError(APINetworkError(error: .serverError(httpResponse.statusCode, message)))
+                    }
+                default:
+                    return .networkError(APINetworkError(error: .serverError(httpResponse.statusCode, message)))
+                }
+            } else {
+                // 如果无法提取错误信息，则使用状态码生成通用错误
+                return .networkError(APINetworkError(error: .serverError(httpResponse.statusCode, "服务器返回错误：\(httpResponse.statusCode)")))
+            }
+        } else {
+            // 如果不是HTTP响应，则返回未知错误
+            return .unknown
+        }
+    }
 }
 
 // MARK: - 数据模型
+
+/// API错误类型
+enum APIError: Error {
+    case networkError(String)
+    case serverError(Int, String)
+    case authError(String)
+    case validationError(String)
+    case decodingError
+    case unknown
+    
+    var errorMessage: String {
+        switch self {
+        case .networkError(let message):
+            return "网络错误: \(message)"
+        case .serverError(let code, let message):
+            return "服务器错误(\(code)): \(message)"
+        case .authError(let message):
+            return "认证错误: \(message)"
+        case .validationError(let message):
+            return "数据验证错误: \(message)"
+        case .decodingError:
+            return "数据解析错误"
+        case .unknown:
+            return "未知错误"
+        }
+    }
+}
 
 /// 用于处理APIService中网络错误的包装类
 struct APINetworkError: Error, CustomStringConvertible {

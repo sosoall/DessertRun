@@ -213,49 +213,110 @@ struct DessertToExerciseTransition: View {
             return
         }
         
-        // 计算消耗的卡路里 - 根据API返回的数据计算
-        var caloriesBurned: Double = 0
+        // 设置加载状态
+        isLoading = true
+        errorMessage = nil
+        
+        // 计算消耗的甜品数量
+        var equivalentDessertCount: Double = 1.0
         
         if exerciseType.usesDistance {
-            // 基于距离计算卡路里
-            // 使用已经从API获取的计算结果的比例
+            // 基于距离计算比例
             if let baseDistance = calculatedDistances[exerciseType], baseDistance > 0 {
-                caloriesBurned = (exerciseDistance / baseDistance) * calories
+                equivalentDessertCount = exerciseDistance / baseDistance
             }
         } else {
-            // 基于时间计算卡路里
-            // 使用已经从API获取的计算结果的比例
+            // 基于时间计算比例
             if let baseDuration = calculatedDurations[exerciseType], baseDuration > 0 {
-                caloriesBurned = (exerciseDuration / baseDuration) * calories
+                equivalentDessertCount = exerciseDuration / baseDuration
             }
         }
         
-        // 创建运动记录
-        let record = WorkoutRecord(
-            dessert: dessert,
-            exerciseType: exerciseType,
-            completionDate: Date(),
-            duration: exerciseDuration,
-            caloriesBurned: caloriesBurned,
-            distance: exerciseType.usesDistance ? exerciseDistance : nil
-        )
+        // 精确到小数点后两位
+        equivalentDessertCount = (equivalentDessertCount * 100).rounded() / 100
         
-        // 添加记录到应用状态
-        appState.addWorkoutRecord(record)
+        // 构建API请求参数
+        var params: [String: Any] = [
+            "dessert_id": dessert.id,
+            "exercise_type": exerciseType.type,
+            "equivalent_dessert_count": equivalentDessertCount,
+            "note": ""
+        ]
         
-        // 设置刚完成打卡标记，用于触发动画
-        appState.justCompletedWorkout = true
-        
-        // 关闭面板
-        animationState.dismissPanel()
-        
-        // 短暂延迟后切换到甜品打卡标签页
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            withAnimation(.easeInOut(duration: 0.3)) {
-                // 将TabBar切换到甜品打卡标签（索引为1）
-                appState.selectedTabIndex = 1
-            }
+        // 根据运动类型添加时长或距离
+        if exerciseType.usesDistance {
+            params["distance"] = exerciseDistance / 1000 // 转换为公里
+        } else {
+            params["duration"] = exerciseDuration
         }
+        
+        // 添加详细日志记录
+        DRDebug("提交运动记录 - 详细参数：")
+        DRDebug("甜品ID: \(dessert.id), 名称: \(dessert.name)")
+        DRDebug("运动类型: \(exerciseType.type), 名称: \(exerciseType.name)")
+        DRDebug("等效甜品数量: \(equivalentDessertCount)")
+        
+        if exerciseType.usesDistance {
+            DRDebug("运动距离: \(exerciseDistance / 1000)公里")
+        } else {
+            DRDebug("运动时间: \(exerciseDuration)分钟")
+        }
+        
+        // 将完整参数转为JSON字符串输出
+        do {
+            let jsonData = try JSONSerialization.data(withJSONObject: params, options: .prettyPrinted)
+            if let jsonString = String(data: jsonData, encoding: .utf8) {
+                DRDebug("完整的JSON参数: \n\(jsonString)")
+            }
+        } catch {
+            DRError("无法序列化参数到JSON: \(error.localizedDescription)")
+        }
+        
+        // 调用API创建运动记录
+        APIService.shared.createWorkoutRecord(params: params)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { completion in
+                    self.isLoading = false
+                    if case .failure(let error) = completion {
+                        self.errorMessage = error.errorMessage
+                        DRError("创建运动记录失败: \(error.errorMessage)")
+                        
+                        // 增加更详细的错误信息
+                        if let apiError = error as? APIServiceError {
+                            DRError("API错误详情: \(apiError)")
+                            
+                            if case .networkError(let networkError) = apiError {
+                                DRError("网络错误详情: \(networkError)")
+                            }
+                        }
+                    }
+                },
+                receiveValue: { response in
+                    self.isLoading = false
+                    
+                    // 设置刚完成打卡标记，用于触发动画
+                    appState.justCompletedWorkout = true
+                    
+                    // 手动添加记录到本地状态
+                    if let record = response {
+                        appState.addWorkoutRecord(record)
+                        DRInfo("成功创建运动记录: \(record.id)")
+                    }
+                    
+                    // 关闭面板
+                    animationState.dismissPanel()
+                    
+                    // 短暂延迟后切换到甜品打卡标签页
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            // 将TabBar切换到甜品打卡标签（索引为1）
+                            appState.selectedTabIndex = 1
+                        }
+                    }
+                }
+            )
+            .store(in: &CancellableStorage.shared.cancellables)
     }
     
     var body: some View {

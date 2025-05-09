@@ -291,7 +291,7 @@ struct FoodCheckInView: View {
         dateFormatter.dateFormat = "yyyy年 M月 d日"
         
         for record in filteredList {
-            let dateString = dateFormatter.string(from: record.completionDate)
+            let dateString = dateFormatter.string(from: record.date)
             if groupedRecords[dateString] == nil {
                 groupedRecords[dateString] = [record]
             } else {

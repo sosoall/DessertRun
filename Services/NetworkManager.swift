@@ -162,11 +162,27 @@ public class NetworkManager {
                 if let queryURL = components.url {
                     request.url = queryURL
                 }
+                DRDebug("[NetworkManager] GET请求参数: \(parameters)")
             } else {
                 // 对于其他请求，将参数添加到请求体中
                 do {
-                    request.httpBody = try JSONSerialization.data(withJSONObject: parameters)
+                    let jsonData = try JSONSerialization.data(withJSONObject: parameters)
+                    request.httpBody = jsonData
+                    
+                    // 增加请求参数日志
+                    DRDebug("[NetworkManager] \(method.rawValue)请求参数: \(parameters)")
+                    if let jsonString = String(data: jsonData, encoding: .utf8) {
+                        DRDebug("[NetworkManager] 序列化后的JSON参数: \(jsonString)")
+                    }
+                    
+                    // 检查参数中特殊字段的类型问题
+                    for (key, value) in parameters {
+                        if key == "duration" || key == "distance" {
+                            DRDebug("[NetworkManager] 参数[\(key)]的类型: \(type(of: value)), 值: \(value)")
+                        }
+                    }
                 } catch {
+                    DRError("[NetworkManager] 参数序列化失败: \(error.localizedDescription)")
                     return Fail(error: NetworkError.requestFailed(error)).eraseToAnyPublisher()
                 }
             }

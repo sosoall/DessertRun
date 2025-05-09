@@ -142,7 +142,7 @@ struct DessertVoucherCardSimple: View {
                             }
                             
                             // 日期时间
-                            Text(formattedDateTime(record.completionDate))
+                            Text(formattedDateTime(record.date))
                                 .font(.system(size: 14, weight: .regular))
                                 .foregroundColor(Color(hex: "#919191"))
                         }
@@ -275,17 +275,8 @@ struct DessertVoucherCardSimple_Previews: PreviewProvider {
             
             // 自定义样本 - 展开状态
             let sampleRecord = WorkoutRecord(
-                dessert: DessertItem(
-                    id: 1, 
-                    name: "芝芝奶茶", 
-                    imageName: "dessert_01",
-                    calories: "235",
-                    category: .drink,
-                    categoryId: 1,
-                    categoryName: "饮品",
-                    displayOrder: 1,
-                    images: []
-                ),
+                id: UUID().uuidString,
+                userId: UUID().uuidString,
                 exerciseType: ExerciseType(
                     type: "walking",
                     name: "跑步",
@@ -297,12 +288,27 @@ struct DessertVoucherCardSimple_Previews: PreviewProvider {
                     caloriesPerKmPerKg: 0.7,
                     displayOrder: 1
                 ),
-                completionDate: Date(),
                 duration: 57,
-                caloriesBurned: 350,
-                equivalentDessertCount: 1.3,
                 distance: 2500,
-                workoutTag: "运动量super!"
+                caloriesBurned: 350,
+                dessert: DessertItem(
+                    id: 1, 
+                    name: "芝芝奶茶", 
+                    imageName: "dessert_01",
+                    calories: "235",
+                    category: .drink,
+                    description: "",
+                    backgroundColor: nil,
+                    isFeatured: false,
+                    relatedItems: [],
+                    categoryId: 1,
+                    categoryName: "饮品",
+                    displayOrder: 1,
+                    images: []
+                ),
+                date: Date(),
+                workoutTag: "运动量super!",
+                equivalentDessertCount: 1.3
             )
             
             // 展开状态预览

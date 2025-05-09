@@ -592,7 +592,7 @@ struct ExerciseRecordCard: View {
                     }
                 } else {
                     VStack(spacing: 4) {
-                        Text("\(Int(record.duration))")
+                        Text("\(Int(record.duration ?? 0))")
                             .font(.caption)
                             .foregroundColor(.black)
                         

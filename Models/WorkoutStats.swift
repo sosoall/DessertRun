@@ -89,7 +89,7 @@ struct CalendarWorkoutRecord: Identifiable {
     
     // 快速访问器
     var totalDuration: Double {
-        return records.reduce(0) { $0 + $1.duration }
+        return records.reduce(0) { $0 + ($1.duration ?? 0) }
     }
     
     var totalBurnedCalories: Double {

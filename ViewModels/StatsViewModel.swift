@@ -51,6 +51,12 @@ class StatsViewModel: ObservableObject {
     // MARK: - 选择的日期
     @Published var selectedDay: Date = Date()
     
+    /// 加载状态
+    @Published var isLoading: Bool = false
+    
+    /// 错误信息
+    @Published var errorMessage: String? = nil
+    
     // MARK: - 初始化方法
     
     /// 初始化
@@ -83,8 +89,8 @@ class StatsViewModel: ObservableObject {
         filterRecordsByMonth()
         filterRecordsByYear()
         
-        // 加载模拟数据
-        loadMockData()
+        // 初始化时加载数据
+        loadWorkoutRecords()
     }
     
     // MARK: - 计算属性
@@ -135,12 +141,12 @@ class StatsViewModel: ObservableObject {
     
     /// 当月的总运动时长（分钟）
     var totalDurationThisMonth: Double {
-        filteredWorkoutRecords.reduce(0) { $0 + $1.duration }
+        filteredWorkoutRecords.reduce(0) { $0 + ($1.duration ?? 0) }
     }
     
     /// 当年的总运动时长（分钟）
     var totalDurationThisYear: Double {
-        yearlyFilteredWorkoutRecords.reduce(0) { $0 + $1.duration }
+        yearlyFilteredWorkoutRecords.reduce(0) { $0 + ($1.duration ?? 0) }
     }
     
     /// 当月的总消耗卡路里
@@ -221,7 +227,7 @@ class StatsViewModel: ObservableObject {
         // 筛选本月记录
         filteredWorkoutRecords = appState.workoutRecords.filter { record in
             // 获取记录的年月组件
-            let recordComponents = calendar.dateComponents([.year, .month], from: record.completionDate)
+            let recordComponents = calendar.dateComponents([.year, .month], from: record.date)
             
             // 比较年月是否相同
             return recordComponents.year == monthComponents.year &&
@@ -242,7 +248,7 @@ class StatsViewModel: ObservableObject {
         // 筛选本年记录
         yearlyFilteredWorkoutRecords = appState.workoutRecords.filter { record in
             // 获取记录的年组件
-            let recordComponents = calendar.dateComponents([.year], from: record.completionDate)
+            let recordComponents = calendar.dateComponents([.year], from: record.date)
             
             // 比较年是否相同
             return recordComponents.year == yearComponents.year
@@ -332,7 +338,7 @@ class StatsViewModel: ObservableObject {
         
         return appState.workoutRecords.filter { record in
             // 获取记录日期的年、月、日组件
-            let recordComponents = calendar.dateComponents([.year, .month, .day], from: record.completionDate)
+            let recordComponents = calendar.dateComponents([.year, .month, .day], from: record.date)
             
             // 比较年、月、日是否相同
             return dateComponents.year == recordComponents.year &&
@@ -361,7 +367,7 @@ class StatsViewModel: ObservableObject {
     func getSortedRecords() -> [WorkoutRecord] {
         return filteredWorkoutRecords.sorted { record1, record2 in
             // 比较时间戳，精确到秒级的倒序排列（最新的记录在前）
-            return record1.completionDate.timeIntervalSince1970 > record2.completionDate.timeIntervalSince1970
+            return record1.date.timeIntervalSince1970 > record2.date.timeIntervalSince1970
         }
     }
     
@@ -369,7 +375,7 @@ class StatsViewModel: ObservableObject {
     func getSortedYearlyRecords() -> [WorkoutRecord] {
         return yearlyFilteredWorkoutRecords.sorted { record1, record2 in
             // 比较时间戳，精确到秒级的倒序排列（最新的记录在前）
-            return record1.completionDate.timeIntervalSince1970 > record2.completionDate.timeIntervalSince1970
+            return record1.date.timeIntervalSince1970 > record2.date.timeIntervalSince1970
         }
     }
     
@@ -377,7 +383,7 @@ class StatsViewModel: ObservableObject {
     func getSortedAllRecords() -> [WorkoutRecord] {
         return appState.workoutRecords.sorted { record1, record2 in
             // 比较时间戳，精确到秒级的倒序排列（最新的记录在前）
-            return record1.completionDate.timeIntervalSince1970 > record2.completionDate.timeIntervalSince1970
+            return record1.date.timeIntervalSince1970 > record2.date.timeIntervalSince1970
         }
     }
     
@@ -388,91 +394,60 @@ class StatsViewModel: ObservableObject {
     
     // MARK: - 私有方法
     
-    /// 加载模拟数据
-    private func loadMockData() {
-        // 如果已经有数据，则不再重复加载
-        if !appState.workoutRecords.isEmpty {
-            // 重新计算统计数据即可
-            calculateStats()
-            return
-        }
+    /// 重新加载数据
+    func reloadData() {
+        loadWorkoutRecords()
+    }
+    
+    /// 从API加载运动记录
+    private func loadWorkoutRecords() {
+        isLoading = true
+        errorMessage = nil
         
-        let calendar = Calendar.current
-        
-        // 创建固定日期 - 2025年3月和4月的特定日期
-        var targetDates: [Date] = []
-        
-        // 指定2025年3月的日期
-        for day in [5, 9, 15, 22, 28] {
-            var components = DateComponents()
-            components.year = 2025
-            components.month = 3
-            components.day = day
-            if let date = calendar.date(from: components) {
-                targetDates.append(date)
-            }
-        }
-        
-        // 指定2025年4月的日期
-        for day in [3, 8, 12, 18, 24] {
-            var components = DateComponents()
-            components.year = 2025
-            components.month = 4
-            components.day = day
-            if let date = calendar.date(from: components) {
-                targetDates.append(date)
-            }
-        }
-        
-        // 获取样本甜品
-        let desserts = DessertData.getSampleDesserts()
-        
-        // 使用Combine获取运动类型
-        APIService.shared.fetchExerciseTypes()
+        APIService.shared.getUserWorkoutRecords(page: 1, limit: 100)
             .receive(on: DispatchQueue.main)
-            .sink(receiveCompletion: { completion in
-                if case .failure(let error) = completion {
-                    print("获取运动类型失败: \(error)")
+            .sink(
+                receiveCompletion: { [weak self] completion in
+                    self?.isLoading = false
+                    if case .failure(let error) = completion {
+                        self?.errorMessage = error.errorMessage
+                        DRError("加载运动记录失败: \(error.errorMessage)")
+                    }
+                },
+                receiveValue: { [weak self] records in
+                    self?.isLoading = false
+                    
+                    // 更新应用状态中的记录列表
+                    DispatchQueue.main.async {
+                        self?.appState.workoutRecords = records
+                        DRInfo("成功加载\(records.count)条运动记录")
+                    }
+                    
+                    // 加载美食券
+                    self?.loadDessertVouchers()
                 }
-            }, receiveValue: { [weak self] exerciseTypes in
-                guard let self = self else { return }
-                
-                // 创建10天的模拟数据，每天使用不同的甜品和运动类型
-                var mockRecords: [WorkoutRecord] = []
-                
-                for (index, date) in targetDates.enumerated() {
-                    // 每天使用不同的甜品和运动类型
-                    let dessert = desserts[index % desserts.count]
-                    let exerciseType = exerciseTypes[index % exerciseTypes.count]
-                    
-                    // 运动时长 20-60分钟
-                    let duration = Double(30 + index * 3) // 递增时长
-                    
-                    // 消耗的卡路里
-                    let targetCalories = Double(dessert.calories) ?? 300
-                    let caloriesBurned = index % 3 == 0 ?
-                        targetCalories * 0.8 : // 未达成目标
-                        targetCalories * 1.2   // 达成目标
-                    
-                    // 创建记录
-                    let record = WorkoutRecord(
-                        dessert: dessert,
-                        exerciseType: exerciseType,
-                        completionDate: date,
-                        duration: duration,
-                        caloriesBurned: caloriesBurned
-                    )
-                    
-                    mockRecords.append(record)
+            )
+            .store(in: &cancellables)
+    }
+    
+    /// 从API加载美食券
+    private func loadDessertVouchers() {
+        APIService.shared.getUserVouchers(page: 1, limit: 100)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { completion in
+                    if case .failure(let error) = completion {
+                        DRError("加载美食券失败: \(error.errorMessage)")
+                    }
+                },
+                receiveValue: { [weak self] vouchers in
+                    // 更新应用状态中的美食券列表
+                    DispatchQueue.main.async {
+                        self?.appState.dessertVouchers = vouchers
+                        DRInfo("成功加载\(vouchers.count)张美食券")
+                    }
                 }
-                
-                // 保存模拟数据
-                self.appState.workoutRecords = mockRecords
-                
-                // 筛选记录
-                self.filterRecordsByMonth()
-                self.filterRecordsByYear()
-            })
+            )
             .store(in: &cancellables)
     }
     
@@ -490,7 +465,7 @@ class StatsViewModel: ObservableObject {
         
         // 获取月内所有不同的日期
         let daysInMonth = Set(filteredWorkoutRecords.map { 
-            calendar.dateComponents([.year, .month, .day], from: $0.completionDate) 
+            calendar.dateComponents([.year, .month, .day], from: $0.date) 
         })
         
         // 对每个不同的日期进行处理
@@ -522,7 +497,7 @@ class StatsViewModel: ObservableObject {
         
         // 筛选本周记录
         let weekRecords = appState.workoutRecords.filter { record in
-            record.completionDate >= startOfWeek && record.completionDate < Date()
+            record.date >= startOfWeek && record.date < Date()
         }
         
         // 周度消耗和摄入
@@ -534,7 +509,7 @@ class StatsViewModel: ObservableObject {
         
         // 获取周内所有不同的日期
         let daysInWeek = Set(weekRecords.map { 
-            calendar.dateComponents([.year, .month, .day], from: $0.completionDate) 
+            calendar.dateComponents([.year, .month, .day], from: $0.date) 
         })
         
         // 对每个不同的日期进行处理

@@ -70,6 +70,9 @@ class AppState: ObservableObject {
     /// 用户的运动记录
     @Published var workoutRecords: [WorkoutRecord] = []
     
+    /// 美食券列表
+    @Published var dessertVouchers: [DessertVoucher] = []
+    
     /// 是否隐藏TabBar（用于拖动时）
     @Published var hideTabBarForDrag: Bool = false
     
