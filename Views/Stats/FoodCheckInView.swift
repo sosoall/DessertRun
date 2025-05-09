@@ -37,6 +37,9 @@ struct FoodCheckInView: View {
             }
         }
         .onAppear {
+            // 每次进入页面时重新加载数据
+            viewModel.reloadData()
+            
             // 仅当刚完成打卡时才显示动画（通过检查应用状态中的标记来判断）
             if appState.justCompletedWorkout, let latestRecord = viewModel.getSortedAllRecords().first {
                 // 将新记录ID存入状态变量
@@ -121,7 +124,7 @@ struct FoodCheckInView: View {
                                 ZStack(alignment: .top) {
                                     VStack {
                                         Spacer()
-                                        Image(dessert.getFullImageName(for: .regular))
+                                        Image(dessert.imageName)
                                             .resizable()
                                             .scaledToFit()
                                             .frame(height: index == 0 ? 120 : 75)
@@ -355,6 +358,40 @@ struct FoodCheckInView: View {
                                 .padding(.bottom, 12)  // 增加卡片底部边距
                             }
                         }
+                    }
+                    
+                    // 加载更多按钮
+                    if viewModel.hasMoreRecords {
+                        Button(action: {
+                            viewModel.loadMoreRecords()
+                        }) {
+                            HStack {
+                                if viewModel.isLoadingMore {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle())
+                                        .frame(width: 20, height: 20)
+                                        .padding(.trailing, 8)
+                                }
+                                
+                                Text(viewModel.isLoadingMore ? "加载中..." : "加载更多")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(.gray)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 15)
+                            .background(Color(.systemBackground))
+                            .cornerRadius(8)
+                            .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
+                        }
+                        .padding(.top, 10)
+                        .padding(.bottom, 20)
+                        .disabled(viewModel.isLoadingMore)
+                    } else if !appState.workoutRecords.isEmpty {
+                        Text("没有更多记录了")
+                            .font(.system(size: 14))
+                            .foregroundColor(.gray)
+                            .padding(.vertical, 20)
+                            .frame(maxWidth: .infinity)
                     }
                 }
             }

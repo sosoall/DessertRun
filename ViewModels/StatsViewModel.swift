@@ -1,6 +1,27 @@
 import SwiftUI
 import Combine
 
+/// 美食统计排行项
+struct StatTopDessertItem: Identifiable {
+    /// ID
+    let id: String
+    
+    /// 名称
+    let name: String
+    
+    /// 图像名称
+    let imageName: String
+    
+    /// 卡路里
+    let calories: Double
+    
+    /// 数量
+    let count: Int
+    
+    /// 总卡路里
+    let totalCalories: Double
+}
+
 /// 统计视图模型 - 管理统计相关数据和逻辑
 class StatsViewModel: ObservableObject {
     // MARK: - 发布属性
@@ -56,6 +77,22 @@ class StatsViewModel: ObservableObject {
     
     /// 错误信息
     @Published var errorMessage: String? = nil
+    
+    // MARK: - 分页支持
+    /// 当前页码
+    @Published var currentPage: Int = 1
+    
+    /// 每页记录数量
+    private let pageSize: Int = 20
+    
+    /// 是否有更多记录可加载
+    @Published var hasMoreRecords: Bool = true
+    
+    /// 总记录数
+    @Published var totalRecordsCount: Int = 0
+    
+    /// 是否正在加载更多
+    @Published var isLoadingMore: Bool = false
     
     // MARK: - 初始化方法
     
@@ -256,23 +293,23 @@ class StatsViewModel: ObservableObject {
     }
     
     /// 获取月度美食排行榜
-    func getMonthlyTopDesserts(count: Int) -> [TopDessertItem]? {
+    func getMonthlyTopDesserts(count: Int) -> [StatTopDessertItem]? {
         return getTopDessertsFromRecords(records: filteredWorkoutRecords, count: count)
     }
     
     /// 获取年度美食排行榜
-    func getYearlyTopDesserts(count: Int) -> [TopDessertItem]? {
+    func getYearlyTopDesserts(count: Int) -> [StatTopDessertItem]? {
         return getTopDessertsFromRecords(records: yearlyFilteredWorkoutRecords, count: count)
     }
     
     /// 从记录中获取排名前几的美食
-    private func getTopDessertsFromRecords(records: [WorkoutRecord], count: Int) -> [TopDessertItem]? {
+    private func getTopDessertsFromRecords(records: [WorkoutRecord], count: Int) -> [StatTopDessertItem]? {
         if records.isEmpty {
             return nil
         }
         
         // 统计每个甜品出现的次数和热量值
-        var dessertInfo: [Int: (count: Int, calories: Double, name: String, imageName: String)] = [:]
+        var dessertInfo: [String: (count: Int, calories: Double, name: String, imageName: String)] = [:]
         
         for record in records {
             let dessertId = record.dessert.id
@@ -308,8 +345,8 @@ class StatsViewModel: ObservableObject {
         // 返回前n个
         return sortedDesserts.prefix(count).map { entry in
             let (dessertId, info) = entry
-            return TopDessertItem(
-                id: String(dessertId),
+            return StatTopDessertItem(
+                id: dessertId,
                 name: info.name,
                 imageName: info.imageName,
                 calories: info.calories,
@@ -388,7 +425,7 @@ class StatsViewModel: ObservableObject {
     }
     
     /// 获取所有美食排行榜
-    func getAllTopDesserts(count: Int) -> [TopDessertItem]? {
+    func getAllTopDesserts(count: Int) -> [StatTopDessertItem]? {
         return getTopDessertsFromRecords(records: appState.workoutRecords, count: count)
     }
     
@@ -404,7 +441,11 @@ class StatsViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
         
-        APIService.shared.getUserWorkoutRecords(page: 1, limit: 100)
+        // 重置分页状态
+        currentPage = 1
+        hasMoreRecords = true
+        
+        APIService.shared.getUserWorkoutRecords(page: currentPage, limit: pageSize)
             .receive(on: DispatchQueue.main)
             .sink(
                 receiveCompletion: { [weak self] completion in
@@ -415,16 +456,20 @@ class StatsViewModel: ObservableObject {
                     }
                 },
                 receiveValue: { [weak self] records in
-                    self?.isLoading = false
+                    guard let self = self else { return }
+                    self.isLoading = false
                     
                     // 更新应用状态中的记录列表
                     DispatchQueue.main.async {
-                        self?.appState.workoutRecords = records
+                        self.appState.workoutRecords = records
                         DRInfo("成功加载\(records.count)条运动记录")
+                        
+                        // 判断是否有更多记录可加载
+                        self.hasMoreRecords = records.count >= self.pageSize
                     }
                     
                     // 加载美食券
-                    self?.loadDessertVouchers()
+                    self.loadDessertVouchers()
                 }
             )
             .store(in: &cancellables)
@@ -540,5 +585,62 @@ class StatsViewModel: ObservableObject {
     
     func resetYear() {
         selectedYear = Date()
+    }
+    
+    // MARK: - 分页加载方法
+    
+    /// 加载更多记录
+    func loadMoreRecords() {
+        guard hasMoreRecords && !isLoadingMore && !isLoading else { return }
+        
+        isLoadingMore = true
+        
+        let nextPage = currentPage + 1
+        
+        APIService.shared.getUserWorkoutRecords(page: nextPage, limit: pageSize)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { [weak self] completion in
+                    self?.isLoadingMore = false
+                    if case .failure(let error) = completion {
+                        self?.errorMessage = error.errorMessage
+                        DRError("加载更多运动记录失败: \(error.errorMessage)")
+                    }
+                },
+                receiveValue: { [weak self] records in
+                    guard let self = self else { return }
+                    
+                    self.isLoadingMore = false
+                    
+                    if records.isEmpty {
+                        self.hasMoreRecords = false
+                    } else {
+                        // 更新当前页码
+                        self.currentPage = nextPage
+                        
+                        // 将新记录添加到现有记录中
+                        DispatchQueue.main.async {
+                            self.appState.workoutRecords.append(contentsOf: records)
+                            // 更新过滤后的记录
+                            self.filterRecordsByMonth()
+                            self.filterRecordsByYear()
+                            
+                            DRInfo("成功加载额外\(records.count)条运动记录")
+                        }
+                        
+                        // 判断是否还有更多记录
+                        self.hasMoreRecords = records.count >= self.pageSize
+                    }
+                }
+            )
+            .store(in: &cancellables)
+    }
+    
+    /// 重置分页并重新加载
+    func resetAndReload() {
+        currentPage = 1
+        hasMoreRecords = true
+        appState.workoutRecords = []
+        loadWorkoutRecords()
     }
 } 

@@ -80,14 +80,14 @@ struct DessertIconView_Previews: PreviewProvider {
                     // 使用示例数据
                     DessertIconView(
                         dessert: DessertItem(
-                            id: 1,
+                            id: "1",
                             name: "示例甜点",
                             imageName: "example",
                             calories: "100",
                             category: category,
                             description: "示例描述",
                             isFeatured: false,
-                            categoryId: 1,
+                            categoryId: "1",
                             categoryName: category.rawValue,
                             displayOrder: 1,
                             images: []

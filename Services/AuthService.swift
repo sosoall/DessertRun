@@ -351,7 +351,7 @@ class AuthService: ObservableObject {
             // 如果体重有变化，清除运动计算缓存
             if oldWeight != weight {
                 DRInfo("体重已变更，清除运动计算缓存")
-                DessertToExerciseTransition.clearAllExerciseCalculationCaches()
+                DessertToExerciseTransition.clearLegacyExerciseCalculationCaches()
             }
         }
         if let hasExerciseHabit = hasExerciseHabit { 

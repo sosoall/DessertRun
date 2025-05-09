@@ -202,9 +202,38 @@ public class NetworkManager {
                     return data
                 case 400:
                     // 提取具体的400错误信息
-                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                       let message = json["message"] as? String {
-                        throw NetworkError.badRequest(message)
+                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                        // 打印完整的错误响应以便调试
+                        DRError("[NetworkManager] 400错误详细信息: \(json)")
+                        
+                        if let message = json["message"] as? String {
+                            throw NetworkError.badRequest(message)
+                        } else if let error = json["error"] as? String {
+                            throw NetworkError.badRequest(error)
+                        } else if let errors = json["errors"] as? [[String: Any]], !errors.isEmpty {
+                            // 处理错误数组
+                            let errorMessages = errors.compactMap { error -> String? in
+                                if let field = error["field"] as? String, 
+                                   let message = error["message"] as? String {
+                                    return "\(field): \(message)"
+                                }
+                                return nil
+                            }.joined(separator: ", ")
+                            
+                            if !errorMessages.isEmpty {
+                                throw NetworkError.badRequest(errorMessages)
+                            }
+                        }
+                        
+                        // 如果没有标准的错误字段，返回整个JSON字符串
+                        if let jsonString = String(data: data, encoding: .utf8) {
+                            throw NetworkError.badRequest("请求参数错误: \(jsonString)")
+                        } else {
+                            throw NetworkError.badRequest("请求参数错误: 无法解析错误详情")
+                        }
+                    } else if let jsonString = String(data: data, encoding: .utf8) {
+                        DRError("[NetworkManager] 400错误原始响应: \(jsonString)")
+                        throw NetworkError.badRequest("请求参数错误: \(jsonString)")
                     } else {
                         throw NetworkError.badRequest("请求参数错误")
                     }

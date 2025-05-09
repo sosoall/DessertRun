@@ -31,7 +31,7 @@ class TransitionAnimationState: ObservableObject {
     @Published var animationPhase: AnimationPhase = .initial
     
     /// 当前正在动画的甜品ID，用于在原始气泡中隐藏图片
-    @Published var animatingDessertID: Int? = nil
+    @Published var animatingDessertID: String? = nil
     
     /// 背景暗化程度 (0-1)
     @Published var backgroundDimLevel: CGFloat = 0

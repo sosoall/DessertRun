@@ -111,7 +111,7 @@ struct APIFoodItem: Codable {
         let foodCategory = FoodCategory.allCases.first { $0.rawValue == categoryName } ?? .dessert
         
         return DessertItem(
-            id: Int(id) ?? 0,
+            id: id,  // 直接使用原始id字符串
             name: name,
             imageName: imageName ?? "default_food",
             calories: "\(calories)",
@@ -120,10 +120,10 @@ struct APIFoodItem: Codable {
             backgroundColor: nil,
             isFeatured: false,
             relatedItems: [],
-            categoryId: Int(categoryId) ?? 0,
+            categoryId: categoryId,  // 直接使用原始categoryId字符串
             categoryName: categoryName,
             displayOrder: displayOrder,
-            images: [DessertImage(id: 0, url: imageName ?? "default_food", type: "regular", displayOrder: 1)]
+            images: [DessertImage(id: "1", url: imageName ?? "default_food", type: "regular", displayOrder: 1)]  // 使用字符串ID
         )
     }
 }

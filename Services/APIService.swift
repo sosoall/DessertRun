@@ -855,12 +855,13 @@ class APIService {
             
             DRError("createWorkoutRecord网络错误: \(networkError)")
             
-            // 如果有响应数据，打印出来
-            if let apiError = networkError as? APIServiceError {
-                DRError("API错误详情: \(apiError)")
+            // 针对特定错误类型进行更详细的错误提取
+            if case .badRequest(let message) = networkError {
+                DRError("请求参数错误详情: \(message)")
                 
-                if case .networkError(let networkError) = apiError {
-                    DRError("网络错误详情: \(networkError)")
+                // 尝试从错误消息中解析更多信息
+                if message.contains("{") && message.contains("}") {
+                    DRError("服务器可能返回了JSON格式的错误信息")
                 }
             }
             
@@ -914,7 +915,7 @@ class APIService {
                 
                 // 创建一个甜品对象
                 let dessert = DessertItem(
-                    id: Int(dto.dessert_id.hashValue % Int.max),
+                    id: dto.dessert_id,  // 直接使用原始uuid字符串
                     name: dto.dessert_name,
                     imageName: "dessert_\(dto.dessert_id.prefix(8))",
                     calories: "\(dto.dessert_calories)kcal",
@@ -923,7 +924,7 @@ class APIService {
                     backgroundColor: nil,
                     isFeatured: false,
                     relatedItems: [],
-                    categoryId: 0,
+                    categoryId: "0",  // 转换为字符串类型
                     categoryName: "默认分类",
                     displayOrder: 0,
                     images: []

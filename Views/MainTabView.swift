@@ -26,34 +26,44 @@ struct MainTabView: View {
             selectedTab: $appState.selectedTabIndex,
             tabItems: tabItems
         ) {
-            Group {
+            Group<AnyView> {
                 switch appState.selectedTabIndex {
                 case 0:
                     // 运动标签
-                    NavigationStack {
-                        ExerciseHomeView(onDraggingChanged: { isDragging in
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                appState.hideTabBarForDrag = isDragging
-                            }
-                        })
-                    }
+                    AnyView(
+                        NavigationStack {
+                            ExerciseHomeView(onDraggingChanged: { isDragging in
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    appState.hideTabBarForDrag = isDragging
+                                }
+                            })
+                        }
+                    )
                 case 1:
                     // 甜品打卡标签
-                    NavigationStack {
-                        FoodCheckInView(viewModel: StatsViewModel(appState: appState))
-                    }
+                    AnyView(
+                        NavigationStack {
+                            FoodCheckInView(viewModel: StatsViewModel(appState: appState))
+                        }
+                        .id(appState.selectedTabIndex == 1 ? UUID() : "foodCheckInTab") // 添加动态ID确保每次切换都会重新创建
+                    )
                 case 2:
                     // 运动记录标签
-                    NavigationStack {
-                        ExerciseRecordView(viewModel: StatsViewModel(appState: appState))
-                    }
+                    AnyView(
+                        NavigationStack {
+                            ExerciseRecordView(viewModel: StatsViewModel(appState: appState))
+                        }
+                        .id(appState.selectedTabIndex == 2 ? UUID() : "exerciseRecordTab") // 添加动态ID确保每次切换都会重新创建
+                    )
                 case 3:
                     // 个人信息标签
-                    NavigationStack {
-                        ProfileHomeView()
-                    }
+                    AnyView(
+                        NavigationStack {
+                            ProfileHomeView()
+                        }
+                    )
                 default:
-                    EmptyView()
+                    AnyView(EmptyView())
                 }
             }
             // 确保内容没有背景色设置

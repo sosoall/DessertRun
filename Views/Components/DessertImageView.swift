@@ -136,18 +136,18 @@ struct DessertImageView_Previews: PreviewProvider {
             // 使用本地示例数据
             DessertImageView(
                 dessert: DessertItem(
-                    id: 1,
+                    id: "00000000-0000-0000-0000-000000000001",
                     name: "示例甜点",
                     imageName: "MilkTea",
                     calories: "100",
                     category: .drink,
                     description: "示例描述",
                     isFeatured: false,
-                    categoryId: 1,
+                    categoryId: "1",
                     categoryName: "饮品",
                     displayOrder: 1,
                     images: [
-                        DessertImage(id: 1, url: "https://example.com/images/dessert.jpg", type: "regular", displayOrder: 1)
+                        DessertImage(id: "1", url: "https://example.com/images/dessert.jpg", type: "regular", displayOrder: 1)
                     ]
                 ),
                 type: .regular,
@@ -157,14 +157,14 @@ struct DessertImageView_Previews: PreviewProvider {
             // 不指定大小的示例（由外部约束控制）
             DessertImageView(
                 dessert: DessertItem(
-                    id: 2,
+                    id: "00000000-0000-0000-0000-000000000002",
                     name: "示例甜点2",
                     imageName: "IceCream",
                     calories: "200",
                     category: .iceCream,
                     description: "示例描述",
                     isFeatured: false,
-                    categoryId: 3,
+                    categoryId: "3",
                     categoryName: "冰品",
                     displayOrder: 1,
                     images: []
@@ -177,14 +177,14 @@ struct DessertImageView_Previews: PreviewProvider {
             // 占位图
             DessertImageView(
                 dessert: DessertItem(
-                    id: 3,
+                    id: "00000000-0000-0000-0000-000000000003",
                     name: "示例甜点3",
                     imageName: "IceCream",
                     calories: "200",
                     category: .iceCream,
                     description: "示例描述",
                     isFeatured: false,
-                    categoryId: 3,
+                    categoryId: "3",
                     categoryName: "冰品",
                     displayOrder: 1,
                     images: []

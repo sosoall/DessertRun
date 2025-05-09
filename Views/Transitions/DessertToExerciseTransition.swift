@@ -40,7 +40,7 @@ struct DessertToExerciseTransition: View {
     @State private var selectedExercise: ExerciseType? = nil
     
     /// 展开的运动类型ID
-    @State private var expandedExerciseID: Int? = nil
+    @State private var expandedExerciseID: String? = nil
     
     /// 运动时长（分钟）
     @State private var exerciseDuration: Double = 30
@@ -100,6 +100,9 @@ struct DessertToExerciseTransition: View {
         
         // 初始化时加载运动类型
         _isLoadingExerciseTypes = State(initialValue: true)
+        
+        // 添加禁用缓存的日志
+        DRInfo("DessertToExerciseTransition: 已禁用运动计算缓存，始终从API获取实时数据")
     }
     
     // 获取运动类型列表（兼容两种方式）
@@ -237,29 +240,38 @@ struct DessertToExerciseTransition: View {
         
         // 构建API请求参数
         var params: [String: Any] = [
+            // 直接使用原始dessert.id，现在它已经是String类型
             "dessert_id": dessert.id,
             "exercise_type": exerciseType.type,
-            "equivalent_dessert_count": equivalentDessertCount,
+            "equivalent_dessert_count": Double(equivalentDessertCount), // 确保是Double类型
             "note": ""
         ]
         
         // 根据运动类型添加时长或距离
         if exerciseType.usesDistance {
-            params["distance"] = exerciseDistance / 1000 // 转换为公里
+            // 确保距离是Double类型
+            let distanceInKm = Double(exerciseDistance) / 1000.0
+            params["distance"] = distanceInKm // 转换为公里
         } else {
-            params["duration"] = exerciseDuration
+            // 确保时长是Double类型
+            params["duration"] = Double(exerciseDuration)
         }
         
         // 添加详细日志记录
         DRDebug("提交运动记录 - 详细参数：")
+        for (key, value) in params {
+            DRDebug("参数[\(key)] = \(value), 类型: \(type(of: value))")
+        }
+        
         DRDebug("甜品ID: \(dessert.id), 名称: \(dessert.name)")
         DRDebug("运动类型: \(exerciseType.type), 名称: \(exerciseType.name)")
-        DRDebug("等效甜品数量: \(equivalentDessertCount)")
+        DRDebug("等效甜品数量: \(equivalentDessertCount), 类型: \(type(of: equivalentDessertCount))")
         
         if exerciseType.usesDistance {
-            DRDebug("运动距离: \(exerciseDistance / 1000)公里")
+            let distance = exerciseDistance / 1000
+            DRDebug("运动距离: \(distance)公里, 类型: \(type(of: distance))")
         } else {
-            DRDebug("运动时间: \(exerciseDuration)分钟")
+            DRDebug("运动时间: \(exerciseDuration)分钟, 类型: \(type(of: exerciseDuration))")
         }
         
         // 将完整参数转为JSON字符串输出
@@ -518,13 +530,13 @@ struct DessertToExerciseTransition: View {
             // 主要卡片
         Button(action: {
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                    if expandedExerciseID == exerciseType.type.hashValue {
+                    if expandedExerciseID == exerciseType.type {
                         // 如果已经展开，则关闭
                         expandedExerciseID = nil
                         selectedExercise = nil
                     } else {
                         // 展开此运动类型
-                        expandedExerciseID = exerciseType.type.hashValue
+                        expandedExerciseID = exerciseType.type
                         selectedExercise = exerciseType
                         
                         // 尝试从服务器获取计算结果
@@ -556,7 +568,7 @@ struct DessertToExerciseTransition: View {
                     Spacer()
                     
                     // 右侧按钮文本
-                    if expandedExerciseID == exerciseType.type.hashValue {
+                    if expandedExerciseID == exerciseType.type {
                         Image(systemName: "chevron.up")
                             .font(.system(size: 16, weight: .medium))
                             .foregroundColor(.gray)
@@ -584,7 +596,7 @@ struct DessertToExerciseTransition: View {
             .buttonStyle(CustomScaleButtonStyle())
             
             // 展开的配置区域
-            if expandedExerciseID == exerciseType.type.hashValue {
+            if expandedExerciseID == exerciseType.type {
                 expandedExerciseOptions(for: exerciseType)
                     .padding(.top, 2)
                     .transition(.asymmetric(
@@ -847,30 +859,12 @@ struct DessertToExerciseTransition: View {
             
             if exerciseType.usesDistance {
                 // 距离类型运动 - 直接使用API返回的usesDistance字段
-                // 在缓存键中添加用户体重，确保体重变化时会重新计算
-                let cacheKey = "distance_\(typeStr)_\(Int(calories))_w\(weightInt)"
-                // 检查是否有缓存
-                let cachedDistance = UserDefaults.standard.double(forKey: cacheKey)
-                if cachedDistance > 0 {
-                    print("使用缓存的距离计算: \(cachedDistance)公里 (体重:\(weightInt)kg)")
-                    self.calculatedDistances[exerciseType] = cachedDistance * 1000
-                } else {
-                    // 没有缓存，进行网络请求，最多重试3次
-                    requestExerciseDistance(exerciseType: exerciseType, typeStr: typeStr, calories: calories, retryCount: 3, cacheKey: cacheKey)
-                }
+                // 始终发起网络请求，不再使用缓存
+                requestExerciseDistance(exerciseType: exerciseType, typeStr: typeStr, calories: calories, retryCount: 3, cacheKey: "")
             } else {
                 // 时间类型运动
-                // 在缓存键中添加用户体重，确保体重变化时会重新计算
-                let cacheKey = "duration_\(typeStr)_\(Int(calories))_w\(weightInt)"
-                // 检查是否有缓存
-                let cachedDuration = UserDefaults.standard.double(forKey: cacheKey)
-                if cachedDuration > 0 {
-                    print("使用缓存的时间计算: \(cachedDuration)分钟 (体重:\(weightInt)kg)")
-                    self.calculatedDurations[exerciseType] = cachedDuration
-                } else {
-                    // 没有缓存，进行网络请求，最多重试3次
-                    requestExerciseDuration(exerciseType: exerciseType, typeStr: typeStr, calories: calories, retryCount: 3, cacheKey: cacheKey)
-                }
+                // 始终发起网络请求，不再使用缓存
+                requestExerciseDuration(exerciseType: exerciseType, typeStr: typeStr, calories: calories, retryCount: 3, cacheKey: "")
             }
         }
     }
@@ -900,8 +894,7 @@ struct DessertToExerciseTransition: View {
                         let distance = response.distance * 1000 // 仅转换单位：公里→米
                         print("获取到距离计算结果: \(distance)米")
                         self.calculatedDistances[exerciseType] = distance
-                        // 缓存结果
-                        UserDefaults.standard.set(response.distance, forKey: cacheKey)
+                        // 不再缓存结果
                     }
                 }
             )
@@ -932,8 +925,7 @@ struct DessertToExerciseTransition: View {
                         // 直接使用API返回的时间结果，不进行任何计算
                         print("获取到时间计算结果: \(response.duration)分钟")
                         self.calculatedDurations[exerciseType] = response.duration
-                        // 缓存结果
-                        UserDefaults.standard.set(response.duration, forKey: cacheKey)
+                        // 不再缓存结果
                     }
                 }
             )
@@ -943,7 +935,7 @@ struct DessertToExerciseTransition: View {
     /// 选择运动类型
     private func selectExerciseType(_ exerciseType: ExerciseType) {
         self.selectedExercise = exerciseType
-        self.expandedExerciseID = exerciseType.type.hashValue
+        self.expandedExerciseID = exerciseType.type
         
         // 清除数据
         errorMessage = nil
@@ -988,7 +980,7 @@ struct DessertToExerciseTransition: View {
                     let duration = response.duration
                     self.exerciseDuration = duration
                     self.calculatedDurations[exerciseType] = duration
-                    DRInfo("API计算运动时间: \(duration)分钟，体重: \(response.weight)kg")
+                    DRInfo("API实时计算运动时间: \(duration)分钟，体重: \(response.weight)kg")
                 }
             )
             .store(in: &CancellableStorage.shared.cancellables)
@@ -1025,7 +1017,7 @@ struct DessertToExerciseTransition: View {
                     let distance = response.distance * 1000 // 仅转换单位：公里→米
                     self.exerciseDistance = distance
                     self.calculatedDistances[exerciseType] = distance
-                    DRInfo("API计算运动距离: \(distance)米，体重: \(response.weight)kg")
+                    DRInfo("API实时计算运动距离: \(distance)米，体重: \(response.weight)kg")
                 }
             )
             .store(in: &CancellableStorage.shared.cancellables)
@@ -1081,19 +1073,28 @@ struct ScaleButtonStyle: ButtonStyle {
 
 // MARK: - 缓存管理
 extension DessertToExerciseTransition {
-    /// 清除所有运动计算缓存
-    static func clearAllExerciseCalculationCaches() {
+    /// 清除所有旧版运动计算缓存
+    static func clearLegacyExerciseCalculationCaches() {
         // 获取所有UserDefaults键
         let userDefaults = UserDefaults.standard
         let allKeys = userDefaults.dictionaryRepresentation().keys
         
         // 清除所有距离和时间计算缓存
+        var clearedCount = 0
         for key in allKeys {
             if key.starts(with: "distance_") || key.starts(with: "duration_") {
                 userDefaults.removeObject(forKey: key)
+                clearedCount += 1
             }
         }
         
-        DRInfo("已清除所有运动计算缓存")
+        DRInfo("已清除\(clearedCount)项旧版运动计算缓存，当前版本已禁用缓存机制")
+    }
+    
+    /// 清除所有运动计算缓存（向后兼容）
+    @available(*, deprecated, message: "使用clearLegacyExerciseCalculationCaches代替")
+    static func clearAllExerciseCalculationCaches() {
+        clearLegacyExerciseCalculationCaches()
     }
 } 
+

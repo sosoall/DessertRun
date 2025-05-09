@@ -39,7 +39,7 @@ struct DessertItemResponse: Decodable, Identifiable {
         var dessertImages: [DessertImage] = []
         for (type, url) in images {
             dessertImages.append(DessertImage(
-                id: Int.random(in: 1000...9999),
+                id: UUID().uuidString, // 使用UUID字符串作为图片ID
                 url: url,
                 type: type,
                 displayOrder: 1
@@ -47,14 +47,14 @@ struct DessertItemResponse: Decodable, Identifiable {
         }
         
         return DessertItem(
-            id: Int.random(in: 100...10000), // 临时ID
+            id: id, // 直接使用原始id字符串
             name: name,
             imageName: imageName,
             calories: String(format: "%.0f", calories),
             category: categoryEnum,
             description: description,
             isFeatured: isImportant, // 使用isImportant值设置isFeatured
-            categoryId: Int(categoryID) ?? 0,
+            categoryId: categoryID, // 直接使用原始categoryID字符串
             categoryName: categoryName,
             displayOrder: displayOrder,
             images: dessertImages

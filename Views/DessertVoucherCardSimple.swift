@@ -292,7 +292,7 @@ struct DessertVoucherCardSimple_Previews: PreviewProvider {
                 distance: 2500,
                 caloriesBurned: 350,
                 dessert: DessertItem(
-                    id: 1, 
+                    id: "1", 
                     name: "芝芝奶茶", 
                     imageName: "dessert_01",
                     calories: "235",
@@ -301,7 +301,7 @@ struct DessertVoucherCardSimple_Previews: PreviewProvider {
                     backgroundColor: nil,
                     isFeatured: false,
                     relatedItems: [],
-                    categoryId: 1,
+                    categoryId: "1",
                     categoryName: "饮品",
                     displayOrder: 1,
                     images: []

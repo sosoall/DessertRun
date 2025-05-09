@@ -94,7 +94,41 @@ struct ExerciseRecordView: View {
                     }
                 }
                 
-                // 移除全部运动记录列表
+                // 加载更多按钮
+                if viewModel.hasMoreRecords {
+                    Button(action: {
+                        viewModel.loadMoreRecords()
+                    }) {
+                        HStack {
+                            if viewModel.isLoadingMore {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle())
+                                    .frame(width: 20, height: 20)
+                                    .padding(.trailing, 8)
+                            }
+                            
+                            Text(viewModel.isLoadingMore ? "加载中..." : "加载更多")
+                                .font(.system(size: 16))
+                                .foregroundColor(.gray)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 15)
+                        .background(Color(.systemBackground))
+                        .cornerRadius(8)
+                        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
+                    }
+                    .padding(.top, 10)
+                    .padding(.bottom, 20)
+                    .disabled(viewModel.isLoadingMore)
+                } else if !appState.workoutRecords.isEmpty {
+                    Text("没有更多记录了")
+                        .font(.system(size: 14))
+                        .foregroundColor(.gray)
+                        .padding(.vertical, 20)
+                        .frame(maxWidth: .infinity)
+                }
+                
+                Spacer(minLength: 80) // 确保底部有足够空间
             }
             .padding(.top, 16)
             .padding(.bottom, 32)
@@ -104,6 +138,7 @@ struct ExerciseRecordView: View {
             // 初始化时同步视图Model的年份和月份到本地状态
             selectedMonth = viewModel.selectedMonth
             selectedWeek = Date() // 默认显示当前周
+            viewModel.reloadData()
         }
         .onChange(of: selectedTab) { oldTab, newTab in
             // 当切换标签页时，确保viewModel中的年份和月份是最新的
