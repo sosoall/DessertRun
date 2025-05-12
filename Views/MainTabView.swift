@@ -7,6 +7,19 @@
 
 import SwiftUI
 
+/// 延迟加载的视图包装器
+struct LazyView<Content: View>: View {
+    let content: () -> Content
+    
+    init(_ content: @autoclosure @escaping () -> Content) {
+        self.content = content
+    }
+    
+    var body: some View {
+        content()
+    }
+}
+
 /// 应用主标签视图
 struct MainTabView: View {
     // 全局应用状态
@@ -26,47 +39,42 @@ struct MainTabView: View {
             selectedTab: $appState.selectedTabIndex,
             tabItems: tabItems
         ) {
-            Group<AnyView> {
-                switch appState.selectedTabIndex {
-                case 0:
-                    // 运动标签
-                    AnyView(
-                        NavigationStack {
-                            ExerciseHomeView(onDraggingChanged: { isDragging in
-                                withAnimation(.easeInOut(duration: 0.3)) {
-                                    appState.hideTabBarForDrag = isDragging
-                                }
-                            })
+            switch appState.selectedTabIndex {
+            case 0:
+                // 运动标签
+                NavigationStack {
+                    ExerciseHomeView(onDraggingChanged: { isDragging in
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            appState.hideTabBarForDrag = isDragging
                         }
-                    )
-                case 1:
-                    // 甜品打卡标签
-                    AnyView(
-                        NavigationStack {
-                            FoodCheckInView(viewModel: StatsViewModel(appState: appState))
-                        }
-                        .id(appState.selectedTabIndex == 1 ? UUID() : "foodCheckInTab") // 添加动态ID确保每次切换都会重新创建
-                    )
-                case 2:
-                    // 运动记录标签
-                    AnyView(
-                        NavigationStack {
-                            ExerciseRecordView(viewModel: StatsViewModel(appState: appState))
-                        }
-                        .id(appState.selectedTabIndex == 2 ? UUID() : "exerciseRecordTab") // 添加动态ID确保每次切换都会重新创建
-                    )
-                case 3:
-                    // 个人信息标签
-                    AnyView(
-                        NavigationStack {
-                            ProfileHomeView()
-                        }
-                    )
-                default:
-                    AnyView(EmptyView())
+                    })
                 }
+            case 1:
+                // 美食记录标签（甜品打卡）
+                NavigationStack {
+                    // 使用LazyView包装FoodCheckInView，避免切换Tab时过早加载
+                    LazyView(
+                        FoodCheckInView(viewModel: FoodCheckInViewModel(appState: appState))
+                    )
+                }
+                .id("foodCheckInTab") // 使用固定ID，避免每次都重新创建
+            case 2:
+                // 运动记录标签
+                NavigationStack {
+                    // 使用LazyView包装ExerciseRecordView，避免切换Tab时过早加载 
+                    LazyView(
+                        ExerciseRecordView(viewModel: ExerciseRecordViewModel(appState: appState))
+                    )
+                }
+                .id("exerciseRecordTab") // 使用固定ID，避免每次都重新创建
+            case 3:
+                // 个人信息标签
+                NavigationStack {
+                    ProfileHomeView()
+                }
+            default:
+                EmptyView()
             }
-            // 确保内容没有背景色设置
         }
         .onChange(of: appState.shouldResetNavigation) { oldValue, shouldReset in
             if shouldReset {

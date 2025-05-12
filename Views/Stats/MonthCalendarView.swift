@@ -2,7 +2,7 @@ import SwiftUI
 
 /// 月视图日历组件
 struct MonthCalendarView: View {
-    @ObservedObject var viewModel: StatsViewModel
+    @ObservedObject var viewModel: ExerciseRecordViewModel
     @State private var selectedMonth: Date
     
     // 颜色定义
@@ -14,7 +14,7 @@ struct MonthCalendarView: View {
     private let daysOfWeek = ["日", "一", "二", "三", "四", "五", "六"]
     
     // 初始化方法
-    init(viewModel: StatsViewModel) {
+    init(viewModel: ExerciseRecordViewModel) {
         self.viewModel = viewModel
         self._selectedMonth = State(initialValue: viewModel.selectedMonth)
     }
@@ -244,7 +244,7 @@ struct MonthCalendarView: View {
 // MARK: - 预览
 struct MonthCalendarView_Previews: PreviewProvider {
     static var previews: some View {
-        MonthCalendarView(viewModel: StatsViewModel(appState: AppState.shared))
+        MonthCalendarView(viewModel: ExerciseRecordViewModel(appState: AppState.shared))
             .previewLayout(.sizeThatFits)
             .padding()
     }

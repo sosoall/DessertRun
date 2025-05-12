@@ -2,13 +2,14 @@ import SwiftUI
 
 /// 甜品打卡标签页
 struct FoodCheckInView: View {
-    @ObservedObject var viewModel: StatsViewModel
+    @ObservedObject var viewModel: FoodCheckInViewModel
     @State private var newRecordId: String? = nil
     @State private var showNewRecordAnimation: Bool = false
     @EnvironmentObject var appState: AppState
     @State private var selectedFilter: RecordFilter = .all
     @State private var selectedRecord: WorkoutRecord? = nil  // 当前选中的记录
     @State private var showExpandedCard: Bool = false  // 是否显示展开视图
+    @State private var hasAppeared: Bool = false  // 添加状态标志，追踪视图是否已出现
     
     var body: some View {
         ZStack {
@@ -37,28 +38,43 @@ struct FoodCheckInView: View {
             }
         }
         .onAppear {
-            // 每次进入页面时重新加载数据
-            viewModel.reloadData()
-            
-            // 仅当刚完成打卡时才显示动画（通过检查应用状态中的标记来判断）
-            if appState.justCompletedWorkout, let latestRecord = viewModel.getSortedAllRecords().first {
-                // 将新记录ID存入状态变量
-                newRecordId = "\(latestRecord.id)"
+            // 使用hasAppeared标志防止多次调用
+            if !hasAppeared {
+                DRDebug("[FoodCheckInView] 首次显示，准备加载数据")
                 
-                // 延迟一点，确保视图已经加载
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    withAnimation(.easeInOut(duration: 0.5)) {
-                        showNewRecordAnimation = true
-                    }
+                // 使用DispatchQueue.main.asyncAfter增加延迟，避免在视图层次结构更新期间的频繁调用
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    // 首次进入页面时加载数据
+                    DRDebug("[FoodCheckInView] 开始加载数据")
+                    // 使用新的loadData方法加载所有所需数据
+                    viewModel.loadData()
+                    hasAppeared = true
                     
-                    // 3秒后重置状态，但不需要消失动画
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                        // 没有动画效果，只重置状态
-                        showNewRecordAnimation = false
-                        newRecordId = nil
-                        appState.justCompletedWorkout = false
+                    // 仅当刚完成打卡时才显示动画（通过检查应用状态中的标记来判断）
+                    if appState.justCompletedWorkout, let latestRecord = viewModel.getSortedAllRecords().first {
+                        DRDebug("[FoodCheckInView] 检测到新记录，准备显示动画")
+                        // 将新记录ID存入状态变量
+                        newRecordId = "\(latestRecord.id)"
+                        
+                        // 延迟一点，确保视图已经加载
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            withAnimation(.easeInOut(duration: 0.5)) {
+                                showNewRecordAnimation = true
+                            }
+                            
+                            // 3秒后重置状态，但不需要消失动画
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                                // 没有动画效果，只重置状态
+                                showNewRecordAnimation = false
+                                newRecordId = nil
+                                appState.justCompletedWorkout = false
+                                DRDebug("[FoodCheckInView] 重置动画状态完成")
+                            }
+                        }
                     }
                 }
+            } else {
+                DRDebug("[FoodCheckInView] 视图已显示过，跳过数据加载")
             }
             
             // 添加美食券点击通知的观察者
@@ -82,6 +98,8 @@ struct FoodCheckInView: View {
                 name: NSNotification.Name("ShowExpandedCard"),
                 object: nil
             )
+            
+            DRDebug("[FoodCheckInView] 视图消失，移除观察者")
         }
     }
     

@@ -875,14 +875,26 @@ class APIService {
         .eraseToAnyPublisher()
     }
     
-    /// 获取用户的打卡记录列表
-    func getUserWorkoutRecords(page: Int = 1, limit: Int = 20) -> AnyPublisher<[WorkoutRecord], APIServiceError> {
+    /// 获取用户的打卡记录列表，同时返回总记录数
+    /// - Parameters:
+    ///   - page: 页码，默认为1
+    ///   - limit: 每页记录数，默认为20
+    /// - Returns: 包含记录列表和总记录数的Publisher
+    func getUserWorkoutRecordsWithTotal(page: Int = 1, limit: Int = 20) -> AnyPublisher<(records: [WorkoutRecord], total: Int), APIServiceError> {
         let endpoint = ApiEndpoints.Workout.base + "?page=\(page)&limit=\(limit)"
         
-        // 创建一个可解码的包装类型
+        // 创建一个可解码的包装类型，修改为匹配新的API响应格式
         struct WorkoutRecordsResponse: Decodable {
-            let records: [WorkoutRecordDTO]
-            let total: Int
+            let code: Int
+            let message: String
+            let data: WorkoutData
+            
+            struct WorkoutData: Decodable {
+                let total: Int
+                let page: Int
+                let limit: Int
+                let items: [WorkoutRecordDTO]
+            }
             
             struct WorkoutRecordDTO: Decodable {
                 let id: String
@@ -892,8 +904,7 @@ class APIService {
                 let duration: Int?
                 let distance: Double?
                 let calories_burned: Double
-                let start_time: String?
-                let end_time: String?
+                let completion_date: String
                 let dessert_id: String
                 let dessert_name: String
                 let dessert_calories: Double
@@ -903,63 +914,150 @@ class APIService {
             }
         }
         
-        return networkManager.request(
-            endpoint: endpoint,
-            method: .get,
-            requiresAuth: true
-        )
-        .map { (response: WorkoutRecordsResponse) -> [WorkoutRecord] in
-            // 将DTO转换为领域模型
-            return response.records.compactMap { dto in
-                let exerciseType = APIExerciseType.fromString(dto.exercise_type)
-                
-                // 创建一个甜品对象
-                let dessert = DessertItem(
-                    id: dto.dessert_id,  // 直接使用原始uuid字符串
-                    name: dto.dessert_name,
-                    imageName: "dessert_\(dto.dessert_id.prefix(8))",
-                    calories: "\(dto.dessert_calories)kcal",
-                    category: .dessert,
-                    description: "",
-                    backgroundColor: nil,
-                    isFeatured: false,
-                    relatedItems: [],
-                    categoryId: "0",  // 转换为字符串类型
-                    categoryName: "默认分类",
-                    displayOrder: 0,
-                    images: []
-                )
-                
-                // 解析日期
-                let dateFormatter = ISO8601DateFormatter()
-                let createdAtDate = dateFormatter.date(from: dto.created_at) ?? Date()
-                
-                // 创建WorkoutRecord对象
-                return WorkoutRecord(
-                    id: dto.id,
-                    userId: dto.user_id,
-                    exerciseType: exerciseType,
-                    duration: dto.duration.map { TimeInterval($0) },
-                    distance: dto.distance,
-                    caloriesBurned: dto.calories_burned,
-                    dessert: dessert,
-                    date: createdAtDate,
-                    workoutTag: dto.workout_tag ?? "",
-                    equivalentDessertCount: dto.equivalent_dessert_count
-                )
-            }
+        // 添加调试日志
+        DRDebug("[APIService] 请求运动记录带总数: \(endpoint)")
+        
+        // 使用JSON直接解析，避免嵌套的APIResponse结构
+        let urlString = Config.API.baseURL + endpoint
+        guard let url = URL(string: urlString) else {
+            return Fail(error: APIServiceError.unknown).eraseToAnyPublisher()
         }
-        .mapError { [weak self] networkError -> APIServiceError in
-            guard let self = self else { return .unknown }
-            
-            // 针对网络错误进行特殊处理
-            if case .unauthorized = networkError {
-                return self.handleError(networkError)
-            } else {
-                return .networkError(APINetworkError(error: networkError))
-            }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = Config.API.timeout
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        // 添加认证令牌
+        if let token = UserDefaults.standard.string(forKey: Config.UserData.tokenKey) {
+            request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
-        .eraseToAnyPublisher()
+        
+        return URLSession.shared.dataTaskPublisher(for: request)
+            .tryMap { data, response -> Data in
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    throw NetworkError.invalidResponse
+                }
+                
+                // 打印响应信息
+                DRDebug("[APIService] 运动记录API响应: 状态码=\(httpResponse.statusCode), 数据大小=\(data.count)字节")
+                if let jsonString = String(data: data, encoding: .utf8) {
+                    DRDebug("[APIService] 运动记录响应数据: \(jsonString)")
+                }
+                
+                // 验证状态码
+                guard (200..<300).contains(httpResponse.statusCode) else {
+                    throw NetworkError.serverError(httpResponse.statusCode, "服务器错误")
+                }
+                
+                return data
+            }
+            .tryMap { data -> WorkoutRecordsResponse in
+                do {
+                    // 首先尝试验证JSON是否包含根级别的code和data字段
+                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                        // 检查关键字段是否存在
+                        if json["code"] == nil {
+                            DRError("[APIService] 响应缺少code字段")
+                            throw NetworkError.decodingFailed(DecodingError.keyNotFound(
+                                CustomCodingKey(stringValue: "code"), 
+                                DecodingError.Context(codingPath: [], debugDescription: "找不到键: code")
+                            ))
+                        }
+                        
+                        if json["data"] == nil {
+                            DRError("[APIService] 响应缺少data字段")
+                            throw NetworkError.decodingFailed(DecodingError.keyNotFound(
+                                CustomCodingKey(stringValue: "data"), 
+                                DecodingError.Context(codingPath: [], debugDescription: "找不到键: data")
+                            ))
+                        }
+                    }
+                    
+                    // 解码完整的响应
+                    let decoder = JSONDecoder()
+                    return try decoder.decode(WorkoutRecordsResponse.self, from: data)
+                } catch {
+                    DRError("[APIService] 运动记录数据解析错误: \(error)")
+                    throw NetworkError.decodingFailed(error as? DecodingError ?? DecodingError.dataCorrupted(
+                        DecodingError.Context(codingPath: [], debugDescription: "无效的JSON格式")
+                    ))
+                }
+            }
+            .map { (response: WorkoutRecordsResponse) -> (records: [WorkoutRecord], total: Int) in
+                // 从API响应的data.items字段获取记录和总数
+                DRDebug("[APIService] 获取到\(response.data.items.count)条运动记录，总数: \(response.data.total)")
+                
+                // 验证响应状态码
+                guard response.code == 0 || response.code == 200 else {
+                    DRError("[APIService] API返回错误码: \(response.code), 错误信息: \(response.message)")
+                    return (records: [], total: 0)
+                }
+                
+                let records = response.data.items.compactMap { dto in
+                    let exerciseType = APIExerciseType.fromString(dto.exercise_type)
+                    
+                    // 创建一个甜品对象
+                    let dessert = DessertItem(
+                        id: dto.dessert_id,  // 直接使用原始uuid字符串
+                        name: dto.dessert_name,
+                        imageName: "dessert_\(dto.dessert_id.prefix(8))",
+                        calories: "\(dto.dessert_calories)kcal",
+                        category: .dessert,
+                        description: "",
+                        backgroundColor: nil,
+                        isFeatured: false,
+                        relatedItems: [],
+                        categoryId: "0",  
+                        categoryName: "默认分类",
+                        displayOrder: 0,
+                        images: []
+                    )
+                    
+                    // 解析日期
+                    let dateFormatter = ISO8601DateFormatter()
+                    let createdAtDate = dateFormatter.date(from: dto.completion_date) ?? Date()
+                    
+                    // 创建WorkoutRecord对象
+                    return WorkoutRecord(
+                        id: dto.id,
+                        userId: dto.user_id,
+                        exerciseType: exerciseType,
+                        duration: dto.duration.map { TimeInterval($0) },
+                        distance: dto.distance,
+                        caloriesBurned: dto.calories_burned,
+                        dessert: dessert,
+                        date: createdAtDate,
+                        workoutTag: dto.workout_tag ?? "",
+                        equivalentDessertCount: dto.equivalent_dessert_count
+                    )
+                }
+                
+                // 返回记录列表和总数
+                return (records: records, total: response.data.total)
+            }
+            .mapError { error -> APIServiceError in
+                if let decodingError = error as? DecodingError {
+                    DRError("[APIService] 运动记录解析错误: \(decodingError)")
+                    return .decodeError(decodingError.localizedDescription)
+                } else if let networkError = error as? NetworkError {
+                    DRError("[APIService] 网络错误: \(networkError)")
+                    return .networkError(APINetworkError(error: networkError))
+                } else {
+                    DRError("[APIService] 获取运动记录失败: \(error)")
+                    return .networkError(APINetworkError(error: NetworkError.requestFailed(error)))
+                }
+            }
+            .eraseToAnyPublisher()
+    }
+    
+    /// 获取用户的打卡记录列表
+    func getUserWorkoutRecords(page: Int = 1, limit: Int = 20) -> AnyPublisher<[WorkoutRecord], APIServiceError> {
+        return getUserWorkoutRecordsWithTotal(page: page, limit: limit)
+            .map { result in
+                return result.records
+            }
+            .eraseToAnyPublisher()
     }
     
     /// 获取用户的美食券列表
@@ -971,16 +1069,24 @@ class APIService {
         
         // 创建一个可解码的包装类型
         struct VouchersResponse: Decodable {
-            let vouchers: [VoucherDTO]
-            let total: Int
+            let code: Int
+            let message: String
+            let data: VoucherData
+            
+            struct VoucherData: Decodable {
+                let total: Int
+                let page: Int
+                let limit: Int
+                let items: [VoucherDTO]
+            }
             
             struct VoucherDTO: Decodable {
                 let id: String
                 let user_id: String
                 let dessert_id: String
                 let dessert_name: String
+                let calories_value: Double  // 修改字段名，与API响应匹配
                 let equivalent_dessert_count: Double
-                let calories_value: Double
                 let workout_record_id: String?
                 let status: String
                 let created_at: String
@@ -988,44 +1094,126 @@ class APIService {
             }
         }
         
-        return networkManager.request(
-            endpoint: endpoint,
-            method: .get,
-            requiresAuth: true
-        )
-        .map { (response: VouchersResponse) -> [DessertVoucher] in
-            // 将DTO转换为领域模型
-            return response.vouchers.compactMap { dto in
-                // 解析日期
-                let dateFormatter = ISO8601DateFormatter()
-                let createdAt = dateFormatter.date(from: dto.created_at) ?? Date()
+        // 添加调试日志
+        DRDebug("[APIService] 请求美食券: \(endpoint)")
+        
+        // 使用JSON直接解析，避免嵌套的APIResponse结构
+        let urlString = Config.API.baseURL + endpoint
+        guard let url = URL(string: urlString) else {
+            return Fail(error: APIServiceError.unknown).eraseToAnyPublisher()
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = Config.API.timeout
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        // 添加认证令牌
+        if let token = UserDefaults.standard.string(forKey: Config.UserData.tokenKey) {
+            request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        
+        return URLSession.shared.dataTaskPublisher(for: request)
+            .tryMap { data, response -> Data in
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    throw NetworkError.invalidResponse
+                }
                 
-                // 创建DessertVoucher对象
-                return DessertVoucher(
-                    id: dto.id,
-                    userId: dto.user_id,
-                    dessertId: dto.dessert_id,
-                    dessertName: dto.dessert_name,
-                    equivalentDessertCount: dto.equivalent_dessert_count,
-                    caloriesValue: dto.calories_value,
-                    workoutRecordId: dto.workout_record_id,
-                    status: dto.status,
-                    createdAt: createdAt,
-                    updatedAt: dto.updated_at.flatMap { dateFormatter.date(from: $0) }
-                )
+                // 打印响应信息
+                DRDebug("[APIService] 美食券API响应: 状态码=\(httpResponse.statusCode), 数据大小=\(data.count)字节")
+                if let jsonString = String(data: data, encoding: .utf8) {
+                    DRDebug("[APIService] 美食券响应数据: \(jsonString)")
+                }
+                
+                // 验证状态码
+                guard (200..<300).contains(httpResponse.statusCode) else {
+                    throw NetworkError.serverError(httpResponse.statusCode, "服务器错误")
+                }
+                
+                return data
             }
-        }
-        .mapError { [weak self] networkError -> APIServiceError in
-            guard let self = self else { return .unknown }
-            
-            // 针对网络错误进行特殊处理
-            if case .unauthorized = networkError {
-                return self.handleError(networkError)
-            } else {
-                return .networkError(APINetworkError(error: networkError))
+            .tryMap { data -> VouchersResponse in
+                do {
+                    // 首先尝试验证JSON是否包含根级别的code和data字段
+                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                        // 检查关键字段是否存在
+                        if json["code"] == nil {
+                            DRError("[APIService] 美食券响应缺少code字段")
+                            throw NetworkError.decodingFailed(DecodingError.keyNotFound(
+                                CustomCodingKey(stringValue: "code"), 
+                                DecodingError.Context(codingPath: [], debugDescription: "找不到键: code")
+                            ))
+                        }
+                        
+                        if json["data"] == nil {
+                            DRError("[APIService] 美食券响应缺少data字段")
+                            throw NetworkError.decodingFailed(DecodingError.keyNotFound(
+                                CustomCodingKey(stringValue: "data"), 
+                                DecodingError.Context(codingPath: [], debugDescription: "找不到键: data")
+                            ))
+                        }
+                    }
+                    
+                    // 解码完整的响应
+                    let decoder = JSONDecoder()
+                    return try decoder.decode(VouchersResponse.self, from: data)
+                } catch {
+                    DRError("[APIService] 美食券数据解析错误: \(error)")
+                    throw NetworkError.decodingFailed(error as? DecodingError ?? DecodingError.dataCorrupted(
+                        DecodingError.Context(codingPath: [], debugDescription: "无效的JSON格式")
+                    ))
+                }
             }
-        }
-        .eraseToAnyPublisher()
+            .map { (response: VouchersResponse) -> [DessertVoucher] in
+                // 从API响应的data.items字段获取记录
+                DRDebug("[APIService] 获取到\(response.data.items.count)张美食券，总数: \(response.data.total)")
+                
+                // 验证响应状态码
+                guard response.code == 0 || response.code == 200 else {
+                    DRError("[APIService] API返回错误码: \(response.code), 错误信息: \(response.message)")
+                    return []
+                }
+                
+                // 将DTO转换为领域模型，从data.items获取
+                return response.data.items.compactMap { dto in
+                    // 解析日期
+                    let dateFormatter = ISO8601DateFormatter()
+                    let createdAt = dateFormatter.date(from: dto.created_at) ?? Date()
+                    
+                    // 创建DessertVoucher对象
+                    return DessertVoucher(
+                        id: dto.id,
+                        userId: dto.user_id,
+                        dessertId: dto.dessert_id,
+                        dessertName: dto.dessert_name,
+                        equivalentDessertCount: dto.equivalent_dessert_count,
+                        caloriesValue: dto.calories_value, // 字段名与API响应匹配为calories_value
+                        workoutRecordId: dto.workout_record_id,
+                        status: dto.status,
+                        createdAt: createdAt,
+                        updatedAt: dto.updated_at.flatMap { dateFormatter.date(from: $0) }
+                    )
+                }
+            }
+            .mapError { error -> APIServiceError in
+                if let decodingError = error as? DecodingError {
+                    DRError("[APIService] 美食券解析错误: \(decodingError)")
+                    return .decodeError(decodingError.localizedDescription)
+                } else if let networkError = error as? NetworkError {
+                    DRError("[APIService] 网络错误: \(networkError)")
+                    
+                    // 针对网络错误进行特殊处理
+                    if case .unauthorized = networkError {
+                        return self.handleError(networkError)
+                    } else {
+                        return .networkError(APINetworkError(error: networkError))
+                    }
+                } else {
+                    DRError("[APIService] 获取美食券失败: \(error)")
+                    return .networkError(APINetworkError(error: NetworkError.requestFailed(error)))
+                }
+            }
+            .eraseToAnyPublisher()
     }
     
     // MARK: - 通用请求处理
@@ -1200,6 +1388,17 @@ class APIService {
             }
         } else {
             // 如果不是HTTP响应，则返回未知错误
+            return .unknown
+        }
+    }
+    
+    /// 处理通用API请求错误
+    private func handleAPIError(_ error: Error) -> APIServiceError {
+        if let networkError = error as? NetworkError {
+            return .networkError(APINetworkError(error: networkError))
+        } else if let decodingError = error as? DecodingError {
+            return .decodeError(decodingError.localizedDescription)
+        } else {
             return .unknown
         }
     }
@@ -1410,3 +1609,21 @@ struct APIUser: Decodable, Identifiable {
 
 // MARK: - 导入API请求模型
 // 这里不再重复定义这些类型 
+
+// MARK: - 错误处理
+
+// 自定义CodingKey实现，用于创建动态键路径
+private struct CustomCodingKey: CodingKey {
+    var stringValue: String
+    var intValue: Int?
+    
+    init(stringValue: String) {
+        self.stringValue = stringValue
+        self.intValue = nil
+    }
+    
+    init?(intValue: Int) {
+        self.stringValue = String(intValue)
+        self.intValue = intValue
+    }
+}

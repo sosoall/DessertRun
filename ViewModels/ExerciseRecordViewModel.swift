@@ -1,29 +1,9 @@
 import SwiftUI
 import Combine
+import Foundation
 
-/// 美食统计排行项
-struct StatTopDessertItem: Identifiable {
-    /// ID
-    let id: String
-    
-    /// 名称
-    let name: String
-    
-    /// 图像名称
-    let imageName: String
-    
-    /// 卡路里
-    let calories: Double
-    
-    /// 数量
-    let count: Int
-    
-    /// 总卡路里
-    let totalCalories: Double
-}
-
-/// 统计视图模型 - 管理统计相关数据和逻辑
-class StatsViewModel: ObservableObject {
+/// 运动记录视图模型 - 管理运动记录相关数据和逻辑
+class ExerciseRecordViewModel: ObservableObject {
     // MARK: - 发布属性
     
     /// 当前选定的月份
@@ -59,7 +39,7 @@ class StatsViewModel: ObservableObject {
     /// 发布者集合
     private var cancellables = Set<AnyCancellable>()
     
-    // 添加新的热量平衡统计属性
+    // 添加热量平衡统计属性
     @Published var monthlyClearedDesserts: Int = 0
     @Published var monthlyDeficitDays: Int = 0
     @Published var weeklyDeficitDays: Int = 0
@@ -125,24 +105,11 @@ class StatsViewModel: ObservableObject {
         // 初始筛选
         filterRecordsByMonth()
         filterRecordsByYear()
-        
-        // 初始化时加载数据
-        loadWorkoutRecords()
     }
     
     // MARK: - 计算属性
     
-    /// 总的美食打卡次数
-    var totalFoodCheckInCount: Int {
-        return appState.workoutRecords.count
-    }
-    
-    /// 全年的美食打卡次数
-    var yearlyFoodCheckInCount: Int {
-        return yearlyFilteredWorkoutRecords.count
-    }
-    
-    /// 全月的美食打卡次数 
+    /// 当月的美食打卡次数 
     var monthlyFoodCheckInCount: Int {
         return filteredWorkoutRecords.count
     }
@@ -155,11 +122,6 @@ class StatsViewModel: ObservableObject {
     /// 美食种类数量（年度）
     var yearlyUniqueDessertTypes: Int {
         return Set(yearlyFilteredWorkoutRecords.map { $0.dessert.id }).count
-    }
-    
-    /// 所有美食种类数量
-    var allUniqueDessertTypes: Int {
-        return Set(appState.workoutRecords.map { $0.dessert.id }).count
     }
     
     /// 当前月份名称（中文）
@@ -213,7 +175,7 @@ class StatsViewModel: ObservableObject {
         }
     }
     
-    // MARK: - 方法
+    // MARK: - 月份和年份操作方法
     
     /// 切换到上个月
     func goToPreviousMonth() {
@@ -254,6 +216,8 @@ class StatsViewModel: ObservableObject {
         selectedYear = date
     }
     
+    // MARK: - 记录筛选方法
+    
     /// 根据月份筛选记录
     private func filterRecordsByMonth() {
         let calendar = Calendar.current
@@ -292,69 +256,7 @@ class StatsViewModel: ObservableObject {
         }
     }
     
-    /// 获取月度美食排行榜
-    func getMonthlyTopDesserts(count: Int) -> [StatTopDessertItem]? {
-        return getTopDessertsFromRecords(records: filteredWorkoutRecords, count: count)
-    }
-    
-    /// 获取年度美食排行榜
-    func getYearlyTopDesserts(count: Int) -> [StatTopDessertItem]? {
-        return getTopDessertsFromRecords(records: yearlyFilteredWorkoutRecords, count: count)
-    }
-    
-    /// 从记录中获取排名前几的美食
-    private func getTopDessertsFromRecords(records: [WorkoutRecord], count: Int) -> [StatTopDessertItem]? {
-        if records.isEmpty {
-            return nil
-        }
-        
-        // 统计每个甜品出现的次数和热量值
-        var dessertInfo: [String: (count: Int, calories: Double, name: String, imageName: String)] = [:]
-        
-        for record in records {
-            let dessertId = record.dessert.id
-            let calories = Double(record.dessert.calories) ?? 0
-            
-            if let existing = dessertInfo[dessertId] {
-                dessertInfo[dessertId] = (
-                    existing.count + 1,
-                    existing.calories,
-                    record.dessert.name,
-                    record.dessert.imageName
-                )
-            } else {
-                dessertInfo[dessertId] = (
-                    1,
-                    calories,
-                    record.dessert.name,
-                    record.dessert.imageName
-                )
-            }
-        }
-        
-        // 按出现次数排序，次数相同时按照id大小排序（确保排行榜稳定性）
-        let sortedDesserts = dessertInfo.sorted { 
-            if $0.value.count == $1.value.count {
-                // 次数相同时，按ID排序
-                return $0.key < $1.key
-            }
-            // 按次数降序排序
-            return $0.value.count > $1.value.count
-        }
-        
-        // 返回前n个
-        return sortedDesserts.prefix(count).map { entry in
-            let (dessertId, info) = entry
-            return StatTopDessertItem(
-                id: dessertId,
-                name: info.name,
-                imageName: info.imageName,
-                calories: info.calories,
-                count: info.count,
-                totalCalories: info.calories * Double(info.count)
-            )
-        }
-    }
+    // MARK: - 日期相关方法
     
     /// 重置月份为当前月
     func resetToCurrentMonth() {
@@ -424,79 +326,7 @@ class StatsViewModel: ObservableObject {
         }
     }
     
-    /// 获取所有美食排行榜
-    func getAllTopDesserts(count: Int) -> [StatTopDessertItem]? {
-        return getTopDessertsFromRecords(records: appState.workoutRecords, count: count)
-    }
-    
-    // MARK: - 私有方法
-    
-    /// 重新加载数据
-    func reloadData() {
-        loadWorkoutRecords()
-    }
-    
-    /// 从API加载运动记录
-    private func loadWorkoutRecords() {
-        isLoading = true
-        errorMessage = nil
-        
-        // 重置分页状态
-        currentPage = 1
-        hasMoreRecords = true
-        
-        APIService.shared.getUserWorkoutRecords(page: currentPage, limit: pageSize)
-            .receive(on: DispatchQueue.main)
-            .sink(
-                receiveCompletion: { [weak self] completion in
-                    self?.isLoading = false
-                    if case .failure(let error) = completion {
-                        self?.errorMessage = error.errorMessage
-                        DRError("加载运动记录失败: \(error.errorMessage)")
-                    }
-                },
-                receiveValue: { [weak self] records in
-                    guard let self = self else { return }
-                    self.isLoading = false
-                    
-                    // 更新应用状态中的记录列表
-                    DispatchQueue.main.async {
-                        self.appState.workoutRecords = records
-                        DRInfo("成功加载\(records.count)条运动记录")
-                        
-                        // 判断是否有更多记录可加载
-                        self.hasMoreRecords = records.count >= self.pageSize
-                    }
-                    
-                    // 加载美食券
-                    self.loadDessertVouchers()
-                }
-            )
-            .store(in: &cancellables)
-    }
-    
-    /// 从API加载美食券
-    private func loadDessertVouchers() {
-        APIService.shared.getUserVouchers(page: 1, limit: 100)
-            .receive(on: DispatchQueue.main)
-            .sink(
-                receiveCompletion: { completion in
-                    if case .failure(let error) = completion {
-                        DRError("加载美食券失败: \(error.errorMessage)")
-                    }
-                },
-                receiveValue: { [weak self] vouchers in
-                    // 更新应用状态中的美食券列表
-                    DispatchQueue.main.async {
-                        self?.appState.dessertVouchers = vouchers
-                        DRInfo("成功加载\(vouchers.count)张美食券")
-                    }
-                }
-            )
-            .store(in: &cancellables)
-    }
-    
-    /// 计算统计数据
+    // MARK: - 计算统计数据
     private func calculateStats() {
         let calendar = Calendar.current
         
@@ -574,20 +404,65 @@ class StatsViewModel: ObservableObject {
         weeklyDeficitDays = weeklyDeficitDatesSet.count
     }
     
-    // MARK: - 年份选择
-    func incrementYear() {
-        selectedYear = Calendar.current.date(byAdding: .year, value: 1, to: selectedYear) ?? selectedYear
-    }
+    // MARK: - 数据加载方法
     
-    func decrementYear() {
-        selectedYear = Calendar.current.date(byAdding: .year, value: -1, to: selectedYear) ?? selectedYear
+    /// 加载运动记录数据
+    func loadData() {
+        if isLoading {
+            DRDebug("[ExerciseRecordViewModel] 正在加载中，忽略重复请求")
+            return
+        }
+        
+        isLoading = true
+        errorMessage = nil
+        
+        // 重置分页状态
+        currentPage = 1
+        hasMoreRecords = false  // 默认设置为false，直到确认有更多数据
+        
+        DRDebug("[ExerciseRecordViewModel] 开始加载运动记录，页码: \(currentPage)，每页数量: \(pageSize)")
+        
+        // 使用可以获取总记录数的API方法
+        APIService.shared.getUserWorkoutRecordsWithTotal(page: currentPage, limit: pageSize)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { [weak self] completion in
+                    self?.isLoading = false
+                    
+                    if case .failure(let error) = completion {
+                        self?.errorMessage = error.errorMessage
+                        DRError("[ExerciseRecordViewModel] 加载运动记录失败: \(error.errorMessage)")
+                    }
+                },
+                receiveValue: { [weak self] result in
+                    guard let self = self else { return }
+                    self.isLoading = false
+                    
+                    let (records, total) = result
+                    
+                    // 更新总记录数
+                    self.totalRecordsCount = total
+                    
+                    // 更新应用状态中的记录列表
+                    DispatchQueue.main.async {
+                        self.appState.workoutRecords = records
+                        DRInfo("[ExerciseRecordViewModel] 成功加载\(records.count)条运动记录，总数: \(total)")
+                        
+                        // 根据总记录数和当前加载的记录数判断是否还有更多记录
+                        // 只有当已加载的记录数小于总记录数时，才设置hasMoreRecords为true
+                        let recordsLoaded = records.count
+                        self.hasMoreRecords = recordsLoaded < total
+                        
+                        DRDebug("[ExerciseRecordViewModel] 当前加载: \(recordsLoaded), 总记录数: \(total), 是否有更多: \(self.hasMoreRecords)")
+                        
+                        // 更新筛选后的记录
+                        self.filterRecordsByMonth()
+                        self.filterRecordsByYear()
+                    }
+                }
+            )
+            .store(in: &cancellables)
     }
-    
-    func resetYear() {
-        selectedYear = Date()
-    }
-    
-    // MARK: - 分页加载方法
     
     /// 加载更多记录
     func loadMoreRecords() {
@@ -597,50 +472,77 @@ class StatsViewModel: ObservableObject {
         
         let nextPage = currentPage + 1
         
-        APIService.shared.getUserWorkoutRecords(page: nextPage, limit: pageSize)
+        // 添加调试日志
+        DRDebug("[ExerciseRecordViewModel] 正在加载更多记录，页码: \(nextPage)，每页数量: \(pageSize)")
+        
+        APIService.shared.getUserWorkoutRecordsWithTotal(page: nextPage, limit: pageSize)
             .receive(on: DispatchQueue.main)
             .sink(
                 receiveCompletion: { [weak self] completion in
                     self?.isLoadingMore = false
+                    
                     if case .failure(let error) = completion {
                         self?.errorMessage = error.errorMessage
-                        DRError("加载更多运动记录失败: \(error.errorMessage)")
+                        DRError("[ExerciseRecordViewModel] 加载更多运动记录失败: \(error.errorMessage)")
                     }
                 },
-                receiveValue: { [weak self] records in
+                receiveValue: { [weak self] result in
                     guard let self = self else { return }
                     
                     self.isLoadingMore = false
                     
+                    let (records, total) = result
+                    
+                    // 更新总记录数
+                    self.totalRecordsCount = total
+                    
                     if records.isEmpty {
                         self.hasMoreRecords = false
+                        DRDebug("[ExerciseRecordViewModel] 没有更多记录可加载")
                     } else {
                         // 更新当前页码
                         self.currentPage = nextPage
                         
                         // 将新记录添加到现有记录中
                         DispatchQueue.main.async {
-                            self.appState.workoutRecords.append(contentsOf: records)
-                            // 更新过滤后的记录
-                            self.filterRecordsByMonth()
-                            self.filterRecordsByYear()
+                            // 避免重复记录
+                            // 只检查现有ID，不需要新记录的ID集合
+                            let existingRecordIds = Set(self.appState.workoutRecords.map { $0.id })
                             
-                            DRInfo("成功加载额外\(records.count)条运动记录")
+                            // 只添加不存在的记录
+                            let uniqueNewRecords = records.filter { !existingRecordIds.contains($0.id) }
+                            
+                            if uniqueNewRecords.count > 0 {
+                                self.appState.workoutRecords.append(contentsOf: uniqueNewRecords)
+                                // 更新过滤后的记录
+                                self.filterRecordsByMonth()
+                                self.filterRecordsByYear()
+                                
+                                DRInfo("[ExerciseRecordViewModel] 成功加载额外\(uniqueNewRecords.count)条运动记录，总数: \(total)")
+                            } else {
+                                DRDebug("[ExerciseRecordViewModel] 没有新的唯一记录可添加")
+                            }
                         }
                         
-                        // 判断是否还有更多记录
-                        self.hasMoreRecords = records.count >= self.pageSize
+                        // 计算已加载的总记录数
+                        let loadedRecordsCount = self.appState.workoutRecords.count
+                        
+                        // 根据总记录数判断是否还有更多
+                        self.hasMoreRecords = loadedRecordsCount < total
+                        
+                        DRDebug("[ExerciseRecordViewModel] 已加载记录数: \(loadedRecordsCount), 总记录数: \(total), 是否有更多: \(self.hasMoreRecords)")
                     }
                 }
             )
             .store(in: &cancellables)
     }
     
-    /// 重置分页并重新加载
-    func resetAndReload() {
-        currentPage = 1
-        hasMoreRecords = true
-        appState.workoutRecords = []
-        loadWorkoutRecords()
+    // 格式化总距离
+    func formatTotalDistance() -> String {
+        // 从月度记录中计算总距离
+        let totalMeters = filteredWorkoutRecords.reduce(0.0) { total, record in
+            total + (record.distance ?? 0)
+        }
+        return String(format: "%.1f", totalMeters / 1000.0)
     }
 } 

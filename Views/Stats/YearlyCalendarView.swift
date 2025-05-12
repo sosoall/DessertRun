@@ -2,7 +2,7 @@ import SwiftUI
 
 /// 年度日历视图组件
 struct YearlyCalendarView: View {
-    @ObservedObject var viewModel: StatsViewModel
+    @ObservedObject var viewModel: ExerciseRecordViewModel
     
     // 每行显示的月份数
     private let monthsPerRow = 3
@@ -12,7 +12,7 @@ struct YearlyCalendarView: View {
             // 年份选择器
             HStack {
                 Button(action: {
-                    viewModel.decrementYear()
+                    viewModel.goToPreviousYear()
                 }) {
                     Image(systemName: "chevron.left")
                         .foregroundColor(.gray)
@@ -26,7 +26,7 @@ struct YearlyCalendarView: View {
                 Spacer()
                 
                 Button(action: {
-                    viewModel.incrementYear()
+                    viewModel.goToNextYear()
                 }) {
                     Image(systemName: "chevron.right")
                         .foregroundColor(.gray)
@@ -194,7 +194,7 @@ struct YearlyCalendarView: View {
 // MARK: - 预览
 struct YearlyCalendarView_Previews: PreviewProvider {
     static var previews: some View {
-        YearlyCalendarView(viewModel: StatsViewModel(appState: AppState.shared))
+        YearlyCalendarView(viewModel: ExerciseRecordViewModel(appState: AppState.shared))
             .background(Color.white)
             .previewLayout(.sizeThatFits)
     }

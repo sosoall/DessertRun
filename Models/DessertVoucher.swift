@@ -15,7 +15,7 @@ enum VoucherStatus: String, Codable {
 }
 
 /// 美食券模型
-struct DessertVoucher: Identifiable, Codable {
+struct DessertVoucher: Identifiable, Codable, Equatable {
     /// 唯一标识符
     let id: String
     
@@ -72,5 +72,12 @@ struct DessertVoucher: Identifiable, Codable {
     /// 检查券是否可用
     var isUsable: Bool {
         return voucherStatus == .active
+    }
+    
+    /// 实现Equatable协议的静态==方法
+    static func == (lhs: DessertVoucher, rhs: DessertVoucher) -> Bool {
+        return lhs.id == rhs.id && 
+               lhs.status == rhs.status &&
+               lhs.createdAt == rhs.createdAt
     }
 } 

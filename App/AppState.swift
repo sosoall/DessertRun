@@ -73,6 +73,12 @@ class AppState: ObservableObject {
     /// 美食券列表
     @Published var dessertVouchers: [DessertVoucher] = []
     
+    /// 全局运动记录加载状态锁，防止多处同时请求
+    @Published var isLoadingWorkoutRecords: Bool = false
+    
+    /// 最后一次加载运动记录的时间，用于限制频繁请求
+    @Published var lastWorkoutLoadTime: Date? = nil
+    
     /// 是否隐藏TabBar（用于拖动时）
     @Published var hideTabBarForDrag: Bool = false
     

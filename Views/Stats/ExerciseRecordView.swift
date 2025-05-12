@@ -2,10 +2,12 @@ import SwiftUI
 
 /// 运动记录标签页
 struct ExerciseRecordView: View {
-    @ObservedObject var viewModel: StatsViewModel
+    @ObservedObject var viewModel: ExerciseRecordViewModel
+    @EnvironmentObject var appState: AppState
     @State private var selectedTab: StatTab = .month
     @State private var selectedMonth: Date = Date()
     @State private var selectedWeek: Date = Date()
+    @State private var hasAppeared: Bool = false  // 添加状态变量控制是否已经加载过数据
     
     enum StatTab: String, CaseIterable, Identifiable {
         case year = "年"
@@ -138,7 +140,16 @@ struct ExerciseRecordView: View {
             // 初始化时同步视图Model的年份和月份到本地状态
             selectedMonth = viewModel.selectedMonth
             selectedWeek = Date() // 默认显示当前周
-            viewModel.reloadData()
+            
+            // 只在第一次显示视图时加载数据
+            if !hasAppeared {
+                DRDebug("[ExerciseRecordView] 首次加载视图，获取数据")
+                // 使用新的loadData方法加载运动记录数据
+                viewModel.loadData()
+                hasAppeared = true
+            } else {
+                DRDebug("[ExerciseRecordView] 视图已经加载过，跳过重复加载")
+            }
         }
         .onChange(of: selectedTab) { oldTab, newTab in
             // 当切换标签页时，确保viewModel中的年份和月份是最新的
@@ -772,19 +783,7 @@ struct WeeklyCalorieChart: View {
 // MARK: - 预览
 struct ExerciseRecordView_Previews: PreviewProvider {
     static var previews: some View {
-        ExerciseRecordView(viewModel: StatsViewModel(appState: AppState.shared))
+        ExerciseRecordView(viewModel: ExerciseRecordViewModel(appState: AppState.shared))
             .environmentObject(AppState.shared)
-    }
-}
-
-// MARK: - 扩展StatsViewModel以添加额外功能
-extension StatsViewModel {
-    // 格式化总距离
-    func formatTotalDistance() -> String {
-        // 简单实现，实际应该从记录中计算
-        let totalMeters = filteredWorkoutRecords.reduce(0.0) { total, record in
-            total + (record.distance ?? 0)
-        }
-        return String(format: "%.1f", totalMeters / 1000.0)
     }
 } 

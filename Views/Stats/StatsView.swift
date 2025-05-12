@@ -1,5 +1,10 @@
 import SwiftUI
 
+// MARK: - 此文件已废弃，不再使用
+// 功能已分别迁移到ExerciseRecordView和FoodCheckInView
+// 这两个视图已直接在MainTabView中使用，各自配置了独立的ViewModel
+
+/*
 /// 数据结构 - 日历日期项
 struct CalendarDateItem {
     let day: Int
@@ -87,3 +92,4 @@ struct StatsView_Previews: PreviewProvider {
             .environmentObject(AppState.shared)
     }
 } 
+*/ 
