@@ -21,6 +21,9 @@ struct StatTopDessertItem: Identifiable {
     
     /// 总卡路里
     let totalCalories: Double
+    
+    /// 甜品ID
+    let dessertId: String
 }
 
 /// 美食打卡视图模型 - 管理美食打卡相关数据和逻辑
@@ -59,7 +62,7 @@ class FoodCheckInViewModel: ObservableObject {
     }
     
     // MARK: - 从API加载美食券
-    func loadDessertVouchers() {
+    func loadDessertVouchers(status: String? = nil) {
         // 添加加载状态标记，防止重复请求
         if isLoadingVouchers {
             DRDebug("[FoodCheckInViewModel] 正在加载美食券，忽略重复请求")
@@ -70,7 +73,7 @@ class FoodCheckInViewModel: ObservableObject {
         DRDebug("[FoodCheckInViewModel] 开始加载美食券数据")
         
         // 使用与API定义一致的参数，将limit改为20，与getUserVouchers方法默认值匹配
-        APIService.shared.getUserVouchers(page: 1, limit: 20)
+        APIService.shared.getUserVouchers(status: status, page: 1, limit: 20)
             .receive(on: DispatchQueue.main)
             .sink(
                 receiveCompletion: { [weak self] completion in
@@ -123,25 +126,40 @@ class FoodCheckInViewModel: ObservableObject {
         }
         
         // 统计每个甜品出现的次数和热量值
-        var dessertInfo: [String: (count: Int, calories: Double, name: String, imageName: String)] = [:]
+        var dessertInfo: [String: (count: Int, calories: Double, name: String, imageURL: String, dessertId: String)] = [:]
         
         for record in records {
             let dessertId = record.dessert.id
             let calories = Double(record.dessert.calories) ?? 0
+            
+            // 获取图片URL
+            let imageURL: String
+            if let regularImage = record.dessert.images.first(where: { $0.type == "regular" }) {
+                // 使用regular类型的图片
+                imageURL = regularImage.url
+            } else if !record.dessert.images.isEmpty {
+                // 如果没有regular类型但有其他图片，使用第一张
+                imageURL = record.dessert.images.first!.url
+            } else {
+                // 没有图片时使用API接口路径
+                imageURL = "/api/v1/desserts/\(dessertId)/images/regular"
+            }
             
             if let existing = dessertInfo[dessertId] {
                 dessertInfo[dessertId] = (
                     existing.count + 1,
                     existing.calories,
                     record.dessert.name,
-                    record.dessert.imageName
+                    existing.imageURL,
+                    dessertId
                 )
             } else {
                 dessertInfo[dessertId] = (
                     1,
                     calories,
                     record.dessert.name,
-                    record.dessert.imageName
+                    imageURL,
+                    dessertId
                 )
             }
         }
@@ -159,13 +177,15 @@ class FoodCheckInViewModel: ObservableObject {
         // 返回前n个
         return sortedDesserts.prefix(count).map { entry in
             let (dessertId, info) = entry
+            
             return StatTopDessertItem(
                 id: dessertId,
                 name: info.name,
-                imageName: info.imageName,
+                imageName: info.imageURL,
                 calories: info.calories,
                 count: info.count,
-                totalCalories: info.calories * Double(info.count)
+                totalCalories: info.calories * Double(info.count),
+                dessertId: info.dessertId
             )
         }
     }

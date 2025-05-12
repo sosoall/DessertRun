@@ -995,14 +995,15 @@ class APIService {
                 }
                 
                 let records = response.data.items.compactMap { dto in
-                    let exerciseType = APIExerciseType.fromString(dto.exercise_type)
+                    // 直接使用后端返回的运动类型和名称，不进行任何翻译或处理
+                    let exerciseType = APIExerciseType.fromString(dto.exercise_type, name: dto.exercise_name)
                     
                     // 创建一个甜品对象
                     let dessert = DessertItem(
                         id: dto.dessert_id,  // 直接使用原始uuid字符串
                         name: dto.dessert_name,
-                        imageName: "dessert_\(dto.dessert_id.prefix(8))",
-                        calories: "\(dto.dessert_calories)kcal",
+                        imageName: dto.dessert_id,  // 使用ID而不是构造一个假的图片名称
+                        calories: "\(dto.dessert_calories)",
                         category: .dessert,
                         description: "",
                         backgroundColor: nil,

@@ -142,8 +142,8 @@ struct FoodCheckInView: View {
                                 ZStack(alignment: .top) {
                                     VStack {
                                         Spacer()
-                                        Image(dessert.imageName)
-                                            .resizable()
+                                        // 使用CachedImage加载图片
+                                        CachedImage(url: dessert.imageName, dessertId: dessert.dessertId)
                                             .scaledToFit()
                                             .frame(height: index == 0 ? 120 : 75)
                                             .cornerRadius(8)
@@ -267,6 +267,22 @@ struct FoodCheckInView: View {
                     Button(action: {
                         withAnimation {
                             selectedFilter = filter
+                            
+                            // 根据选择的筛选条件加载相应的美食券
+                            switch filter {
+                            case .all:
+                                // 加载全部美食券
+                                viewModel.loadDessertVouchers()
+                            case .active:
+                                // 加载有效的美食券
+                                viewModel.loadDessertVouchers(status: "active")
+                            case .used:
+                                // 加载已使用的美食券
+                                viewModel.loadDessertVouchers(status: "used")
+                            case .expired:
+                                // 加载已过期的美食券
+                                viewModel.loadDessertVouchers(status: "expired")
+                            }
                         }
                     }) {
                         Text(filter.rawValue)
@@ -292,19 +308,32 @@ struct FoodCheckInView: View {
         let filteredList: [WorkoutRecord]
         switch selectedFilter {
         case .all:
+            // 使用全部记录，不需要筛选
             filteredList = sortedRecords
         case .active:
-            filteredList = sortedRecords.filter { !$0.isGoalAchieved }
-        case .used:
-            // 假设25%的记录已使用
+            // 使用API返回的"active"状态美食券对应的记录
             filteredList = sortedRecords.filter { record in
-                return record.id.hashValue % 4 == 0
+                // 查找对应的美食券
+                let voucher = appState.dessertVouchers.first(where: { $0.workoutRecordId == record.id })
+                // 只保留状态为active的记录
+                return voucher?.status == "active"
+            }
+        case .used:
+            // 使用API返回的"used"状态美食券对应的记录
+            filteredList = sortedRecords.filter { record in
+                // 查找对应的美食券
+                let voucher = appState.dessertVouchers.first(where: { $0.workoutRecordId == record.id })
+                // 只保留状态为used的记录
+                return voucher?.status == "used"
             }
         case .expired:
-            // 假设较早的20%记录已过期
-            let count = sortedRecords.count
-            let expiredCount = max(1, count / 5)
-            filteredList = Array(sortedRecords.suffix(expiredCount))
+            // 使用API返回的"expired"状态美食券对应的记录
+            filteredList = sortedRecords.filter { record in
+                // 查找对应的美食券
+                let voucher = appState.dessertVouchers.first(where: { $0.workoutRecordId == record.id })
+                // 只保留状态为expired的记录
+                return voucher?.status == "expired"
+            }
         }
         
         // 按日期分组记录
@@ -536,4 +565,58 @@ enum RecordFilter: String, CaseIterable {
     case active = "可使用"
     case used = "已使用"
     case expired = "已过期"
+}
+
+// MARK: - 缓存图片视图
+struct CachedImage: View {
+    let url: String
+    let dessertId: String
+    @State private var image: UIImage? = nil
+    
+    var body: some View {
+        Group {
+            if let image = image {
+                Image(uiImage: image)
+                    .resizable()
+            } else {
+                // 加载中状态
+                Rectangle()
+                    .fill(Color.gray.opacity(0.2))
+                    .overlay(
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle())
+                    )
+                    .onAppear {
+                        loadImage()
+                    }
+            }
+        }
+    }
+    
+    private func loadImage() {
+        // 检查URL是否是完整的URL地址（带有http(s)://前缀）
+        let completeUrl: String
+        if url.hasPrefix("http") {
+            completeUrl = url
+        } else if url.hasPrefix("/api") {
+            // API路径，需要拼接基础URL
+            completeUrl = "\(Config.API.baseURL)\(url)"
+        } else {
+            // 尝试使用dessertId构建获取图片的URL
+            completeUrl = "\(Config.API.baseURL)/api/v1/desserts/\(dessertId)/images/regular"
+        }
+        
+        // 使用图片缓存服务加载图片
+        ImageCacheService.shared.downloadAndCacheImage(url: completeUrl) { uiImage in
+            if let uiImage = uiImage {
+                self.image = uiImage
+            } else {
+                // 如果第一次下载失败，尝试其他可能的URL格式
+                let fallbackUrl = "\(Config.API.baseURL)/api/v1/desserts/\(dessertId)/image"
+                ImageCacheService.shared.downloadAndCacheImage(url: fallbackUrl) { backupImage in
+                    self.image = backupImage ?? UIImage(named: "dessert_placeholder")
+                }
+            }
+        }
+    }
 } 

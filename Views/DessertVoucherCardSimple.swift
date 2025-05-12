@@ -167,7 +167,7 @@ struct DessertVoucherCardSimple: View {
     // 日期格式化函数
     private func formattedDateTime(_ date: Date) -> String {
         let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy/MM/dd\nHH:mm"
+        dateFormatter.dateFormat = "yyyy/MM/dd HH:mm"
         return dateFormatter.string(from: date)
     }
     
@@ -182,8 +182,10 @@ struct DessertVoucherCardSimple: View {
                             .font(.system(size: 16, weight: .bold))
                     }
                     
+                    // 从记录的日期计算剩余有效期（假设有效期为30天）
+                    let daysRemaining = calculateRemainingDays(from: record.date)
                     // 剩余天数
-                    Text("剩余29天")
+                    Text("剩余\(daysRemaining)天")
                         .font(.system(size: 14, weight: .regular))
                 }
                 
@@ -220,6 +222,23 @@ struct DessertVoucherCardSimple: View {
             )
         }
         .frame(height: 45)
+    }
+    
+    // 计算美食券剩余天数（从创建日期开始，假设有效期30天）
+    private func calculateRemainingDays(from date: Date) -> Int {
+        let calendar = Calendar.current
+        let validityPeriodInDays = 30
+        
+        // 创建时间加上有效期
+        guard let expiryDate = calendar.date(byAdding: .day, value: validityPeriodInDays, to: date) else {
+            return 0
+        }
+        
+        // 计算当前时间与过期时间的天数差
+        let days = calendar.dateComponents([.day], from: Date(), to: expiryDate).day ?? 0
+        
+        // 如果已过期，返回0
+        return max(0, days)
     }
     
     // MARK: - 核销操作
