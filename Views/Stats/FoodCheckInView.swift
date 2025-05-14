@@ -492,6 +492,10 @@ struct FoodCheckInView: View {
     private var filteredRecords: [String: [WorkoutRecord]] {
         let sortedRecords = viewModel.getSortedAllRecords()
         var groupedRecords = [String: [WorkoutRecord]]()
+        // 创建时间戳到日期字符串的映射，用于正确排序
+        var timestampToString = [TimeInterval: String]()
+        // 创建日期字符串到时间戳的映射，用于后续排序
+        var stringToTimestamp = [String: TimeInterval]()
         
         // 添加调试日志，查看美食券数据
         let vouchersCount = appState.dessertVouchers.count
@@ -503,7 +507,8 @@ struct FoodCheckInView: View {
                 let dateFormatter = DateFormatter()
                 dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
                 let createdDateStr = dateFormatter.string(from: voucher.createdAt)
-                DRDebug("[FoodCheckInView] 美食券样本[\(index)]: id=\(voucher.id), 创建日期=\(createdDateStr), workoutRecordId=\(voucher.workoutRecordId ?? "nil")")
+                let timestamp = voucher.createdAt.timeIntervalSince1970
+                DRDebug("[FoodCheckInView] 美食券样本[\(index)]: id=\(voucher.id), 创建日期=\(createdDateStr), 时间戳=\(timestamp), workoutRecordId=\(voucher.workoutRecordId ?? "nil")")
             }
         } else {
             DRDebug("[FoodCheckInView] 警告: 没有美食券数据!")
@@ -552,19 +557,25 @@ struct FoodCheckInView: View {
         // FIXME: 修复了美食券列表按日期分组显示问题 - 2025/5/15
         // 原问题: 美食券列表中日期显示为固定的2025年5月14日，而不是实际的创建日期
         // 解决方案: 使用美食券的createdAt字段作为分组依据，而不是workoutRecord的date字段
+        // 
+        // FIXME: 修复了美食券日期排序问题 - 2025/5/16
+        // 原问题: 美食券列表按照字符串而非时间戳排序，导致时间顺序错误(5.9显示在5.14前面)
+        // 解决方案: 使用时间戳进行排序，确保最新日期显示在最前
         var recordsProcessed = 0
         for record in filteredList {
             // 查找对应的美食券
             if let voucher = appState.dessertVouchers.first(where: { $0.workoutRecordId == record.id }) {
                 // 使用美食券的创建日期而不是记录日期
                 let voucherDate = voucher.createdAt
+                // 获取时间戳
+                let timestamp = voucherDate.timeIntervalSince1970
                 
                 // 添加日期调试记录
                 let debugDateFormatter = DateFormatter()
                 debugDateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
                 let debugDateStr = debugDateFormatter.string(from: voucherDate)
                 if recordsProcessed < 5 {
-                    DRDebug("[FoodCheckInView] 美食券[\(voucher.id)]原始创建日期: \(debugDateStr)")
+                    DRDebug("[FoodCheckInView] 美食券[\(voucher.id)]原始创建日期: \(debugDateStr), 时间戳: \(timestamp)")
                 }
                 
                 // 使用年月日格式化为展示日期
@@ -572,7 +583,7 @@ struct FoodCheckInView: View {
                 
                 if recordsProcessed < 5 {
                     // 记录前几条数据的日期信息，用于调试
-                    DRDebug("[FoodCheckInView] 记录[\(recordsProcessed)]: 美食券[\(voucher.id)] 格式化后日期=\(dateString)")
+                    DRDebug("[FoodCheckInView] 记录[\(recordsProcessed)]: 美食券[\(voucher.id)] 格式化后日期=\(dateString), 时间戳=\(timestamp)")
                 }
                 
                 if groupedRecords[dateString] == nil {
@@ -591,11 +602,55 @@ struct FoodCheckInView: View {
             recordsProcessed += 1
         }
         
-        // 记录分组后的结果
+        // 记录分组后的结果 - 使用字符串排序只是用于调试显示
         let groupDates = groupedRecords.keys.sorted(by: >)
         DRDebug("[FoodCheckInView] 记录分组结果: 共\(groupDates.count)个日期组，日期: \(groupDates)")
         
+        // 打印各个日期组的时间戳排序信息（用于调试）
+        if !groupedRecords.isEmpty {
+            var dateToTimestamp = [String: TimeInterval]()
+            
+            // 收集每个日期组的第一条记录时间戳
+            for dateString in groupedRecords.keys {
+                if let records = groupedRecords[dateString], 
+                   let firstRecord = records.first, 
+                   let voucher = appState.dessertVouchers.first(where: { $0.workoutRecordId == firstRecord.id }) {
+                    let timestamp = voucher.createdAt.timeIntervalSince1970
+                    dateToTimestamp[dateString] = timestamp
+                    DRDebug("[FoodCheckInView] 日期组时间戳: 日期=\(dateString), 时间戳=\(timestamp)")
+                }
+            }
+            
+            // 按时间戳排序的日期
+            let sortedByTimestamp = dateToTimestamp.sorted { $0.value > $1.value }.map { $0.key }
+            DRDebug("[FoodCheckInView] 按时间戳排序的日期组顺序: \(sortedByTimestamp)")
+        }
+        
         return groupedRecords
+    }
+    
+    // 获取日期字符串到时间戳的映射
+    private func getDateStringToTimestampMapping() -> [String: TimeInterval] {
+        var dateToTimestamp = [String: TimeInterval]()
+        
+        // 遍历所有记录，收集每个日期组的时间戳
+        for record in viewModel.getSortedAllRecords() {
+            if let voucher = appState.dessertVouchers.first(where: { $0.workoutRecordId == record.id }) {
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy年 M月 d日"
+                let dateString = dateFormatter.string(from: voucher.createdAt)
+                let timestamp = voucher.createdAt.timeIntervalSince1970
+                
+                // 如果已经有这个日期，保留最大的时间戳（最新的记录）
+                if let existingTimestamp = dateToTimestamp[dateString], existingTimestamp > timestamp {
+                    continue
+                }
+                
+                dateToTimestamp[dateString] = timestamp
+            }
+        }
+        
+        return dateToTimestamp
     }
     
     // 所有美食打卡记录
@@ -622,8 +677,19 @@ struct FoodCheckInView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 40)
                 } else {
-                    // 确保日期按照倒序排列
-                    let sortedDates = groupedRecords.keys.sorted(by: >)
+                    // 获取日期到时间戳的映射表
+                    let dateToTimestamp = getDateStringToTimestampMapping()
+                    
+                    // 使用时间戳进行日期排序
+                    let sortedDates = groupedRecords.keys.sorted { dateStr1, dateStr2 in
+                        // 从映射表中获取时间戳
+                        let timestamp1 = dateToTimestamp[dateStr1] ?? 0
+                        let timestamp2 = dateToTimestamp[dateStr2] ?? 0
+                        
+                        // 按照时间戳倒序排列
+                        return timestamp1 > timestamp2
+                    }
+                    
                     ForEach(sortedDates, id: \.self) { dateString in
                         VStack(alignment: .leading, spacing: 16) {
                             // 日期标题，增加上边距防止被卡片遮挡
@@ -633,8 +699,20 @@ struct FoodCheckInView: View {
                                 .padding(.top, 16)
                                 .padding(.bottom, 8)
                             
-                            // 当天的记录
-                            ForEach(groupedRecords[dateString]!, id: \.id) { record in
+                            // 当天的记录，按时间戳倒序排列
+                            let sortedRecords = groupedRecords[dateString]!.sorted { record1, record2 in
+                                // 获取关联的美食券时间戳
+                                let voucher1 = appState.dessertVouchers.first(where: { $0.workoutRecordId == record1.id })
+                                let voucher2 = appState.dessertVouchers.first(where: { $0.workoutRecordId == record2.id })
+                                
+                                // 获取时间戳进行比较，按时间戳倒序（新的在前）
+                                let timestamp1 = voucher1?.createdAt.timeIntervalSince1970 ?? 0
+                                let timestamp2 = voucher2?.createdAt.timeIntervalSince1970 ?? 0
+                                
+                                return timestamp1 > timestamp2
+                            }
+                            
+                            ForEach(sortedRecords, id: \.id) { record in
                                 // 检查是否是新记录
                                 let isNewRecord = newRecordId == "\(record.id)" && dateString == sortedDates.first
                                 
@@ -878,3 +956,4 @@ struct CachedImage: View {
         }
     }
 } 
+
