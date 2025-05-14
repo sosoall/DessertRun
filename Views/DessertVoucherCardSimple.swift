@@ -17,6 +17,9 @@ struct DessertVoucherCardSimple: View {
     /// 强制展开状态（用于弹窗展示）
     var forceExpanded: Bool = false
     
+    /// 动画状态
+    @State private var isAnimating: Bool = false
+    
     /// 提供一个环境变量，用于触发弹窗展示
     @Environment(\.presentationMode) var presentationMode
     
@@ -46,6 +49,16 @@ struct DessertVoucherCardSimple: View {
             
             // 底部操作区
             cardFooter
+        }
+        .onAppear {
+            if forceExpanded {
+                // 当显示为展开状态时，延迟一点启动动画
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                        isAnimating = true
+                    }
+                }
+            }
         }
         .onTapGesture {
             // 只有非强制展开状态下才触发弹窗展示
@@ -84,7 +97,7 @@ struct DessertVoucherCardSimple: View {
             LinearGradient(
                 gradient: Gradient(stops: [
                     .init(color: Color(hex: "#FF9D0B"), location: 0),
-                    .init(color: Color(hex: "#FFEAC5"), location: 0.44),
+                    .init(color: Color(hex: "#FFEAC5"), location: 0.59),
                     .init(color: Color(hex: "#FFE5EC"), location: 1)
                 ]),
                 startPoint: .leading,
@@ -97,90 +110,114 @@ struct DessertVoucherCardSimple: View {
                 .stroke(Color.white, lineWidth: 1)
                 .cornerRadius(20, corners: [.topLeft, .topRight])
             
-            // 3. 内容布局 - 使用HStack将所有内容放在同一层
-            HStack(spacing: 0) {
-                // 左侧奶茶图标 - 贴边显示
-                Image("milktea_icon")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 50, height: 50)
-                
-                // 食物信息 - 右对齐
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text(String(format: "%.1fx", record.equivalentDessertCount))
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(Color(hex: "#FE5C72"))
+            // 3. 内容布局 - 使用VStack改善布局
+            VStack(spacing: 0) {
+                // 主要内容行
+                HStack(alignment: forceExpanded ? .top : .center, spacing: 0) {
+                    // 左侧奶茶图标
+                    Image("milktea_icon")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: forceExpanded ? 55 : 50, height: forceExpanded ? 55 : 50)
+                        .offset(y: isAnimating && forceExpanded ? 20 : 0)
                     
-                    Text(record.dessert.name)
-                        .font(.system(size: 16, weight: .regular))
-                        .foregroundColor(Color(hex: "#FE5C72"))
-                }
-                .padding(.leading, 10)
-                
-                // 中间分隔线 - 固定高度70
-                Rectangle()
-                    .fill(Color(hex: "#D7B8BE"))
-                    .frame(width: 1, height: 70)
-                    .padding(.horizontal, 15)
-                
-                // 右侧内容区域 - 左对齐
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(record.exerciseType.name)
-                        .font(.system(size: 20, weight: .semibold))
-                    
-                    if forceExpanded {
-                        // 运动标签文本
-                        Text(record.displayWorkoutTag)
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(Color(hex: "#F8A41C"))
-                            .padding(.top, 4)
+                    // 左侧文本信息
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(alignment: .center, spacing: 5) {
+                            Text(String(format: "%.1f", record.equivalentDessertCount))
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundColor(Color(hex: "#FE5C72"))
+                            
+                            Text("x")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(Color(hex: "#FE5C72"))
+                        }
                         
-                        // 展开时显示运动详情
-                        VStack(alignment: .leading, spacing: 8) {
-                            // 运动距离
-                            HStack(spacing: 8) {
-                                Image(systemName: "figure.walk")
-                                    .foregroundColor(Color(hex: "#FF7B15"))
+                        Text(record.dessert.name)
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(Color(hex: "#FE5C72"))
+                            .lineLimit(1)
+                    }
+                    .padding(.leading, 5)
+                    .offset(y: isAnimating && forceExpanded ? -10 : 0)
+                    
+                    // 中间分隔线
+                    Rectangle()
+                        .fill(Color(hex: "#D7B8BE"))
+                        .frame(width: 1, height: forceExpanded ? 120 : 70)
+                        .padding(.horizontal, 10)
+                    
+                    // 右侧内容
+                    VStack(alignment: .leading, spacing: forceExpanded ? 8 : 4) {
+                        Text(record.exerciseType.name)
+                            .font(.system(size: 20, weight: .semibold))
+                            .lineLimit(1)
+                            .offset(y: isAnimating && forceExpanded ? -5 : 0)
+                        
+                        if forceExpanded {
+                            // 运动标签文本
+                            Text(record.displayWorkoutTag)
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(Color(hex: "#F8A41C"))
+                                .padding(.top, isAnimating ? 2 : 0)
+                                .opacity(isAnimating ? 1 : 0)
+                            
+                            // 展开时显示运动详情
+                            VStack(alignment: .leading, spacing: 12) {
+                                // 运动距离
+                                HStack(spacing: 8) {
+                                    Image(systemName: "figure.walk")
+                                        .foregroundColor(Color(hex: "#FF7B15"))
+                                    
+                                    if let distance = record.distance {
+                                        Text(String(format: "%.1f公里", distance / 1000))
+                                            .font(.system(size: 16, weight: .medium))
+                                    } else {
+                                        Text("--")
+                                            .font(.system(size: 16, weight: .medium))
+                                    }
+                                }
+                                .opacity(isAnimating ? 1 : 0)
                                 
-                                if let distance = record.distance {
-                                    Text(String(format: "%.1f公里", distance / 1000))
-                                        .font(.system(size: 16, weight: .medium))
-                                } else {
-                                    Text("--")
+                                // 消耗热量
+                                HStack(spacing: 8) {
+                                    Image(systemName: "flame.fill")
+                                        .foregroundColor(.red)
+                                    
+                                    Text("\(Int(record.caloriesBurned))卡路里")
                                         .font(.system(size: 16, weight: .medium))
                                 }
+                                .opacity(isAnimating ? 1 : 0)
                             }
-                            
-                            // 消耗热量
-                            HStack(spacing: 8) {
-                                Image(systemName: "flame.fill")
-                                    .foregroundColor(.red)
-                                
-                                Text("\(Int(record.caloriesBurned))卡路里")
-                                    .font(.system(size: 16, weight: .medium))
-                            }
-                            
-                            // 日期时间
-                            Text(formattedDateTime(record.date))
-                                .font(.system(size: 14, weight: .regular))
-                                .foregroundColor(Color(hex: "#919191"))
+                            .padding(.top, 4)
                         }
-                        .padding(.top, 8)
                     }
+                    
+                    Spacer(minLength: 0)
+                    
+                    // 右侧甜品图像
+                    Image("dessert_background")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: forceExpanded ? 120 : 100, height: forceExpanded ? 120 : 100)
+                        .offset(y: isAnimating && forceExpanded ? 30 : 0)
                 }
-                .padding(.trailing, 0)
+                .padding(.top, forceExpanded ? 5 : 0)
+                .frame(height: forceExpanded ? 140 : 100)
                 
-                Spacer()
-                
-                // 右侧甜品图像 - 贴边显示
-                Image("dessert_background")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(height: 100)
+                // 展开时显示的日期
+                if forceExpanded {
+                    Text(formattedDateTime(record.date))
+                        .font(.system(size: 14, weight: .regular))
+                        .foregroundColor(Color(hex: "#919191"))
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.top, 15)
+                        .padding(.bottom, 5)
+                        .opacity(isAnimating ? 1 : 0)
+                }
             }
-            .frame(height: 100)
         }
-        .frame(height: 100)
+        .frame(height: forceExpanded ? 200 : 100)
     }
     
     // 日期格式化函数
@@ -188,6 +225,24 @@ struct DessertVoucherCardSimple: View {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy/MM/dd HH:mm"
         return dateFormatter.string(from: date)
+    }
+    
+    // 格式化过期日期
+    private func formattedExpiryDate() -> String {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy年MM月dd日"
+        
+        if let expireDate = voucherExpireDate {
+            return dateFormatter.string(from: expireDate)
+        } else {
+            // 默认30天过期期限
+            let calendar = Calendar.current
+            if let expiryDate = calendar.date(byAdding: .day, value: 30, to: record.date) {
+                return dateFormatter.string(from: expiryDate)
+            } else {
+                return "未知"
+            }
+        }
     }
     
     // MARK: - 卡片底部部分

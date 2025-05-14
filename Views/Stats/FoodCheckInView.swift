@@ -817,63 +817,70 @@ struct ExpandedCardView: View {
                 }
             
             // 卡片内容
-            VStack(spacing: 0) {
-                // 美食券卡片（展开状态）
-                DessertVoucherCardSimple(record: record, forceExpanded: true)
-                    .frame(width: UIScreen.main.bounds.width - 60)  // 减小宽度以匹配设计
-                
-                // 底部操作按钮
-                HStack(spacing: 40) {
-                    // 分享按钮
-                    Button(action: {
-                        // 分享逻辑
-                        isShared = true
-                    }) {
-                        VStack(spacing: 8) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color(hex: "#FF5A73").opacity(0.2))
-                                    .frame(width: 50, height: 50)
-                                
-                                Image(systemName: "square.and.arrow.up")
-                                    .font(.system(size: 22))
-                                    .foregroundColor(Color(hex: "#FF5A73"))
-                            }
-                            
-                            Text("分享")
-                                .font(.system(size: 14))
-                                .foregroundColor(Color(hex: "#FF5A73"))
-                        }
-                    }
+            VStack(spacing: 16) {
+                // 顶部关闭按钮 - 右上角
+                HStack {
+                    Spacer()
                     
-                    // 关闭按钮
                     Button(action: {
                         withAnimation(.easeOut(duration: 0.2)) {
                             isShowing = false
                         }
                     }) {
-                        VStack(spacing: 8) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color.gray.opacity(0.2))
-                                    .frame(width: 50, height: 50)
-                                
-                                Image(systemName: "xmark")
-                                    .font(.system(size: 22))
-                                    .foregroundColor(.gray)
-                            }
+                        ZStack {
+                            Circle()
+                                .fill(Color.white.opacity(0.9))
+                                .frame(width: 36, height: 36)
+                                .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
                             
-                            Text("关闭")
-                                .font(.system(size: 14))
+                            Image(systemName: "xmark")
+                                .font(.system(size: 16, weight: .semibold))
                                 .foregroundColor(.gray)
                         }
                     }
                 }
-                .padding(.vertical, 24)
+                .padding(.horizontal, 16)
+                .zIndex(1) // 确保关闭按钮在最上层
+                
+                // 美食券卡片（展开状态）- 尺寸更大
+                DessertVoucherCardSimple(record: record, forceExpanded: true)
+                    .frame(width: UIScreen.main.bounds.width - 40)  // 确保卡片宽度合适
+                
+                // 底部分享按钮 - 更新样式与Figma一致
+                Button(action: {
+                    // 分享逻辑
+                    isShared = true
+                }) {
+                    HStack {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 18))
+                        
+                        Text("分享可以获得5颗星星")
+                            .font(.system(size: 16, weight: .medium))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.vertical, 12)
+                    .padding(.horizontal, 32)
+                    .frame(minWidth: 280)
+                    .background(
+                        LinearGradient(
+                            gradient: Gradient(
+                                colors: [
+                                    Color(hex: "#FE2D55"),
+                                    Color(hex: "#FF896E")
+                                ]
+                            ),
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .cornerRadius(30)
+                    .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+                }
+                .padding(.top, 8)
+                .padding(.bottom, 24)
             }
-            .background(Color.white.opacity(0.95))
-            .cornerRadius(20)
-            .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 0)
+            .background(Color.white.opacity(0))
             .padding(.horizontal, 20)
         }
         .sheet(isPresented: $isShared) {
