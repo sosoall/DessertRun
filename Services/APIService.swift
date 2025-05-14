@@ -1217,6 +1217,96 @@ class APIService {
             .eraseToAnyPublisher()
     }
     
+    // MARK: - 统计相关 API
+    
+    /// 获取用户消费最多的美食排行榜
+    /// - Parameter limit: 返回结果数量限制，默认为5
+    /// - Returns: 包含排行榜数据的发布者
+    func getUserTopDesserts(limit: Int = 5) -> AnyPublisher<TopDessertResponse, APIServiceError> {
+        let endpoint = "/api/v1/stats/top-desserts?limit=\(limit)"
+        
+        // 创建URL请求
+        let urlString = Config.API.baseURL + endpoint
+        guard let url = URL(string: urlString) else {
+            return Fail(error: APIServiceError.unknown).eraseToAnyPublisher()
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = Config.API.timeout
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        // 添加认证令牌
+        if let token = UserDefaults.standard.string(forKey: Config.UserData.tokenKey) {
+            request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        
+        // 执行请求并手动解析响应
+        return URLSession.shared.dataTaskPublisher(for: request)
+            .tryMap { data, response -> Data in
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    throw NetworkError.invalidResponse
+                }
+                
+                // 打印响应信息
+                DRDebug("[APIService] 排行榜API响应: 状态码=\(httpResponse.statusCode), 数据大小=\(data.count)字节")
+                if let jsonString = String(data: data, encoding: .utf8) {
+                    DRDebug("[APIService] 排行榜响应数据: \(jsonString)")
+                }
+                
+                // 处理HTTP状态码
+                switch httpResponse.statusCode {
+                case 200..<300:
+                    return data
+                default:
+                    if let jsonString = String(data: data, encoding: .utf8) {
+                        throw NetworkError.serverError(httpResponse.statusCode, jsonString)
+                    } else {
+                        throw NetworkError.serverError(httpResponse.statusCode, "服务器错误")
+                    }
+                }
+            }
+            .decode(type: TopDessertResponse.self, decoder: JSONDecoder())
+            .mapError { error -> APIServiceError in
+                if let networkError = error as? NetworkError {
+                    return .networkError(APINetworkError(error: networkError))
+                } else if let decodingError = error as? DecodingError {
+                    DRError("[APIService] 排行榜数据解析错误: \(decodingError)")
+                    return .decodeError(decodingError.localizedDescription)
+                } else {
+                    return .unknown
+                }
+            }
+            .eraseToAnyPublisher()
+    }
+    
+    // MARK: - 文件服务相关 API
+    
+    /// 根据文件键获取图片URL
+    /// - Parameter fkey: 文件键
+    /// - Returns: 包含图片URL的发布者
+    func getImageURLByFKey(fkey: String) -> AnyPublisher<ImageURLResponse, APIServiceError> {
+        let endpoint = "/api/v1/file/url"
+        
+        return networkManager.request(
+            endpoint: endpoint,
+            method: .get,
+            parameters: ["fkey": fkey],
+            requiresAuth: false
+        )
+        .mapError { self.handleError($0) }
+        .eraseToAnyPublisher()
+    }
+    
+    // 图片URL响应模型
+    struct ImageURLResponse: Codable {
+        let url: String
+        
+        enum CodingKeys: String, CodingKey {
+            case url
+        }
+    }
+    
     // MARK: - 通用请求处理
     
     /// 处理API请求

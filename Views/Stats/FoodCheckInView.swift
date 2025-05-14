@@ -2,7 +2,7 @@ import SwiftUI
 
 /// 甜品打卡标签页
 struct FoodCheckInView: View {
-    @ObservedObject var viewModel: FoodCheckInViewModel
+    @StateObject var viewModel = FoodCheckInViewModel.shared
     @State private var newRecordId: String? = nil
     @State private var showNewRecordAnimation: Bool = false
     @EnvironmentObject var appState: AppState
@@ -10,12 +10,22 @@ struct FoodCheckInView: View {
     @State private var selectedRecord: WorkoutRecord? = nil  // 当前选中的记录
     @State private var showExpandedCard: Bool = false  // 是否显示展开视图
     @State private var hasAppeared: Bool = false  // 添加状态标志，追踪视图是否已出现
+    @State private var forceRefresh: Bool = false  // 强制刷新标记
+    @State private var viewModelAddress: String = "" // 存储ViewModel的内存地址，用于调试
     
     var body: some View {
         ZStack {
             // 主内容
             ScrollView {
                 VStack(spacing: 24) {
+                    // 调试信息显示
+                    if !viewModelAddress.isEmpty {
+                        Text("VM地址: \(viewModelAddress)")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    
                     // 美食记录卡片
                     foodRecordCard
                     
@@ -38,43 +48,79 @@ struct FoodCheckInView: View {
             }
         }
         .onAppear {
+            // 记录ViewModel的内存地址，用于调试追踪
+            viewModelAddress = "\(Unmanaged.passUnretained(viewModel).toOpaque())"
+            DRDebug("[FoodCheckInView] 视图出现，使用ViewModel实例: \(viewModelAddress)")
+            
             // 使用hasAppeared标志防止多次调用
             if !hasAppeared {
-                DRDebug("[FoodCheckInView] 首次显示，准备加载数据")
+                DRDebug("[FoodCheckInView] 首次显示，准备加载数据，ViewModel实例: \(viewModelAddress)")
                 
-                // 使用DispatchQueue.main.asyncAfter增加延迟，避免在视图层次结构更新期间的频繁调用
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    // 首次进入页面时加载数据
-                    DRDebug("[FoodCheckInView] 开始加载数据")
-                    // 使用新的loadData方法加载所有所需数据
-                    viewModel.loadData()
-                    hasAppeared = true
+                // 立即设置标志，防止重复加载
+                hasAppeared = true
+                
+                // 延迟加载，确保视图已完全呈现
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    DRDebug("[FoodCheckInView] 开始加载数据，ViewModel实例: \(viewModelAddress)")
+                    viewModel.loadData() // 这会同时加载打卡记录、美食券和排行榜数据
                     
-                    // 仅当刚完成打卡时才显示动画（通过检查应用状态中的标记来判断）
+                    // 强制刷新UI，确保使用正确的ViewModel实例
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        DRDebug("[FoodCheckInView] 延迟刷新，ViewModel数据数量: \(self.viewModel.topDesserts.count)")
+                        self.forceRefresh.toggle()
+                    }
+                    
+                    // 再次强制刷新，确保数据显示
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                        self.forceRefresh.toggle()
+                        DRDebug("[FoodCheckInView] 二次延迟刷新，ViewModel数据量: \(self.viewModel.topDesserts.count)")
+                    }
+                    
+                    // 打印一下所有ViewModel的状态
+                    for i in 0...3 {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + Double(i)) {
+                            DRDebug("[FoodCheckInView] ViewModel状态检查 \(i)秒后: 数据量\(self.viewModel.topDesserts.count)")
+                        }
+                    }
+                    
+                    // 仅当刚完成打卡时才显示动画
                     if appState.justCompletedWorkout, let latestRecord = viewModel.getSortedAllRecords().first {
                         DRDebug("[FoodCheckInView] 检测到新记录，准备显示动画")
                         // 将新记录ID存入状态变量
                         newRecordId = "\(latestRecord.id)"
                         
-                        // 延迟一点，确保视图已经加载
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                            withAnimation(.easeInOut(duration: 0.5)) {
-                                showNewRecordAnimation = true
-                            }
-                            
-                            // 3秒后重置状态，但不需要消失动画
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                                // 没有动画效果，只重置状态
-                                showNewRecordAnimation = false
-                                newRecordId = nil
-                                appState.justCompletedWorkout = false
-                                DRDebug("[FoodCheckInView] 重置动画状态完成")
-                            }
+                        withAnimation(.easeInOut(duration: 0.5)) {
+                            showNewRecordAnimation = true
+                        }
+                        
+                        // 3秒后重置状态，但不需要消失动画
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                            // 没有动画效果，只重置状态
+                            showNewRecordAnimation = false
+                            newRecordId = nil
+                            appState.justCompletedWorkout = false
+                            DRDebug("[FoodCheckInView] 重置动画状态完成")
                         }
                     }
                 }
             } else {
-                DRDebug("[FoodCheckInView] 视图已显示过，跳过数据加载")
+                DRDebug("[FoodCheckInView] 视图已显示过，执行刷新，ViewModel数据量: \(viewModel.topDesserts.count)")
+                
+                // 如果排行榜是空的，尝试加载数据
+                if viewModel.topDesserts.isEmpty {
+                    DRDebug("[FoodCheckInView] 排行榜为空，尝试加载数据")
+                    // 直接引用self.viewModel确保使用正确实例
+                    self.viewModel.loadTopDesserts(limit: 5)
+                    
+                    // 短暂延迟后强制刷新UI
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        self.forceRefresh.toggle()
+                    }
+                } else {
+                    // 如果已有数据，只执行刷新
+                    DRDebug("[FoodCheckInView] 排行榜已有\(viewModel.topDesserts.count)条数据，触发刷新")
+                    forceRefresh.toggle()
+                }
             }
             
             // 添加美食券点击通知的观察者
@@ -90,12 +136,74 @@ struct FoodCheckInView: View {
                     }
                 }
             }
+            
+            // 修改TopDessertsUpdated通知观察者，移除[weak self]
+            NotificationCenter.default.addObserver(
+                forName: NSNotification.Name("TopDessertsUpdated"),
+                object: nil,
+                queue: .main
+            ) { notification in
+                // 检查通知中的ViewModel实例
+                if let notificationViewModel = notification.userInfo?["viewModel"] as? FoodCheckInViewModel {
+                    let notificationViewModelAddress = Unmanaged.passUnretained(notificationViewModel).toOpaque()
+                    let selfViewModelAddress = Unmanaged.passUnretained(self.viewModel).toOpaque()
+                    
+                    DRDebug("[FoodCheckInView] 收到排行榜数据更新通知，通知的ViewModel: \(notificationViewModelAddress)，当前ViewModel: \(selfViewModelAddress)")
+                    
+                    // 两个实例不同时，需要强制更新数据
+                    if notificationViewModelAddress != selfViewModelAddress {
+                        DRWarning("[FoodCheckInView] 检测到不同的ViewModel实例，强制同步数据")
+                        if let items = notification.userInfo?["items"] as? [StatTopDessertItem], !items.isEmpty {
+                            DispatchQueue.main.async {
+                                // 直接从通知获取数据并更新
+                                self.viewModel.topDesserts = items
+                                self.forceRefresh.toggle()
+                            }
+                        }
+                    }
+                }
+                
+                // 无论如何只刷新一次UI
+                self.forceRefresh.toggle()
+                DRDebug("[FoodCheckInView] 强制刷新状态已切换: \(self.forceRefresh)")
+            }
+            
+            // 修改RankingImageLoaded通知观察者，移除[weak self]
+            NotificationCenter.default.addObserver(
+                forName: NSNotification.Name("RankingImageLoaded"),
+                object: nil,
+                queue: .main
+            ) { notification in
+                // 收到图片加载完成的通知，强制刷新UI
+                if let itemId = notification.object as? String {
+                    DRDebug("[FoodCheckInView] 收到排行榜图片加载完成通知，项目ID: \(itemId)，强制刷新UI")
+                } else {
+                    DRDebug("[FoodCheckInView] 收到排行榜图片加载完成通知，强制刷新UI")
+                }
+                
+                // 直接刷新UI，无需多次刷新
+                self.forceRefresh.toggle()
+            }
         }
         .onDisappear {
             // 移除观察者
             NotificationCenter.default.removeObserver(
                 self,
                 name: NSNotification.Name("ShowExpandedCard"),
+                object: nil
+            )
+            
+            // 移除排行榜数据更新的观察者
+            NotificationCenter.default.removeObserver(
+                self,
+                name: NSNotification.Name("TopDessertsUpdated"),
+                object: nil
+            )
+            
+            // 移除排行榜图片加载完成的观察者
+            NotificationCenter.default.removeObserver(
+                self,
+                name: NSNotification.Name("RankingImageLoaded"),
                 object: nil
             )
             
@@ -118,7 +226,122 @@ struct FoodCheckInView: View {
             
             // 美食排行榜和记录卡片
             VStack(spacing: 20) {
-                foodRankingCard
+                // 直接创建排行榜卡片，不使用计算属性
+                VStack(spacing: 16) {
+                    // 标题栏
+                    HStack {
+                        Text("美食排行榜")
+                            .font(.system(size: 16, weight: .medium))
+                        
+                        Spacer()
+                        
+                        // 刷新按钮
+                        Button(action: {
+                            // 刷新排行榜数据
+                            viewModel.loadTopDesserts(limit: 5)
+                            DRDebug("[FoodCheckInView] 用户手动刷新排行榜")
+                            
+                            // 强制刷新UI
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                forceRefresh.toggle()
+                                DRDebug("[FoodCheckInView] 刷新排行榜后强制刷新UI: \(viewModel.topDesserts.count)项")
+                            }
+                        }) {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 14))
+                                .foregroundColor(viewModel.isLoadingTopDesserts ? .gray : .blue)
+                        }
+                        .disabled(viewModel.isLoadingTopDesserts)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 16)
+                    
+                    // 美食排行榜水平布局
+                    if viewModel.isLoadingTopDesserts {
+                        // 加载中状态
+                        HStack {
+                            Spacer()
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle())
+                                .scaleEffect(1.2)
+                                .padding()
+                            Spacer()
+                        }
+                        .frame(height: 120)
+                    } else if viewModel.topDesserts.isEmpty {
+                        // 空状态
+                        HStack {
+                            Spacer()
+                            VStack {
+                                Text("暂无记录")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.gray)
+                                    .padding()
+                            }
+                            Spacer()
+                        }
+                        .frame(height: 120)
+                        .onAppear {
+                            DRDebug("[FoodCheckInView] 排行榜显示空状态，数据量: \(viewModel.topDesserts.count)")
+                            
+                            // 如果是空的，尝试再加载一次
+                            if !viewModel.isLoadingTopDesserts {
+                                viewModel.loadTopDesserts(limit: 5)
+                                DRDebug("[FoodCheckInView] 排行榜为空，自动尝试再次加载")
+                            }
+                        }
+                    } else {
+                        // 有数据状态
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            LazyHStack(spacing: 24) {
+                                ForEach(viewModel.topDesserts.prefix(4), id: \.id) { dessert in
+                                    VStack(spacing: 8) {
+                                        ZStack(alignment: .top) {
+                                            VStack {
+                                                Spacer()
+                                                
+                                                // 使用CachedImage加载图片
+                                                CachedImage(url: dessert.imageName, dessertId: dessert.dessertId)
+                                                    .scaledToFit()
+                                                    .frame(height: dessert.id == viewModel.topDesserts.first?.id ? 120 : 75)
+                                                    .cornerRadius(8)
+                                            }
+                                            .frame(height: 120)
+                                            
+                                            if dessert.id == viewModel.topDesserts.first?.id {
+                                                Image("crown")
+                                                    .resizable()
+                                                    .renderingMode(.original)
+                                                    .scaledToFit()
+                                                    .frame(width: 40, height: 40)
+                                                    .offset(x: 10, y: -15)
+                                            }
+                                        }
+                                        .onAppear {
+                                            DRDebug("[FoodCheckInView] 渲染排行榜项目: \(dessert.name)")
+                                        }
+                                        
+                                        Text("打卡\(dessert.count)次")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(.black)
+                                    }
+                                }
+                            }
+                            .padding(.vertical, 16)
+                            .padding(.horizontal, 16)
+                        }
+                        .onAppear {
+                            DRDebug("[FoodCheckInView] 排行榜显示数据: \(viewModel.topDesserts.count)项")
+                        }
+                    }
+                }
+                .background(Color.white)
+                .cornerRadius(16)
+                .shadow(color: Color.black.opacity(0.05), radius: 3, x: 0, y: 2)
+                .id("topDesserts-\(forceRefresh)")
+                .onAppear {
+                    DRDebug("[FoodCheckInView] 排行榜卡片出现，数据数量: \(viewModel.topDesserts.count)")
+                }
                 
                 // 数据统计卡片行
                 HStack(spacing: 16) {
@@ -127,58 +350,6 @@ struct FoodCheckInView: View {
                 }
             }
         }
-    }
-    
-    // 美食排行榜卡片
-    private var foodRankingCard: some View {
-        VStack(spacing: 16) {
-            // 美食排行榜水平布局
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 24) {
-                    if let topDesserts = viewModel.getAllTopDesserts(count: 4) {
-                            
-                        ForEach(Array(topDesserts.enumerated()), id: \.element.id) { index, dessert in
-                            VStack(spacing: 8) {
-                                ZStack(alignment: .top) {
-                                    VStack {
-                                        Spacer()
-                                        // 使用CachedImage加载图片
-                                        CachedImage(url: dessert.imageName, dessertId: dessert.dessertId)
-                                            .scaledToFit()
-                                            .frame(height: index == 0 ? 120 : 75)
-                                            .cornerRadius(8)
-                                    }
-                                    .frame(height: 120)
-                                    
-                                    if index == 0 {
-                                        Image("crown")
-                                            .resizable()
-                                            .renderingMode(.original)
-                                            .scaledToFit()
-                                            .frame(width: 40, height: 40)
-                                            .offset(x: 10, y: -15)
-                                    }
-                                }
-                                
-                                Text("打卡\(dessert.count)次")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.black)
-                            }
-                        }
-                    } else {
-                        Text("暂无记录")
-                            .font(.system(size: 14))
-                            .foregroundColor(.gray)
-                            .padding()
-                    }
-                }
-                .padding(.vertical, 16)
-                .padding(.horizontal, 16)
-            }
-        }
-        .background(Color.white)
-        .cornerRadius(16)
-        .shadow(color: Color.black.opacity(0.05), radius: 3, x: 0, y: 2)
     }
     
     // 美食打卡次数卡片

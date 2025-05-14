@@ -11,8 +11,8 @@ extension APIExerciseType {
     /// 根据类型字符串创建运动类型
     static func fromString(_ typeStr: String, name: String? = nil) -> APIExerciseType {
         // 直接使用后端提供的名称，没有提供时才使用默认值
-        return APIExerciseType(
-            type: typeStr,
+            return APIExerciseType(
+                type: typeStr,
             name: name ?? typeStr, // 优先使用后端提供的name，没有时直接使用typeStr
             description: "运动类型",
             iconName: getIconName(for: typeStr),

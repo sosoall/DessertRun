@@ -28,10 +28,24 @@ struct StatTopDessertItem: Identifiable {
 
 /// 美食打卡视图模型 - 管理美食打卡相关数据和逻辑
 class FoodCheckInViewModel: ObservableObject {
+    // MARK: - 单例模式
+    
+    /// 全局共享实例
+    static let shared = FoodCheckInViewModel(appState: AppState.shared)
+    
+    // 私有静态引用，确保只有一个实例
+    private static var _shared: FoodCheckInViewModel?
+    
     // MARK: - 发布属性
     
     /// 美食券加载状态
     @Published var isLoadingVouchers: Bool = false
+    
+    /// 排行榜加载状态
+    @Published var isLoadingTopDesserts: Bool = false
+    
+    /// 排行榜数据
+    @Published var topDesserts: [StatTopDessertItem] = []
     
     /// 错误信息
     @Published var errorMessage: String? = nil
@@ -46,7 +60,16 @@ class FoodCheckInViewModel: ObservableObject {
     
     /// 初始化
     init(appState: AppState) {
+        // 确保只创建一个实例
+        if Self._shared != nil {
+            self.appState = appState
+            DRDebug("[FoodCheckInViewModel] 使用现有实例: \(Unmanaged.passUnretained(Self._shared!).toOpaque())")
+            return
+        }
+        
         self.appState = appState
+        Self._shared = self
+        DRDebug("[FoodCheckInViewModel] 创建新实例: \(Unmanaged.passUnretained(self).toOpaque())")
     }
     
     // MARK: - 计算属性
@@ -106,87 +129,165 @@ class FoodCheckInViewModel: ObservableObject {
             .store(in: &cancellables)
     }
     
+    // MARK: - 从API加载美食排行榜
+    func loadTopDesserts(limit: Int = 5) {
+        // 防止重复请求
+        if isLoadingTopDesserts {
+            DRDebug("[FoodCheckInViewModel] 正在加载美食排行榜，忽略重复请求")
+            return
+        }
+        
+        isLoadingTopDesserts = true
+        DRDebug("[FoodCheckInViewModel] 开始从后端加载美食排行榜数据，ViewModel实例: \(Unmanaged.passUnretained(self).toOpaque())")
+        
+        // 强制清空旧数据，确保发布更新
+        if !topDesserts.isEmpty {
+            DRDebug("[FoodCheckInViewModel] 加载前清空旧数据，原有 \(topDesserts.count) 条")
+            DispatchQueue.main.async {
+                self.topDesserts = []
+            }
+        }
+        
+        APIService.shared.getUserTopDesserts(limit: limit)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { [weak self] completion in
+                    DispatchQueue.main.async {
+                        self?.isLoadingTopDesserts = false
+                        if case .failure(let error) = completion {
+                            DRError("[FoodCheckInViewModel] 加载美食排行榜失败: \(error.errorMessage)")
+                            self?.errorMessage = "加载排行榜失败：\(error.errorMessage)"
+                        }
+                    }
+                },
+                receiveValue: { [weak self] response in
+                    guard let self = self else { return }
+                    
+                    DRDebug("[FoodCheckInViewModel] 收到排行榜API响应，ViewModel实例: \(Unmanaged.passUnretained(self).toOpaque())")
+                    
+                    if response.code == 0 || response.code == 200 {
+                        let items = response.data.items.map { item in
+                            StatTopDessertItem(
+                                id: item.dessertId.uuidString,
+                                name: item.dessertName,
+                                imageName: item.imageURL,
+                                calories: item.calories,
+                                count: item.checkinCount,
+                                totalCalories: item.totalCalories,
+                                dessertId: item.dessertId.uuidString
+                            )
+                        }
+                        
+                        // 确保在主线程更新UI绑定的数据
+                        DispatchQueue.main.async { [self] in
+                            DRDebug("[FoodCheckInViewModel] 准备更新排行榜数据，项目数: \(items.count)，ViewModel实例: \(Unmanaged.passUnretained(self).toOpaque())")
+                            
+                            // 重置加载状态
+                            self.isLoadingTopDesserts = false
+                            
+                            // 直接设置数据
+                            self.topDesserts = items
+                            
+                            DRInfo("[FoodCheckInViewModel] 成功加载\(items.count)个排行榜项")
+                            
+                            if !self.topDesserts.isEmpty {
+                                DRDebug("[FoodCheckInViewModel] 更新后排行榜数据内容: \(self.topDesserts.map { $0.name })")
+                            }
+                            
+                            DRDebug("[FoodCheckInViewModel] 更新后排行榜数据数量: \(self.topDesserts.count)")
+                            
+                            // 单次发送通知，避免UI闪烁
+                            self.sendTopDessertsUpdatedNotification()
+                            
+                            // 预加载图片
+                            self.preloadRankingImages(items: items)
+                        }
+                    } else {
+                        DispatchQueue.main.async {
+                            // 重置加载状态
+                            self.isLoadingTopDesserts = false
+                            
+                            DRError("[FoodCheckInViewModel] 加载美食排行榜失败: \(response.message)")
+                            self.errorMessage = "加载排行榜失败：\(response.message)"
+                        }
+                    }
+                }
+            )
+            .store(in: &cancellables)
+    }
+    
+    /// 发送排行榜更新通知
+    private func sendTopDessertsUpdatedNotification() {
+        NotificationCenter.default.post(
+            name: NSNotification.Name("TopDessertsUpdated"),
+            object: nil,
+            userInfo: ["viewModel": self, "items": self.topDesserts]
+        )
+        DRDebug("[FoodCheckInViewModel] 已发送排行榜更新通知，实例: \(Unmanaged.passUnretained(self).toOpaque())")
+    }
+    
+    /// 预加载排行榜图片
+    private func preloadRankingImages(items: [StatTopDessertItem]) {
+        // 先打印信息验证数据
+        DRDebug("[FoodCheckInViewModel] 准备预加载\(items.count)个排行榜图片，ViewModel实例: \(Unmanaged.passUnretained(self).toOpaque())")
+        
+        // 遍历所有排行榜项，提前下载并缓存图片
+        for item in items {
+            DRDebug("[FoodCheckInViewModel] 开始预加载排行榜图片: \(item.name), URL: \(item.imageName)")
+            
+            // 使用ImageCacheService加载图片
+            ImageCacheService.shared.downloadAndCacheImage(url: item.imageName) { [weak self] image in
+                guard let self = self else { return }
+                
+                if image != nil {
+                    DRDebug("[FoodCheckInViewModel] 成功预加载排行榜图片: \(item.name)")
+                    
+                    // 发送通知告知图片已加载，携带ViewModel实例引用
+                    DispatchQueue.main.async {
+                        NotificationCenter.default.post(
+                            name: NSNotification.Name("RankingImageLoaded"),
+                            object: item.id,
+                            userInfo: ["viewModel": self]
+                        )
+                        
+                        // 打印当前ViewModel状态
+                        DRDebug("[FoodCheckInViewModel] 图片加载完成后ViewModel状态: \(self.topDesserts.count)项, 实例: \(Unmanaged.passUnretained(self).toOpaque())")
+                    }
+                } else {
+                    DRError("[FoodCheckInViewModel] 预加载排行榜图片失败: \(item.name)")
+                    
+                    // 尝试加载备用URL
+                    let backupURL = "\(Config.API.baseURL)/api/v1/desserts/\(item.dessertId)/images/regular"
+                    DRDebug("[FoodCheckInViewModel] 尝试使用备用URL加载图片: \(backupURL)")
+                    
+                    ImageCacheService.shared.downloadAndCacheImage(url: backupURL) { [weak self] backupImage in
+                        guard let self = self else { return }
+                        
+                        if backupImage != nil {
+                            DRDebug("[FoodCheckInViewModel] 使用备用URL成功加载图片: \(item.name)")
+                            
+                            // 发送通知告知图片已加载
+                            DispatchQueue.main.async {
+                                NotificationCenter.default.post(
+                                    name: NSNotification.Name("RankingImageLoaded"),
+                                    object: item.id,
+                                    userInfo: ["viewModel": self]
+                                )
+                            }
+                        } else {
+                            DRError("[FoodCheckInViewModel] 备用URL加载图片也失败: \(item.name)")
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
     /// 获取按时间倒序排列的所有记录
     func getSortedAllRecords() -> [WorkoutRecord] {
         return appState.workoutRecords.sorted { record1, record2 in
             // 比较时间戳，精确到秒级的倒序排列（最新的记录在前）
             return record1.date.timeIntervalSince1970 > record2.date.timeIntervalSince1970
-        }
-    }
-    
-    /// 获取所有美食排行榜
-    func getAllTopDesserts(count: Int) -> [StatTopDessertItem]? {
-        return getTopDessertsFromRecords(records: appState.workoutRecords, count: count)
-    }
-    
-    /// 从记录中获取排名前几的美食
-    private func getTopDessertsFromRecords(records: [WorkoutRecord], count: Int) -> [StatTopDessertItem]? {
-        if records.isEmpty {
-            return nil
-        }
-        
-        // 统计每个甜品出现的次数和热量值
-        var dessertInfo: [String: (count: Int, calories: Double, name: String, imageURL: String, dessertId: String)] = [:]
-        
-        for record in records {
-            let dessertId = record.dessert.id
-            let calories = Double(record.dessert.calories) ?? 0
-            
-            // 获取图片URL
-            let imageURL: String
-            if let regularImage = record.dessert.images.first(where: { $0.type == "regular" }) {
-                // 使用regular类型的图片
-                imageURL = regularImage.url
-            } else if !record.dessert.images.isEmpty {
-                // 如果没有regular类型但有其他图片，使用第一张
-                imageURL = record.dessert.images.first!.url
-            } else {
-                // 没有图片时使用API接口路径
-                imageURL = "/api/v1/desserts/\(dessertId)/images/regular"
-            }
-            
-            if let existing = dessertInfo[dessertId] {
-                dessertInfo[dessertId] = (
-                    existing.count + 1,
-                    existing.calories,
-                    record.dessert.name,
-                    existing.imageURL,
-                    dessertId
-                )
-            } else {
-                dessertInfo[dessertId] = (
-                    1,
-                    calories,
-                    record.dessert.name,
-                    imageURL,
-                    dessertId
-                )
-            }
-        }
-        
-        // 按出现次数排序，次数相同时按照id大小排序（确保排行榜稳定性）
-        let sortedDesserts = dessertInfo.sorted { 
-            if $0.value.count == $1.value.count {
-                // 次数相同时，按ID排序
-                return $0.key < $1.key
-            }
-            // 按次数降序排序
-            return $0.value.count > $1.value.count
-        }
-        
-        // 返回前n个
-        return sortedDesserts.prefix(count).map { entry in
-            let (dessertId, info) = entry
-            
-            return StatTopDessertItem(
-                id: dessertId,
-                name: info.name,
-                imageName: info.imageURL,
-                calories: info.calories,
-                count: info.count,
-                totalCalories: info.calories * Double(info.count),
-                dessertId: info.dessertId
-            )
         }
     }
     
@@ -318,6 +419,9 @@ class FoodCheckInViewModel: ObservableObject {
                         
                         // 加载完美食记录后，加载美食券
                         self.loadDessertVouchers()
+                        
+                        // 加载美食排行榜
+                        self.loadTopDesserts(limit: 5)
                     }
                 }
             )
@@ -350,5 +454,44 @@ class FoodCheckInViewModel: ObservableObject {
         }
         
         return false
+    }
+}
+
+// MARK: - 后端美食排行榜响应模型
+struct TopDessertDTO: Codable {
+    let dessertId: UUID
+    let dessertName: String
+    let checkinCount: Int
+    let calories: Double
+    let totalCalories: Double
+    let imageURL: String
+    
+    enum CodingKeys: String, CodingKey {
+        case dessertId = "dessert_id"
+        case dessertName = "dessert_name"
+        case checkinCount = "checkin_count"
+        case calories
+        case totalCalories = "total_calories"
+        case imageURL = "image_url"
+    }
+}
+
+struct TopDessertStatsResponse: Codable {
+    let items: [TopDessertDTO]
+    
+    enum CodingKeys: String, CodingKey {
+        case items
+    }
+}
+
+struct TopDessertResponse: Codable {
+    let code: Int
+    let message: String
+    let data: TopDessertStatsResponse
+    
+    enum CodingKeys: String, CodingKey {
+        case code
+        case message
+        case data
     }
 } 
