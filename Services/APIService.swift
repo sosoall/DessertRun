@@ -1092,6 +1092,7 @@ class APIService {
                 let status: String
                 let created_at: String
                 let updated_at: String?
+                let expire_at: String?
             }
         }
         
@@ -1135,6 +1136,24 @@ class APIService {
             }
             .tryMap { data -> VouchersResponse in
                 do {
+                    // 尝试解析原始JSON以检查时间戳格式
+                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let dataDict = json["data"] as? [String: Any],
+                       let items = dataDict["items"] as? [[String: Any]] {
+                        
+                        // 打印第一项美食券的时间戳，用于调试
+                        if let firstItem = items.first {
+                            let createdAt = firstItem["created_at"] as? String ?? "无时间戳"
+                            let expireAt = firstItem["expire_at"] as? String ?? "无过期时间"
+                            let updatedAt = firstItem["updated_at"] as? String ?? "无更新时间"
+                            
+                            DRDebug("[APIService] 美食券原始时间戳格式:")
+                            DRDebug("[APIService] created_at: \(createdAt)")
+                            DRDebug("[APIService] expire_at: \(expireAt)")
+                            DRDebug("[APIService] updated_at: \(updatedAt)")
+                        }
+                    }
+                    
                     // 首先尝试验证JSON是否包含根级别的code和data字段
                     if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                         // 检查关键字段是否存在
@@ -1175,11 +1194,89 @@ class APIService {
                     return []
                 }
                 
+                // 专门用于解析ISO8601格式的日期格式化器
+                let dateFormatter = ISO8601DateFormatter()
+                // 设置时区为UTC以正确解析UTC格式日期（后端返回的是UTC时间）
+                dateFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+                // 启用完整的ISO8601格式支持，包括毫秒和时区
+                dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                
+                // 尝试多种时间格式的解析方法
+                func parseDate(from string: String) -> Date? {
+                    // 方法1: 使用ISO8601DateFormatter
+                    if let date = dateFormatter.date(from: string) {
+                        DRDebug("[APIService] 使用ISO8601DateFormatter成功解析: \(string)")
+                        return date
+                    }
+                    
+                    // 方法2: 使用DateFormatter尝试多种时间格式
+                    let backupFormatter = DateFormatter()
+                    backupFormatter.locale = Locale(identifier: "en_US_POSIX")
+                    backupFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+                    
+                    // 尝试不同的时间格式
+                    let timeFormats = [
+                        "yyyy-MM-dd'T'HH:mm:ss.SSSZ",       // 带毫秒和时区
+                        "yyyy-MM-dd'T'HH:mm:ssZ",           // 带时区不带毫秒
+                        "yyyy-MM-dd HH:mm:ss.SSSZ",         // 空格分隔带毫秒和时区
+                        "yyyy-MM-dd HH:mm:ssZ",             // 空格分隔带时区
+                        "yyyy-MM-dd HH:mm:ss.SSS",          // 带毫秒不带时区
+                        "yyyy-MM-dd HH:mm:ss"               // 基本格式
+                    ]
+                    
+                    for format in timeFormats {
+                        backupFormatter.dateFormat = format
+                        if let date = backupFormatter.date(from: string) {
+                            DRDebug("[APIService] 使用格式'\(format)'成功解析: \(string)")
+                            return date
+                        }
+                    }
+                    
+                    DRError("[APIService] 无法解析日期: \(string)")
+                    return nil
+                }
+                
+                // 打印第一个日期字符串用于调试
+                if let firstItem = response.data.items.first {
+                    DRDebug("[APIService] 美食券第一项日期字符串: created_at=\(firstItem.created_at), expire_at=\(firstItem.expire_at ?? "nil")")
+                }
+                
                 // 将DTO转换为领域模型，从data.items获取
                 return response.data.items.compactMap { dto in
-                    // 解析日期
-                    let dateFormatter = ISO8601DateFormatter()
-                    let createdAt = dateFormatter.date(from: dto.created_at) ?? Date()
+                    // 解析创建日期 - 不再使用兜底逻辑
+                    guard let createdAt = parseDate(from: dto.created_at) else {
+                        // 日期解析失败，直接记录错误并跳过此项
+                        DRError("[APIService] 无法解析美食券创建日期: \(dto.created_at)")
+                        // 抛出解析错误，中断整个处理
+                        fatalError("时间戳解析失败: \(dto.created_at)")
+                    }
+                    
+                    // 解析过期日期 - 可选，但如果存在也必须解析成功
+                    var expireDate: Date? = nil
+                    if let expireString = dto.expire_at, !expireString.isEmpty {
+                        guard let parsedDate = parseDate(from: expireString) else {
+                            DRError("[APIService] 无法解析美食券过期日期: \(expireString)")
+                            // 抛出解析错误，中断整个处理
+                            fatalError("时间戳解析失败: \(expireString)")
+                        }
+                        expireDate = parsedDate
+                    }
+                    
+                    // 解析更新日期 - 可选，但如果存在也必须解析成功
+                    var updateDate: Date? = nil
+                    if let updateString = dto.updated_at, !updateString.isEmpty {
+                        guard let parsedDate = parseDate(from: updateString) else {
+                            DRError("[APIService] 无法解析美食券更新日期: \(updateString)")
+                            // 抛出解析错误，中断整个处理
+                            fatalError("时间戳解析失败: \(updateString)")
+                        }
+                        updateDate = parsedDate
+                    }
+                    
+                    // 记录解析后的创建日期，用于调试
+                    let dateDebugFormatter = DateFormatter()
+                    dateDebugFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+                    DRDebug("[APIService] 美食券[\(dto.id)]解析后的日期: 创建=\(dateDebugFormatter.string(from: createdAt)), 过期=\(expireDate != nil ? dateDebugFormatter.string(from: expireDate!) : "nil")")
                     
                     // 创建DessertVoucher对象
                     return DessertVoucher(
@@ -1192,7 +1289,8 @@ class APIService {
                         workoutRecordId: dto.workout_record_id,
                         status: dto.status,
                         createdAt: createdAt,
-                        updatedAt: dto.updated_at.flatMap { dateFormatter.date(from: $0) }
+                        updatedAt: updateDate,
+                        expireAt: expireDate
                     )
                 }
             }

@@ -20,6 +20,25 @@ struct DessertVoucherCardSimple: View {
     /// 提供一个环境变量，用于触发弹窗展示
     @Environment(\.presentationMode) var presentationMode
     
+    /// 添加环境对象，用于获取美食券信息
+    @EnvironmentObject var appState: AppState
+    
+    // 获取与当前记录关联的美食券
+    private var associatedVoucher: DessertVoucher? {
+        return appState.dessertVouchers.first(where: { $0.workoutRecordId == record.id })
+    }
+    
+    // 获取美食券创建日期
+    private var voucherCreatedDate: Date? {
+        return associatedVoucher?.createdAt
+    }
+    
+    // 获取美食券过期日期
+    private var voucherExpireDate: Date? {
+        // 直接使用美食券的expireAt字段
+        return associatedVoucher?.expireAt
+    }
+    
     var body: some View {
         VStack(spacing: 0) {
             // 卡片主体部分
@@ -182,8 +201,8 @@ struct DessertVoucherCardSimple: View {
                             .font(.system(size: 16, weight: .bold))
                     }
                     
-                    // 从记录的日期计算剩余有效期（假设有效期为30天）
-                    let daysRemaining = calculateRemainingDays(from: record.date)
+                    // 使用美食券的剩余天数
+                    let daysRemaining = associatedVoucher?.remainingDays ?? calculateRemainingDays()
                     // 剩余天数
                     Text("剩余\(daysRemaining)天")
                         .font(.system(size: 14, weight: .regular))
@@ -224,13 +243,21 @@ struct DessertVoucherCardSimple: View {
         .frame(height: 45)
     }
     
-    // 计算美食券剩余天数（从创建日期开始，假设有效期30天）
-    private func calculateRemainingDays(from date: Date) -> Int {
+    // 计算美食券剩余天数（使用美食券的过期日期）
+    private func calculateRemainingDays() -> Int {
         let calendar = Calendar.current
-        let validityPeriodInDays = 30
         
-        // 创建时间加上有效期
-        guard let expiryDate = calendar.date(byAdding: .day, value: validityPeriodInDays, to: date) else {
+        // 优先使用美食券的过期日期
+        if let expireDate = voucherExpireDate {
+            // 计算当前时间与过期时间的天数差
+            let days = calendar.dateComponents([.day], from: Date(), to: expireDate).day ?? 0
+            // 如果已过期，返回0
+            return max(0, days)
+        }
+        
+        // 如果没有关联的美食券信息，使用原来的逻辑（创建日期+30天）
+        let validityPeriodInDays = 30
+        guard let expiryDate = calendar.date(byAdding: .day, value: validityPeriodInDays, to: record.date) else {
             return 0
         }
         

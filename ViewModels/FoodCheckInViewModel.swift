@@ -111,6 +111,17 @@ class FoodCheckInViewModel: ObservableObject {
                     self.isLoadingVouchers = false
                     DRDebug("[FoodCheckInViewModel] 成功接收美食券数据，数量: \(vouchers.count)")
                     
+                    // 打印一些美食券样本，帮助调试日期问题
+                    let dateFormatter = DateFormatter()
+                    dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+                    
+                    for (index, voucher) in vouchers.prefix(3).enumerated() {
+                        let createdAt = dateFormatter.string(from: voucher.createdAt)
+                        let expireAt = voucher.expireAt != nil ? dateFormatter.string(from: voucher.expireAt!) : "nil"
+                        
+                        DRDebug("[FoodCheckInViewModel] 美食券[\(index)]: id=\(voucher.id), createdAt=\(createdAt), expireAt=\(expireAt), recordId=\(voucher.workoutRecordId ?? "nil")")
+                    }
+                    
                     // 更新应用状态中的美食券列表
                     DispatchQueue.main.async {
                         // 避免不必要的状态更新，只在数据真正变化时更新
@@ -120,6 +131,9 @@ class FoodCheckInViewModel: ObservableObject {
                             DRDebug("[FoodCheckInViewModel] 检测到美食券数据变化，更新状态")
                             self.appState.dessertVouchers = vouchers
                             DRInfo("[FoodCheckInViewModel] 成功加载\(vouchers.count)张美食券")
+                            
+                            // 强制刷新视图
+                            NotificationCenter.default.post(name: NSNotification.Name("VouchersUpdated"), object: nil)
                         } else {
                             DRDebug("[FoodCheckInViewModel] 美食券数据未变化，跳过更新")
                         }

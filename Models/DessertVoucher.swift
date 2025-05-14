@@ -46,6 +46,9 @@ struct DessertVoucher: Identifiable, Codable, Equatable {
     /// 更新时间
     let updatedAt: Date?
     
+    /// 过期时间
+    let expireAt: Date?
+    
     /// 获取格式化的卡路里价值
     var formattedCalories: String {
         return String(format: "%.0f卡路里", caloriesValue)
@@ -72,6 +75,27 @@ struct DessertVoucher: Identifiable, Codable, Equatable {
     /// 检查券是否可用
     var isUsable: Bool {
         return voucherStatus == .active
+    }
+    
+    /// 获取剩余有效天数
+    var remainingDays: Int {
+        guard let expireDate = expireAt else {
+            // 如果没有设置过期时间，假设有效期为30天
+            let calendar = Calendar.current
+            guard let defaultExpireDate = calendar.date(byAdding: .day, value: 30, to: createdAt) else {
+                return 0
+            }
+            
+            let days = calendar.dateComponents([.day], from: Date(), to: defaultExpireDate).day ?? 0
+            return max(0, days)
+        }
+        
+        // 计算当前时间与过期时间的天数差
+        let calendar = Calendar.current
+        let days = calendar.dateComponents([.day], from: Date(), to: expireDate).day ?? 0
+        
+        // 如果已过期，返回0
+        return max(0, days)
     }
     
     /// 实现Equatable协议的静态==方法

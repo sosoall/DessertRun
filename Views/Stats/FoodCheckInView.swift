@@ -31,6 +31,7 @@ struct FoodCheckInView: View {
                     
                     // 所有美食打卡记录（直接显示，不需要点击按钮）
                     foodRecordsList
+                        .id("foodRecordsList-\(forceRefresh)-\(appState.dessertVouchers.count)")  // 添加ID确保视图刷新
                 }
                 .padding(.horizontal, 20)  // 全局水平边距
                 .padding(.top, 16)
@@ -66,20 +67,25 @@ struct FoodCheckInView: View {
                     
                     // 强制刷新UI，确保使用正确的ViewModel实例
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                        DRDebug("[FoodCheckInView] 延迟刷新，ViewModel数据数量: \(self.viewModel.topDesserts.count)")
+                        DRDebug("[FoodCheckInView] 延迟刷新，ViewModel数据数量: \(self.viewModel.topDesserts.count), 美食券数量: \(self.appState.dessertVouchers.count)")
                         self.forceRefresh.toggle()
                     }
                     
-                    // 再次强制刷新，确保数据显示
+                    // 再次尝试获取美食券数据并刷新
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                        self.forceRefresh.toggle()
-                        DRDebug("[FoodCheckInView] 二次延迟刷新，ViewModel数据量: \(self.viewModel.topDesserts.count)")
+                        // 直接从服务调用获取美食券
+                        self.viewModel.loadDessertVouchers()
+                        
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                            self.forceRefresh.toggle()
+                            DRDebug("[FoodCheckInView] 二次延迟刷新，美食券数量: \(self.appState.dessertVouchers.count)")
+                        }
                     }
                     
                     // 打印一下所有ViewModel的状态
                     for i in 0...3 {
                         DispatchQueue.main.asyncAfter(deadline: .now() + Double(i)) {
-                            DRDebug("[FoodCheckInView] ViewModel状态检查 \(i)秒后: 数据量\(self.viewModel.topDesserts.count)")
+                            DRDebug("[FoodCheckInView] ViewModel状态检查 \(i)秒后: 数据量\(self.viewModel.topDesserts.count), 美食券数量: \(self.appState.dessertVouchers.count)")
                         }
                     }
                     
@@ -104,22 +110,14 @@ struct FoodCheckInView: View {
                     }
                 }
             } else {
-                DRDebug("[FoodCheckInView] 视图已显示过，执行刷新，ViewModel数据量: \(viewModel.topDesserts.count)")
+                DRDebug("[FoodCheckInView] 视图已显示过，执行刷新，美食券数量: \(appState.dessertVouchers.count)")
                 
-                // 如果排行榜是空的，尝试加载数据
-                if viewModel.topDesserts.isEmpty {
-                    DRDebug("[FoodCheckInView] 排行榜为空，尝试加载数据")
-                    // 直接引用self.viewModel确保使用正确实例
-                    self.viewModel.loadTopDesserts(limit: 5)
-                    
-                    // 短暂延迟后强制刷新UI
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        self.forceRefresh.toggle()
-                    }
-                } else {
-                    // 如果已有数据，只执行刷新
-                    DRDebug("[FoodCheckInView] 排行榜已有\(viewModel.topDesserts.count)条数据，触发刷新")
-                    forceRefresh.toggle()
+                // 无论如何都重新加载美食券数据
+                viewModel.loadDessertVouchers()
+                
+                // 短暂延迟后强制刷新UI
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    self.forceRefresh.toggle()
                 }
             }
             
@@ -134,6 +132,19 @@ struct FoodCheckInView: View {
                         selectedRecord = record
                         showExpandedCard = true
                     }
+                }
+            }
+            
+            // 添加美食券数据更新通知的观察者
+            NotificationCenter.default.addObserver(
+                forName: NSNotification.Name("VouchersUpdated"),
+                object: nil,
+                queue: .main
+            ) { _ in
+                DRDebug("[FoodCheckInView] 收到美食券数据更新通知，当前美食券数量: \(self.appState.dessertVouchers.count)")
+                // 强制刷新视图
+                DispatchQueue.main.async {
+                    self.forceRefresh.toggle()
                 }
             }
             
@@ -190,6 +201,13 @@ struct FoodCheckInView: View {
             NotificationCenter.default.removeObserver(
                 self,
                 name: NSNotification.Name("ShowExpandedCard"),
+                object: nil
+            )
+            
+            // 移除美食券数据更新的观察者
+            NotificationCenter.default.removeObserver(
+                self,
+                name: NSNotification.Name("VouchersUpdated"),
                 object: nil
             )
             
@@ -475,6 +493,26 @@ struct FoodCheckInView: View {
         let sortedRecords = viewModel.getSortedAllRecords()
         var groupedRecords = [String: [WorkoutRecord]]()
         
+        // 添加调试日志，查看美食券数据
+        let vouchersCount = appState.dessertVouchers.count
+        DRDebug("[FoodCheckInView] 过滤记录: 美食券数量=\(vouchersCount), 打卡记录数量=\(sortedRecords.count)")
+        
+        // 打印几个美食券样本，确认日期
+        if !appState.dessertVouchers.isEmpty {
+            for (index, voucher) in appState.dessertVouchers.prefix(3).enumerated() {
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+                let createdDateStr = dateFormatter.string(from: voucher.createdAt)
+                DRDebug("[FoodCheckInView] 美食券样本[\(index)]: id=\(voucher.id), 创建日期=\(createdDateStr), workoutRecordId=\(voucher.workoutRecordId ?? "nil")")
+            }
+        } else {
+            DRDebug("[FoodCheckInView] 警告: 没有美食券数据!")
+            // 尝试重新加载美食券数据
+            DispatchQueue.main.async {
+                self.viewModel.loadDessertVouchers()
+            }
+        }
+        
         // 根据筛选条件获取记录
         let filteredList: [WorkoutRecord]
         switch selectedFilter {
@@ -511,14 +549,51 @@ struct FoodCheckInView: View {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy年 M月 d日"
         
+        // FIXME: 修复了美食券列表按日期分组显示问题 - 2025/5/15
+        // 原问题: 美食券列表中日期显示为固定的2025年5月14日，而不是实际的创建日期
+        // 解决方案: 使用美食券的createdAt字段作为分组依据，而不是workoutRecord的date字段
+        var recordsProcessed = 0
         for record in filteredList {
-            let dateString = dateFormatter.string(from: record.date)
-            if groupedRecords[dateString] == nil {
-                groupedRecords[dateString] = [record]
+            // 查找对应的美食券
+            if let voucher = appState.dessertVouchers.first(where: { $0.workoutRecordId == record.id }) {
+                // 使用美食券的创建日期而不是记录日期
+                let voucherDate = voucher.createdAt
+                
+                // 添加日期调试记录
+                let debugDateFormatter = DateFormatter()
+                debugDateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+                let debugDateStr = debugDateFormatter.string(from: voucherDate)
+                if recordsProcessed < 5 {
+                    DRDebug("[FoodCheckInView] 美食券[\(voucher.id)]原始创建日期: \(debugDateStr)")
+                }
+                
+                // 使用年月日格式化为展示日期
+                let dateString = dateFormatter.string(from: voucherDate)
+                
+                if recordsProcessed < 5 {
+                    // 记录前几条数据的日期信息，用于调试
+                    DRDebug("[FoodCheckInView] 记录[\(recordsProcessed)]: 美食券[\(voucher.id)] 格式化后日期=\(dateString)")
+                }
+                
+                if groupedRecords[dateString] == nil {
+                    groupedRecords[dateString] = [record]
+                } else {
+                    groupedRecords[dateString]?.append(record)
+                }
             } else {
-                groupedRecords[dateString]?.append(record)
+                // 如果没有找到对应的美食券，则直接跳过该记录
+                // 我们只显示有美食券的打卡记录
+                if recordsProcessed < 5 {
+                    DRDebug("[FoodCheckInView] 记录[\(recordsProcessed)]: 未找到美食券，跳过 id=\(record.id)")
+                }
+                continue
             }
+            recordsProcessed += 1
         }
+        
+        // 记录分组后的结果
+        let groupDates = groupedRecords.keys.sorted(by: >)
+        DRDebug("[FoodCheckInView] 记录分组结果: 共\(groupDates.count)个日期组，日期: \(groupDates)")
         
         return groupedRecords
     }
@@ -548,7 +623,8 @@ struct FoodCheckInView: View {
                     .padding(.vertical, 40)
                 } else {
                     // 确保日期按照倒序排列
-                    ForEach(groupedRecords.keys.sorted(by: >), id: \.self) { dateString in
+                    let sortedDates = groupedRecords.keys.sorted(by: >)
+                    ForEach(sortedDates, id: \.self) { dateString in
                         VStack(alignment: .leading, spacing: 16) {
                             // 日期标题，增加上边距防止被卡片遮挡
                             Text(dateString)
@@ -560,20 +636,31 @@ struct FoodCheckInView: View {
                             // 当天的记录
                             ForEach(groupedRecords[dateString]!, id: \.id) { record in
                                 // 检查是否是新记录
-                                let isNewRecord = newRecordId == "\(record.id)" && dateString == filteredRecords.keys.sorted(by: >).first
+                                let isNewRecord = newRecordId == "\(record.id)" && dateString == sortedDates.first
                                 
                                 VStack {
                                     if isNewRecord && showNewRecordAnimation {
                                         // 为新记录显示动画效果，只有从顶部出现的动画
                                         DessertVoucherCardSimple(record: record)
+                                            .environmentObject(appState)  // 显式传递AppState
                                             .padding(.horizontal, 12)  // 额外卡片内边距
                                             .transition(.move(edge: .top).combined(with: .opacity))
                                     } else {
                                         DessertVoucherCardSimple(record: record)
+                                            .environmentObject(appState)  // 显式传递AppState
                                             .padding(.horizontal, 12)  // 额外卡片内边距
                                     }
                                 }
                                 .padding(.bottom, 12)  // 增加卡片底部边距
+                                .onAppear {
+                                    // 记录显示时打印调试信息
+                                    if let voucher = appState.dessertVouchers.first(where: { $0.workoutRecordId == record.id }) {
+                                        let dateFormatter = DateFormatter()
+                                        dateFormatter.dateFormat = "yyyy-MM-dd"
+                                        let createdDateStr = dateFormatter.string(from: voucher.createdAt)
+                                        DRDebug("[FoodCheckInView] 渲染记录: id=\(record.id), 美食券日期=\(createdDateStr)")
+                                    }
+                                }
                             }
                         }
                     }
