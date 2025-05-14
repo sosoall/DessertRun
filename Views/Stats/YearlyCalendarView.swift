@@ -13,6 +13,11 @@ struct YearlyCalendarView: View {
             HStack {
                 Button(action: {
                     viewModel.goToPreviousYear()
+                    
+                    // 年份变更后立即加载对应年份的统计数据
+                    let calendar = Calendar.current
+                    let year = calendar.component(.year, from: viewModel.selectedYear)
+                    viewModel.loadYearStats(year: year)
                 }) {
                     Image(systemName: "chevron.left")
                         .foregroundColor(.gray)
@@ -27,6 +32,11 @@ struct YearlyCalendarView: View {
                 
                 Button(action: {
                     viewModel.goToNextYear()
+                    
+                    // 年份变更后立即加载对应年份的统计数据
+                    let calendar = Calendar.current
+                    let year = calendar.component(.year, from: viewModel.selectedYear)
+                    viewModel.loadYearStats(year: year)
                 }) {
                     Image(systemName: "chevron.right")
                         .foregroundColor(.gray)

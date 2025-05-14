@@ -4,85 +4,64 @@ import Foundation
 
 /// 运动记录视图模型 - 管理运动记录相关数据和逻辑
 class ExerciseRecordViewModel: ObservableObject {
-    // MARK: - 发布属性
+    // MARK: - 视图状态属性
     
-    /// 当前选定的月份
-    @Published var selectedMonth: Date = {
-        var components = DateComponents()
-        components.year = 2025
-        components.month = 4
-        components.day = 1
-        return Calendar.current.date(from: components) ?? Date()
-    }()
-    
-    /// 当前选定的年份
-    @Published var selectedYear: Date = {
-        var components = DateComponents()
-        components.year = 2025
-        components.month = 1
-        components.day = 1
-        return Calendar.current.date(from: components) ?? Date()
-    }()
-    
-    /// 筛选后的运动记录（月视图）
-    @Published var filteredWorkoutRecords: [WorkoutRecord] = []
-    
-    /// 筛选后的运动记录（年视图）
-    @Published var yearlyFilteredWorkoutRecords: [WorkoutRecord] = []
-    
-    /// 是否显示月份选择器
+    // 年月相关状态
+    @Published var selectedMonth: Date = Date()
+    @Published var selectedYear: Date = Date()
     @Published var showMonthPicker: Bool = false
+    @Published var showYearPicker: Bool = false
     
-    /// 全局状态引用
-    private var appState: AppState
-    
-    /// 发布者集合
-    private var cancellables = Set<AnyCancellable>()
-    
-    // 添加热量平衡统计属性
-    @Published var monthlyClearedDesserts: Int = 0
-    @Published var monthlyDeficitDays: Int = 0
-    @Published var weeklyDeficitDays: Int = 0
-    
-    @Published var monthlyConsumedCalories: Double = 0
-    @Published var monthlyBurnedCalories: Double = 0
-    @Published var weeklyConsumedCalories: Double = 0
-    @Published var weeklyBurnedCalories: Double = 0
-    
-    // MARK: - 选择的日期
-    @Published var selectedDay: Date = Date()
-    
-    /// 加载状态
+    // 加载状态
     @Published var isLoading: Bool = false
-    
-    /// 错误信息
+    @Published var isLoadingMore: Bool = false
     @Published var errorMessage: String? = nil
     
-    // MARK: - 分页支持
-    /// 当前页码
+    // 分页加载相关状态
     @Published var currentPage: Int = 1
-    
-    /// 每页记录数量
-    private let pageSize: Int = 20
-    
-    /// 是否有更多记录可加载
-    @Published var hasMoreRecords: Bool = true
-    
-    /// 总记录数
+    @Published var pageSize: Int = 20
+    @Published var hasMoreRecords: Bool = false
     @Published var totalRecordsCount: Int = 0
     
-    /// 是否正在加载更多
-    @Published var isLoadingMore: Bool = false
+    // 记录和统计状态
+    @Published var filteredWorkoutRecords: [WorkoutRecord] = []
+    @Published var yearlyFilteredWorkoutRecords: [WorkoutRecord] = []
     
-    // MARK: - 初始化方法
+    // API数据统计
+    @Published var monthlyWorkoutCount: Int = 0
+    @Published var monthlyTotalDuration: Double = 0
+    @Published var monthlyTotalCalories: Double = 0
+    @Published var monthlyTotalDistance: Double = 0
+    @Published var monthlyExerciseTypes: [String: WorkoutStatsResponse.ExerciseTypeStats] = [:]
     
-    /// 初始化
+    @Published var yearlyWorkoutCount: Int = 0
+    @Published var yearlyTotalDuration: Double = 0
+    @Published var yearlyTotalCalories: Double = 0
+    @Published var yearlyTotalDistance: Double = 0
+    @Published var yearlyExerciseTypes: [String: WorkoutStatsResponse.ExerciseTypeStats] = [:]
+    
+    // 其他辅助状态
+    @Published var calorieDeficit: Int = 0
+    @Published var weeklyDeficitDays: Int = 0
+    private var weeklyDeficitDatesSet: Set<DateComponents> = []
+    
+    // MARK: - 依赖项
+    private var appState: AppState
+    private var cancellables = Set<AnyCancellable>()
+    
+    // MARK: - 初始化
+    
     init(appState: AppState) {
         self.appState = appState
         
-        // 订阅运动记录变化
+        // 初始化时同步月份和年份状态
+        let currentDate = Date()
+        selectedMonth = currentDate
+        selectedYear = currentDate
+        
+        // 当应用状态中的运动记录更新时，重新筛选
         appState.$workoutRecords
-            .sink { [weak self] records in
+            .sink { [weak self] _ in
                 self?.filterRecordsByMonth()
                 self?.filterRecordsByYear()
             }
@@ -181,6 +160,14 @@ class ExerciseRecordViewModel: ObservableObject {
     func goToPreviousMonth() {
         if let newDate = Calendar.current.date(byAdding: .month, value: -1, to: selectedMonth) {
             selectedMonth = newDate
+            
+            // 获取新选择的年份和月份
+            let calendar = Calendar.current
+            let year = calendar.component(.year, from: selectedMonth)
+            let month = calendar.component(.month, from: selectedMonth)
+            
+            // 立即加载新月份的统计数据
+            loadMonthStats(year: year, month: month)
         }
     }
     
@@ -188,6 +175,14 @@ class ExerciseRecordViewModel: ObservableObject {
     func goToNextMonth() {
         if let newDate = Calendar.current.date(byAdding: .month, value: 1, to: selectedMonth) {
             selectedMonth = newDate
+            
+            // 获取新选择的年份和月份
+            let calendar = Calendar.current
+            let year = calendar.component(.year, from: selectedMonth)
+            let month = calendar.component(.month, from: selectedMonth)
+            
+            // 立即加载新月份的统计数据
+            loadMonthStats(year: year, month: month)
         }
     }
     
@@ -195,6 +190,13 @@ class ExerciseRecordViewModel: ObservableObject {
     func goToPreviousYear() {
         if let newDate = Calendar.current.date(byAdding: .year, value: -1, to: selectedYear) {
             selectedYear = newDate
+            
+            // 获取新选择的年份
+            let calendar = Calendar.current
+            let year = calendar.component(.year, from: selectedYear)
+            
+            // 立即加载新年份的统计数据
+            loadYearStats(year: year)
         }
     }
     
@@ -202,6 +204,13 @@ class ExerciseRecordViewModel: ObservableObject {
     func goToNextYear() {
         if let newDate = Calendar.current.date(byAdding: .year, value: 1, to: selectedYear) {
             selectedYear = newDate
+            
+            // 获取新选择的年份
+            let calendar = Calendar.current
+            let year = calendar.component(.year, from: selectedYear)
+            
+            // 立即加载新年份的统计数据
+            loadYearStats(year: year)
         }
     }
     
@@ -209,11 +218,26 @@ class ExerciseRecordViewModel: ObservableObject {
     func setMonth(_ date: Date) {
         selectedMonth = date
         showMonthPicker = false
+        
+        // 获取选择的年份和月份
+        let calendar = Calendar.current
+        let year = calendar.component(.year, from: selectedMonth)
+        let month = calendar.component(.month, from: selectedMonth)
+        
+        // 加载选择月份的统计数据
+        loadMonthStats(year: year, month: month)
     }
     
     /// 设置当前年份
     func setYear(_ date: Date) {
         selectedYear = date
+        
+        // 获取选择的年份
+        let calendar = Calendar.current
+        let year = calendar.component(.year, from: selectedYear)
+        
+        // 加载选择年份的统计数据
+        loadYearStats(year: year)
     }
     
     // MARK: - 记录筛选方法
@@ -261,11 +285,26 @@ class ExerciseRecordViewModel: ObservableObject {
     /// 重置月份为当前月
     func resetToCurrentMonth() {
         selectedMonth = Date()
+        
+        // 获取当前的年份和月份
+        let calendar = Calendar.current
+        let year = calendar.component(.year, from: selectedMonth)
+        let month = calendar.component(.month, from: selectedMonth)
+        
+        // 加载当前月份的统计数据
+        loadMonthStats(year: year, month: month)
     }
     
     /// 重置年份为当前年
     func resetToCurrentYear() {
         selectedYear = Date()
+        
+        // 获取当前的年份
+        let calendar = Calendar.current
+        let year = calendar.component(.year, from: selectedYear)
+        
+        // 加载当前年份的统计数据
+        loadYearStats(year: year)
     }
     
     /// 根据日期获取该日的记录
@@ -331,9 +370,9 @@ class ExerciseRecordViewModel: ObservableObject {
         let calendar = Calendar.current
         
         // 月度统计
-        monthlyClearedDesserts = Set(filteredWorkoutRecords.map { $0.dessert.id }).count
-        monthlyConsumedCalories = filteredWorkoutRecords.reduce(0) { $0 + (Double($1.dessert.calories) ?? 0) }
-        monthlyBurnedCalories = filteredWorkoutRecords.reduce(0) { $0 + $1.caloriesBurned }
+        monthlyWorkoutCount = filteredWorkoutRecords.count
+        monthlyTotalDuration = filteredWorkoutRecords.reduce(0) { $0 + ($1.duration ?? 0) }
+        monthlyTotalCalories = filteredWorkoutRecords.reduce(0) { $0 + $1.caloriesBurned }
         
         // 计算月度减脂成功天数（每天消耗热量大于等于摄入热量）
         var deficitDaysSet = Set<DateComponents>()
@@ -361,7 +400,7 @@ class ExerciseRecordViewModel: ObservableObject {
             }
         }
         
-        monthlyDeficitDays = deficitDaysSet.count
+        calorieDeficit = deficitDaysSet.count
         
         // 周度统计 - 获取本周日期范围
         let weekday = calendar.component(.weekday, from: Date())
@@ -376,32 +415,57 @@ class ExerciseRecordViewModel: ObservableObject {
         }
         
         // 周度消耗和摄入
-        weeklyConsumedCalories = weekRecords.reduce(0) { $0 + (Double($1.dessert.calories) ?? 0) }
-        weeklyBurnedCalories = weekRecords.reduce(0) { $0 + $1.caloriesBurned }
+        let weeklyConsumedCalories = weekRecords.reduce(0) { $0 + (Double($1.dessert.calories) ?? 0) }
+        let weeklyBurnedCalories = weekRecords.reduce(0) { $0 + $1.caloriesBurned }
         
         // 计算周度减脂天数
-        var weeklyDeficitDatesSet = Set<DateComponents>()
-        
-        // 获取周内所有不同的日期
-        let daysInWeek = Set(weekRecords.map { 
+        weeklyDeficitDatesSet = Set(weekRecords.map { 
             calendar.dateComponents([.year, .month, .day], from: $0.date) 
         })
         
-        // 对每个不同的日期进行处理
-        for dayComponents in daysInWeek {
-            if let dayDate = calendar.date(from: dayComponents) {
-                let dayRecords = getRecordsForDate(dayDate)
-                
-                let dayBurned = dayRecords.reduce(0.0) { $0 + $1.caloriesBurned }
-                let dayConsumed = dayRecords.reduce(0.0) { $0 + (Double($1.dessert.calories) ?? 0) }
-                
-                if dayBurned >= dayConsumed && dayConsumed > 0 {
-                    weeklyDeficitDatesSet.insert(dayComponents)
-                }
-            }
-        }
-        
         weeklyDeficitDays = weeklyDeficitDatesSet.count
+    }
+    
+    // MARK: - 统计数据加载方法
+    
+    /// 加载月度统计数据
+    func loadMonthStats(year: Int, month: Int) {
+        DRDebug("[ExerciseRecordViewModel] 加载月度统计数据: \(year)年\(month)月")
+        
+        APIService.shared.getUserWorkoutStats(year: year, month: month)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { completion in
+                    if case .failure(let error) = completion {
+                        DRError("[ExerciseRecordViewModel] 加载月度统计失败: \(error.errorMessage)")
+                    }
+                },
+                receiveValue: { [weak self] stats in
+                    // 更新月度统计数据
+                    self?.updateMonthlyStatsFromAPI(stats: stats.data)
+                }
+            )
+            .store(in: &cancellables)
+    }
+    
+    /// 加载年度统计数据
+    func loadYearStats(year: Int) {
+        DRDebug("[ExerciseRecordViewModel] 加载年度统计数据: \(year)年")
+        
+        APIService.shared.getUserWorkoutStats(year: year)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { completion in
+                    if case .failure(let error) = completion {
+                        DRError("[ExerciseRecordViewModel] 加载年度统计失败: \(error.errorMessage)")
+                    }
+                },
+                receiveValue: { [weak self] stats in
+                    // 更新年度统计数据
+                    self?.updateYearlyStatsFromAPI(stats: stats.data)
+                }
+            )
+            .store(in: &cancellables)
     }
     
     // MARK: - 数据加载方法
@@ -422,7 +486,22 @@ class ExerciseRecordViewModel: ObservableObject {
         
         DRDebug("[ExerciseRecordViewModel] 开始加载运动记录，页码: \(currentPage)，每页数量: \(pageSize)")
         
-        // 使用可以获取总记录数的API方法
+        // 获取当前选择的年份和月份
+        let calendar = Calendar.current
+        let currentYear = calendar.component(.year, from: Date())
+        let currentMonth = calendar.component(.month, from: Date())
+        
+        // 确保月份和年份使用当前日期（而不是可能存在历史状态的selectedMonth/selectedYear）
+        selectedMonth = Date()
+        selectedYear = Date()
+        
+        DRDebug("[ExerciseRecordViewModel] 当前选择时间: \(currentYear)年\(currentMonth)月")
+        
+        // 首先加载统计数据，确保界面优先显示统计信息
+        self.loadMonthStats(year: currentYear, month: currentMonth)
+        self.loadYearStats(year: currentYear)
+        
+        // 然后加载详细记录
         APIService.shared.getUserWorkoutRecordsWithTotal(page: currentPage, limit: pageSize)
             .receive(on: DispatchQueue.main)
             .sink(
@@ -431,7 +510,7 @@ class ExerciseRecordViewModel: ObservableObject {
                     
                     if case .failure(let error) = completion {
                         self?.errorMessage = error.errorMessage
-                        DRError("[ExerciseRecordViewModel] 加载运动记录失败: \(error.errorMessage)")
+                        DRError("[ExerciseRecordViewModel] 加载数据失败: \(error.errorMessage)")
                     }
                 },
                 receiveValue: { [weak self] result in
@@ -449,19 +528,48 @@ class ExerciseRecordViewModel: ObservableObject {
                         DRInfo("[ExerciseRecordViewModel] 成功加载\(records.count)条运动记录，总数: \(total)")
                         
                         // 根据总记录数和当前加载的记录数判断是否还有更多记录
-                        // 只有当已加载的记录数小于总记录数时，才设置hasMoreRecords为true
                         let recordsLoaded = records.count
                         self.hasMoreRecords = recordsLoaded < total
                         
-                        DRDebug("[ExerciseRecordViewModel] 当前加载: \(recordsLoaded), 总记录数: \(total), 是否有更多: \(self.hasMoreRecords)")
-                        
-                        // 更新筛选后的记录
+                        // 刷新本地筛选的记录
                         self.filterRecordsByMonth()
                         self.filterRecordsByYear()
                     }
                 }
             )
             .store(in: &cancellables)
+    }
+    
+    /// 更新月度统计数据
+    private func updateMonthlyStatsFromAPI(stats: WorkoutStatsResponse.WorkoutStatsData) {
+        // 更新月度统计数据属性
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            
+            self.monthlyWorkoutCount = stats.totalWorkouts
+            self.monthlyTotalDuration = stats.totalDuration
+            self.monthlyTotalCalories = stats.totalCalories
+            self.monthlyTotalDistance = stats.totalDistance
+            self.monthlyExerciseTypes = stats.exerciseTypes
+            
+            DRDebug("[ExerciseRecordViewModel] 已更新月度统计 - 时长:\(self.monthlyTotalDuration)分钟, 卡路里:\(self.monthlyTotalCalories), 次数:\(self.monthlyWorkoutCount), 距离:\(self.monthlyTotalDistance)米")
+        }
+    }
+    
+    /// 更新年度统计数据
+    private func updateYearlyStatsFromAPI(stats: WorkoutStatsResponse.WorkoutStatsData) {
+        // 更新年度统计数据属性
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            
+            self.yearlyWorkoutCount = stats.totalWorkouts
+            self.yearlyTotalDuration = stats.totalDuration
+            self.yearlyTotalCalories = stats.totalCalories
+            self.yearlyTotalDistance = stats.totalDistance
+            self.yearlyExerciseTypes = stats.exerciseTypes
+            
+            DRDebug("[ExerciseRecordViewModel] 已更新年度统计 - 时长:\(self.yearlyTotalDuration)分钟, 卡路里:\(self.yearlyTotalCalories), 次数:\(self.yearlyWorkoutCount), 距离:\(self.yearlyTotalDistance)米")
+        }
     }
     
     /// 加载更多记录
@@ -514,9 +622,6 @@ class ExerciseRecordViewModel: ObservableObject {
                             
                             if uniqueNewRecords.count > 0 {
                                 self.appState.workoutRecords.append(contentsOf: uniqueNewRecords)
-                                // 更新过滤后的记录
-                                self.filterRecordsByMonth()
-                                self.filterRecordsByYear()
                                 
                                 DRInfo("[ExerciseRecordViewModel] 成功加载额外\(uniqueNewRecords.count)条运动记录，总数: \(total)")
                             } else {
@@ -537,12 +642,8 @@ class ExerciseRecordViewModel: ObservableObject {
             .store(in: &cancellables)
     }
     
-    // 格式化总距离
-    func formatTotalDistance() -> String {
-        // 从月度记录中计算总距离
-        let totalMeters = filteredWorkoutRecords.reduce(0.0) { total, record in
-            total + (record.distance ?? 0)
-        }
-        return String(format: "%.1f", totalMeters / 1000.0)
+    // 格式化总距离（公里）
+    func formatTotalDistance(meters: Double) -> String {
+        return String(format: "%.1f", meters / 1000.0)
     }
 } 

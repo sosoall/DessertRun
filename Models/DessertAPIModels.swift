@@ -151,4 +151,34 @@ struct CategoryItemResponse: Decodable, Identifiable {
         case displayOrder = "display_order"
         case hasChildren = "has_children"
     }
+}
+
+// MARK: - 运动统计响应模型
+struct WorkoutStatsResponse: Decodable {
+    let code: Int
+    let message: String
+    let data: WorkoutStatsData
+    
+    struct WorkoutStatsData: Decodable {
+        let totalWorkouts: Int
+        let totalDuration: Double
+        let totalCalories: Double
+        let totalDistance: Double
+        let exerciseTypes: [String: ExerciseTypeStats]
+        
+        enum CodingKeys: String, CodingKey {
+            case totalWorkouts = "total_workouts"
+            case totalDuration = "total_duration"
+            case totalCalories = "total_calories"
+            case totalDistance = "total_distance"
+            case exerciseTypes = "exercise_types"
+        }
+    }
+    
+    struct ExerciseTypeStats: Decodable {
+        let count: Int
+        let duration: Double
+        let calories: Double
+        let distance: Double
+    }
 } 

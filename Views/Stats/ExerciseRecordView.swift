@@ -96,40 +96,6 @@ struct ExerciseRecordView: View {
                     }
                 }
                 
-                // 加载更多按钮
-                if viewModel.hasMoreRecords {
-                    Button(action: {
-                        viewModel.loadMoreRecords()
-                    }) {
-                        HStack {
-                            if viewModel.isLoadingMore {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle())
-                                    .frame(width: 20, height: 20)
-                                    .padding(.trailing, 8)
-                            }
-                            
-                            Text(viewModel.isLoadingMore ? "加载中..." : "加载更多")
-                                .font(.system(size: 16))
-                                .foregroundColor(.gray)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 15)
-                        .background(Color(.systemBackground))
-                        .cornerRadius(8)
-                        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
-                    }
-                    .padding(.top, 10)
-                    .padding(.bottom, 20)
-                    .disabled(viewModel.isLoadingMore)
-                } else if !appState.workoutRecords.isEmpty {
-                    Text("没有更多记录了")
-                        .font(.system(size: 14))
-                        .foregroundColor(.gray)
-                        .padding(.vertical, 20)
-                        .frame(maxWidth: .infinity)
-                }
-                
                 Spacer(minLength: 80) // 确保底部有足够空间
             }
             .padding(.top, 16)
@@ -144,28 +110,27 @@ struct ExerciseRecordView: View {
             // 只在第一次显示视图时加载数据
             if !hasAppeared {
                 DRDebug("[ExerciseRecordView] 首次加载视图，获取数据")
-                // 使用新的loadData方法加载运动记录数据
+                
+                // 确保使用当前日期初始化视图
+                let calendar = Calendar.current
+                let currentYear = calendar.component(.year, from: Date())
+                let currentMonth = calendar.component(.month, from: Date())
+                
+                // 直接加载数据（已优化数据加载顺序）
                 viewModel.loadData()
+                
+                // 标记为已加载
                 hasAppeared = true
             } else {
-                DRDebug("[ExerciseRecordView] 视图已经加载过，跳过重复加载")
+                DRDebug("[ExerciseRecordView] 视图已经加载过，但仍然刷新当前显示的数据")
+                
+                // 即使不是首次加载，也刷新当前视图的数据
+                refreshCurrentTabData()
             }
         }
         .onChange(of: selectedTab) { oldTab, newTab in
             // 当切换标签页时，确保viewModel中的年份和月份是最新的
-            switch newTab {
-            case .month:
-                // 切换到月视图时，确保使用当前选中的月份
-                viewModel.selectedMonth = selectedMonth
-            case .year:
-                // 切换到年视图时，更新年份
-                // 不做特殊处理，因为年视图直接使用viewModel.selectedYear
-                break
-            case .week:
-                // 切换到周视图时，确保使用当前选中的周
-                // 周视图使用selectedWeek，不需要额外处理
-                break
-            }
+            refreshCurrentTabData()
         }
     }
     
@@ -199,7 +164,7 @@ struct ExerciseRecordView: View {
                 .frame(width: 24, height: 24)
             
             HStack(alignment: .firstTextBaseline, spacing: 2) {
-                Text("\(Int(selectedTab == .month ? viewModel.totalCaloriesThisMonth : viewModel.totalCaloriesThisYear))")
+                Text("\(Int(selectedTab == .month ? viewModel.monthlyTotalCalories : viewModel.yearlyTotalCalories))")
                     .font(.system(size: 20, weight: .semibold))
                     .minimumScaleFactor(0.8)
                     .lineLimit(1)
@@ -227,7 +192,7 @@ struct ExerciseRecordView: View {
                 .frame(width: 24, height: 24)
             
             HStack(alignment: .firstTextBaseline, spacing: 2) {
-                Text("\(selectedTab == .month ? viewModel.workoutCountThisMonth : viewModel.workoutCountThisYear)")
+                Text("\(selectedTab == .month ? viewModel.monthlyWorkoutCount : viewModel.yearlyWorkoutCount)")
                     .font(.system(size: 20, weight: .semibold))
                     .minimumScaleFactor(0.8)
                     .lineLimit(1)
@@ -255,7 +220,7 @@ struct ExerciseRecordView: View {
                 .frame(width: 24, height: 24)
             
             HStack(alignment: .firstTextBaseline, spacing: 2) {
-                Text("\(Int(selectedTab == .month ? viewModel.totalDurationThisMonth : viewModel.totalDurationThisYear))")
+                Text("\(Int(selectedTab == .month ? viewModel.monthlyTotalDuration : viewModel.yearlyTotalDuration))")
                     .font(.system(size: 20, weight: .semibold))
                     .minimumScaleFactor(0.8)
                     .lineLimit(1)
@@ -284,8 +249,8 @@ struct ExerciseRecordView: View {
             
             HStack(alignment: .firstTextBaseline, spacing: 2) {
                 let distance = selectedTab == .month ? 
-                    viewModel.formatTotalDistance() :
-                    String(format: "%.1f", viewModel.totalDistanceThisYear / 1000.0)
+                    viewModel.formatTotalDistance(meters: viewModel.monthlyTotalDistance) :
+                    viewModel.formatTotalDistance(meters: viewModel.yearlyTotalDistance)
                 
                 Text(distance)
                     .font(.system(size: 20, weight: .semibold))
@@ -524,6 +489,32 @@ struct ExerciseRecordView: View {
         }
         
         return weekData
+    }
+    
+    // 刷新当前选中标签页的数据
+    private func refreshCurrentTabData() {
+        let calendar = Calendar.current
+        
+        switch selectedTab {
+        case .month:
+            // 切换到月视图时，确保使用当前选中的月份
+            viewModel.selectedMonth = selectedMonth
+            
+            // 重新加载当前月份的统计数据
+            let year = calendar.component(.year, from: selectedMonth)
+            let month = calendar.component(.month, from: selectedMonth)
+            viewModel.loadMonthStats(year: year, month: month)
+            
+        case .year:
+            // 切换到年视图时，重新加载年度统计数据
+            let year = calendar.component(.year, from: viewModel.selectedYear)
+            viewModel.loadYearStats(year: year)
+            
+        case .week:
+            // 切换到周视图时，确保使用当前选中的周
+            // 周视图使用selectedWeek，不需要额外处理
+            break
+        }
     }
 }
 

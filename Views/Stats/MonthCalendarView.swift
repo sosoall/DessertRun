@@ -29,6 +29,12 @@ struct MonthCalendarView: View {
                     Button(action: {
                         viewModel.goToPreviousMonth()
                         selectedMonth = viewModel.selectedMonth
+                        
+                        // 月份变更后立即加载对应月份的统计数据
+                        let calendar = Calendar.current
+                        let year = calendar.component(.year, from: selectedMonth)
+                        let month = calendar.component(.month, from: selectedMonth)
+                        viewModel.loadMonthStats(year: year, month: month)
                     }) {
                         Image(systemName: "chevron.left")
                             .font(.system(size: 20))
@@ -41,6 +47,12 @@ struct MonthCalendarView: View {
                     Button(action: {
                         viewModel.goToNextMonth()
                         selectedMonth = viewModel.selectedMonth
+                        
+                        // 月份变更后立即加载对应月份的统计数据
+                        let calendar = Calendar.current
+                        let year = calendar.component(.year, from: selectedMonth)
+                        let month = calendar.component(.month, from: selectedMonth)
+                        viewModel.loadMonthStats(year: year, month: month)
                     }) {
                         Image(systemName: "chevron.right")
                             .font(.system(size: 20))

@@ -994,7 +994,7 @@ class APIService {
                     return (records: [], total: 0)
                 }
                 
-                let records = response.data.items.compactMap { dto in
+                let records = response.data.items.compactMap { (dto: WorkoutRecordsResponse.WorkoutRecordDTO) -> WorkoutRecord? in
                     // 直接使用后端返回的运动类型和名称，不进行任何翻译或处理
                     let exerciseType = APIExerciseType.fromString(dto.exercise_type, name: dto.exercise_name)
                     
@@ -1015,9 +1015,49 @@ class APIService {
                         images: []
                     )
                     
-                    // 解析日期
+                    // 改进日期解析，采用更完备的方式
                     let dateFormatter = ISO8601DateFormatter()
-                    let createdAtDate = dateFormatter.date(from: dto.completion_date) ?? Date()
+                    dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                    
+                    var createdAtDate: Date?
+                    // 尝试多种日期解析方法
+                    if let date = dateFormatter.date(from: dto.completion_date) {
+                        // 首先尝试带有毫秒的ISO8601格式解析
+                        createdAtDate = date
+                        DRDebug("[APIService] 成功解析日期(ISO8601带毫秒): \(dto.completion_date) -> \(date)")
+                    } else {
+                        // 如果失败，尝试不带毫秒的格式
+                        dateFormatter.formatOptions = [.withInternetDateTime]
+                        if let date = dateFormatter.date(from: dto.completion_date) {
+                            createdAtDate = date
+                            DRDebug("[APIService] 成功解析日期(ISO8601标准): \(dto.completion_date) -> \(date)")
+                        } else {
+                            // 如果仍然失败，尝试其他格式
+                            let backupFormatter = DateFormatter()
+                            backupFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZ"
+                            if let date = backupFormatter.date(from: dto.completion_date) {
+                                createdAtDate = date
+                                DRDebug("[APIService] 成功解析日期(备用格式): \(dto.completion_date) -> \(date)")
+                            } else {
+                                // 尝试简单的年月日格式
+                                backupFormatter.dateFormat = "yyyy-MM-dd"
+                                if let date = backupFormatter.date(from: dto.completion_date) {
+                                    createdAtDate = date
+                                    DRDebug("[APIService] 成功解析日期(简单格式): \(dto.completion_date) -> \(date)")
+                                } else {
+                                    // 日期解析失败，记录错误并返回nil
+                                    DRError("[APIService] 无法解析日期: \(dto.completion_date)")
+                                    return nil
+                                }
+                            }
+                        }
+                    }
+                    
+                    // 确保有有效的日期
+                    guard let finalDate = createdAtDate else {
+                        DRError("[APIService] 日期解析失败，忽略此记录")
+                        return nil
+                    }
                     
                     // 创建WorkoutRecord对象
                     return WorkoutRecord(
@@ -1028,7 +1068,7 @@ class APIService {
                         distance: dto.distance,
                         caloriesBurned: dto.calories_burned,
                         dessert: dessert,
-                        date: createdAtDate,
+                        date: finalDate,
                         workoutTag: dto.workout_tag ?? "",
                         equivalentDessertCount: dto.equivalent_dessert_count
                     )
@@ -1590,6 +1630,72 @@ class APIService {
         } else {
             return .unknown
         }
+    }
+    
+    /// 获取用户运动统计数据
+    /// - Parameters:
+    ///   - year: 年份
+    ///   - month: 月份（可选）
+    /// - Returns: 包含统计数据的Publisher
+    func getUserWorkoutStats(year: Int, month: Int? = nil) -> AnyPublisher<WorkoutStatsResponse, APIServiceError> {
+        // 构建查询参数
+        var queryItems = [URLQueryItem(name: "year", value: "\(year)")]
+        if let month = month {
+            queryItems.append(URLQueryItem(name: "month", value: "\(month)"))
+        }
+        
+        var urlComponents = URLComponents(string: Config.API.baseURL + "/api/v1/workouts/stats")
+        urlComponents?.queryItems = queryItems
+        
+        guard let url = urlComponents?.url else {
+            return Fail(error: APIServiceError.unknown).eraseToAnyPublisher()
+        }
+        
+        DRDebug("[APIService] 请求运动统计数据: \(url)")
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = Config.API.timeout
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        // 添加认证令牌
+        if let token = UserDefaults.standard.string(forKey: Config.UserData.tokenKey) {
+            request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        
+        return URLSession.shared.dataTaskPublisher(for: request)
+            .tryMap { data, response -> Data in
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    throw NetworkError.invalidResponse
+                }
+                
+                // 打印响应信息
+                DRDebug("[APIService] 运动统计API响应: 状态码=\(httpResponse.statusCode), 数据大小=\(data.count)字节")
+                if let jsonString = String(data: data, encoding: .utf8) {
+                    DRDebug("[APIService] 运动统计响应数据: \(jsonString)")
+                }
+                
+                // 验证状态码
+                guard (200..<300).contains(httpResponse.statusCode) else {
+                    throw NetworkError.serverError(httpResponse.statusCode, "服务器错误")
+                }
+                
+                return data
+            }
+            .decode(type: WorkoutStatsResponse.self, decoder: JSONDecoder())
+            .mapError { error -> APIServiceError in
+                if let decodingError = error as? DecodingError {
+                    DRError("[APIService] 运动统计数据解析错误: \(decodingError)")
+                    return .decodeError(decodingError.localizedDescription)
+                } else if let networkError = error as? NetworkError {
+                    DRError("[APIService] 网络错误: \(networkError)")
+                    return .networkError(APINetworkError(error: networkError))
+                } else {
+                    DRError("[APIService] 获取运动统计失败: \(error)")
+                    return .networkError(APINetworkError(error: NetworkError.requestFailed(error)))
+                }
+            }
+            .eraseToAnyPublisher()
     }
 }
 
