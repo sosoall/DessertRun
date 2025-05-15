@@ -1418,7 +1418,7 @@ class APIService {
                     return data
                 case 401:
                     // 处理401错误 - 令牌过期
-                    if let token = UserDefaults.standard.string(forKey: Config.UserData.tokenKey) {
+                    if UserDefaults.standard.string(forKey: Config.UserData.tokenKey) != nil {
                         UserDefaults.standard.removeObject(forKey: Config.UserData.tokenKey)
                         UserDefaults.standard.removeObject(forKey: Config.UserData.userIdKey)
                         
@@ -1734,6 +1734,14 @@ class APIService {
                 }
             }
             .eraseToAnyPublisher()
+    }
+    
+    // 获取美食图片URL
+    func getDessertImageURL(dessertId: String, type: String = "regular") -> URL? {
+        let baseURLString = Config.API.baseURL
+        let endpoint = "api/v1/desserts/\(dessertId)/image?type=\(type)"
+        
+        return URL(string: "\(baseURLString)/\(endpoint)")
     }
 }
 

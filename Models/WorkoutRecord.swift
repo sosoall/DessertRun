@@ -57,9 +57,11 @@ struct WorkoutRecord: Identifiable, Equatable {
     
     /// 用于显示的工作标签
     var displayWorkoutTag: String {
-        // 使用原始workoutTag或根据等效甜品数量提供更友好的显示文本
-        if equivalentDessertCount >= 1.0 {
+        // 直接使用原始workoutTag或根据等效甜品数量提供更友好的显示文本
+        if !workoutTag.isEmpty {
             return workoutTag
+        } else if equivalentDessertCount >= 1.0 {
+            return "运动量super!"
         } else if equivalentDessertCount >= 0.8 {
             return "运动量不足"
         } else {

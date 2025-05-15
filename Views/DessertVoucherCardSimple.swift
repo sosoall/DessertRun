@@ -20,6 +20,9 @@ struct DessertVoucherCardSimple: View {
     /// 动画状态
     @State private var isAnimating: Bool = false
     
+    /// 从后端获取的图片URL
+    @State private var voucherImageURL: URL? = nil
+    
     /// 提供一个环境变量，用于触发弹窗展示
     @Environment(\.presentationMode) var presentationMode
     
@@ -51,6 +54,9 @@ struct DessertVoucherCardSimple: View {
             cardFooter
         }
         .onAppear {
+            // 获取美食券相关图片
+            loadImages()
+            
             if forceExpanded {
                 // 当显示为展开状态时，延迟一点启动动画
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -90,6 +96,16 @@ struct DessertVoucherCardSimple: View {
         }
     }
     
+    // 加载美食图片
+    private func loadImages() {
+        // 从后端获取voucher类型图片URL
+        let dessertId = record.dessert.id
+        voucherImageURL = APIService.shared.getDessertImageURL(dessertId: dessertId, type: "voucher")
+        
+        // 记录日志
+        DRDebug("[DessertVoucherCard] 加载美食图片: voucher=\(voucherImageURL?.absoluteString ?? "nil")")
+    }
+    
     // MARK: - 卡片主体部分
     private var cardHeader: some View {
         ZStack(alignment: .center) {
@@ -116,7 +132,7 @@ struct DessertVoucherCardSimple: View {
                 HStack(alignment: forceExpanded ? .top : .center, spacing: 0) {
                     // 左侧部分 - 固定在40%宽度
                     HStack(spacing: 5) {
-                        // 左侧美食svg图标
+                        // 左侧美食图标 - 使用本地图标
                         Image("milktea_icon")
                             .resizable()
                             .scaledToFit()
@@ -227,12 +243,38 @@ struct DessertVoucherCardSimple: View {
                     
                     Spacer(minLength: 0)
                     
-                    // 右侧美食简笔画图像
-                    Image("dessert_background")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: forceExpanded ? 120 : 100, height: forceExpanded ? 120 : 100)
-                        .offset(y: isAnimating && forceExpanded ? 50 : 0)
+                    // 右侧美食图像 - 使用从后端获取的voucher图片
+                    Group {
+                        if let imageURL = voucherImageURL {
+                            AsyncImage(url: imageURL) { phase in
+                                switch phase {
+                                case .empty:
+                                    ProgressView()
+                                        .frame(width: forceExpanded ? 120 : 100, height: forceExpanded ? 120 : 100)
+                                case .success(let image):
+                                    image
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(width: forceExpanded ? 120 : 100, height: forceExpanded ? 120 : 100)
+                                case .failure:
+                                    // 加载失败时显示默认图像
+                                    Image("dessert_background")
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(width: forceExpanded ? 120 : 100, height: forceExpanded ? 120 : 100)
+                                @unknown default:
+                                    EmptyView()
+                                }
+                            }
+                        } else {
+                            // 默认图像
+                            Image("dessert_background")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: forceExpanded ? 120 : 100, height: forceExpanded ? 120 : 100)
+                        }
+                    }
+                    .offset(y: isAnimating && forceExpanded ? 50 : 0)
                 }
                 .padding(.top, forceExpanded ? 15 : 10) // 增加顶部padding
                 .frame(height: forceExpanded ? 200 : 100) // 增加高度
@@ -358,19 +400,29 @@ struct DessertVoucherCardSimple: View {
     
     // MARK: - 核销操作
     private func redeemVoucher() {
+        guard let voucher = associatedVoucher else {
+            redeemError = "未找到对应的美食券"
+            return
+        }
+        
         isRedeeming = true
         
-        // 模拟核销请求 - 实际应用中应调用VoucherService
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+        // 调用VoucherService实现核销
+        VoucherService.shared.redeemVoucher(voucherID: UUID(uuidString: voucher.id) ?? UUID()) { success, error in
             isRedeeming = false
             
-            // 这里应该有实际的核销逻辑
-            // 例如：VoucherService.shared.redeemVoucher(id: record.id) { success, error in ... }
-            
-            // 模拟随机成功或失败
-            let success = Bool.random()
             if !success {
-                redeemError = "暂不支持核销功能，请稍后再试"
+                redeemError = error ?? "核销失败，请稍后再试"
+            } else {
+                // 核销成功，刷新美食券列表
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    VoucherService.shared.loadVouchers(forceRefresh: true)
+                }
+                
+                // 关闭弹窗
+                if forceExpanded {
+                    presentationMode.wrappedValue.dismiss()
+                }
             }
         }
     }

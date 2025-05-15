@@ -1,7 +1,7 @@
 {
   "images" : [
     {
-      "filename" : "milktea_icon.svg",
+      "filename" : "BubbleTea.svg",
       "idiom" : "universal"
     }
   ],
@@ -12,4 +12,4 @@
   "properties" : {
     "preserves-vector-representation" : true
   }
-} 
+}
