@@ -54,11 +54,10 @@ class AuthService: ObservableObject {
         // 重置登录状态
         resetLoginState()
         
-        // 通知AppState显示登录页面
+        // 发送认证状态变更通知，让AppState处理UI状态更新
         DispatchQueue.main.async {
-            // 设置AppState的showLoginView为true
-            AppState.shared.showLoginView = true
-            DRInfo("已设置显示登录页面")
+            NotificationCenter.default.post(name: .authStatusChanged, object: nil)
+            DRInfo("已发送认证状态变更通知")
         }
     }
     

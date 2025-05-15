@@ -50,6 +50,9 @@ class FoodCheckInViewModel: ObservableObject {
     /// 错误信息
     @Published var errorMessage: String? = nil
     
+    /// 排行榜是否无数据
+    @Published var hasNoTopDessertData: Bool = false
+    
     /// 全局状态引用
     private var appState: AppState
     
@@ -145,7 +148,7 @@ class FoodCheckInViewModel: ObservableObject {
     
     // MARK: - 从API加载美食排行榜
     func loadTopDesserts(limit: Int = 5) {
-        // 防止重复请求
+        // 防止重复加载
         if isLoadingTopDesserts {
             DRDebug("[FoodCheckInViewModel] 正在加载美食排行榜，忽略重复请求")
             return
@@ -170,7 +173,17 @@ class FoodCheckInViewModel: ObservableObject {
                         self?.isLoadingTopDesserts = false
                         if case .failure(let error) = completion {
                             DRError("[FoodCheckInViewModel] 加载美食排行榜失败: \(error.errorMessage)")
-                            self?.errorMessage = "加载排行榜失败：\(error.errorMessage)"
+                            
+                            // 判断是否为令牌过期错误
+                            if case .tokenExpired = error {
+                                self?.errorMessage = "登录已过期，请重新登录"
+                                // 令牌过期错误已在APIService中处理，不需要额外处理
+                            } else {
+                                self?.errorMessage = "加载排行榜失败：\(error.errorMessage)"
+                                
+                                // 添加是否无数据的状态
+                                self?.hasNoTopDessertData = true
+                            }
                         }
                     }
                 },
@@ -199,27 +212,37 @@ class FoodCheckInViewModel: ObservableObject {
                             // 重置加载状态
                             self.isLoadingTopDesserts = false
                             
-                            // 直接设置数据
-                            self.topDesserts = items
-                            
-                            DRInfo("[FoodCheckInViewModel] 成功加载\(items.count)个排行榜项")
-                            
-                            if !self.topDesserts.isEmpty {
-                                DRDebug("[FoodCheckInViewModel] 更新后排行榜数据内容: \(self.topDesserts.map { $0.name })")
+                            // 检查是否有数据
+                            if items.isEmpty {
+                                DRInfo("[FoodCheckInViewModel] 排行榜无数据")
+                                self.hasNoTopDessertData = true
+                                self.errorMessage = "暂无排行榜数据"
+                            } else {
+                                // 直接设置数据
+                                self.topDesserts = items
+                                self.hasNoTopDessertData = false
+                                self.errorMessage = nil
+                                
+                                DRInfo("[FoodCheckInViewModel] 成功加载\(items.count)个排行榜项")
+                                
+                                if !self.topDesserts.isEmpty {
+                                    DRDebug("[FoodCheckInViewModel] 更新后排行榜数据内容: \(self.topDesserts.map { $0.name })")
+                                }
+                                
+                                DRDebug("[FoodCheckInViewModel] 更新后排行榜数据数量: \(self.topDesserts.count)")
+                                
+                                // 单次发送通知，避免UI闪烁
+                                self.sendTopDessertsUpdatedNotification()
+                                
+                                // 预加载图片
+                                self.preloadRankingImages(items: items)
                             }
-                            
-                            DRDebug("[FoodCheckInViewModel] 更新后排行榜数据数量: \(self.topDesserts.count)")
-                            
-                            // 单次发送通知，避免UI闪烁
-                            self.sendTopDessertsUpdatedNotification()
-                            
-                            // 预加载图片
-                            self.preloadRankingImages(items: items)
                         }
                     } else {
                         DispatchQueue.main.async {
                             // 重置加载状态
                             self.isLoadingTopDesserts = false
+                            self.hasNoTopDessertData = true
                             
                             DRError("[FoodCheckInViewModel] 加载美食排行榜失败: \(response.message)")
                             self.errorMessage = "加载排行榜失败：\(response.message)"

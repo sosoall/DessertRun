@@ -158,7 +158,23 @@ class AppState: ObservableObject {
             } else {
                 self.showLoginView = true
                 DRInfo("AppState: 更新为未登录状态，显示登录页面")
+                
+                // 令牌过期时，重置导航状态
+                if !authService.isLoggedIn {
+                    self.resetNavigation()
+                    DRInfo("AppState: 检测到登录失效，已重置导航状态")
+                }
             }
+        }
+    }
+    
+    /// 重置导航状态
+    private func resetNavigation() {
+        selectedTabIndex = 0
+        shouldResetNavigation = true
+        // 延迟重置标志位，确保视图有时间响应
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            self.shouldResetNavigation = false
         }
     }
     

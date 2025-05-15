@@ -138,6 +138,37 @@ public class NetworkManager {
             return Fail(error: NetworkError.invalidURL).eraseToAnyPublisher()
         }
         
+        // 检查授权令牌是否已过期（如果请求需要授权）
+        if requiresAuth {
+            if let token = UserDefaults.standard.string(forKey: Config.UserData.tokenKey) {
+                // 检查令牌是否为空字符串或格式明显无效
+                if token.isEmpty || token.count < 10 {
+                    DRWarning("[NetworkManager] 发现无效令牌，可能已过期")
+                    
+                    // 删除无效令牌
+                    UserDefaults.standard.removeObject(forKey: Config.UserData.tokenKey)
+                    UserDefaults.standard.removeObject(forKey: Config.UserData.userIdKey)
+                    
+                    // 通知认证服务处理token过期
+                    DispatchQueue.main.async {
+                        AuthService.shared.handleTokenExpired()
+                    }
+                    
+                    return Fail(error: NetworkError.unauthorized("令牌无效，请重新登录")).eraseToAnyPublisher()
+                }
+            } else {
+                // 如果需要授权但没有令牌，直接返回未授权错误
+                DRWarning("[NetworkManager] 请求需要授权但未找到令牌")
+                
+                // 通知认证服务处理token过期
+                DispatchQueue.main.async {
+                    AuthService.shared.handleTokenExpired()
+                }
+                
+                return Fail(error: NetworkError.unauthorized("未登录或登录已过期")).eraseToAnyPublisher()
+            }
+        }
+        
         // 创建URL请求
         var request = URLRequest(url: url)
         request.httpMethod = method.rawValue
@@ -238,6 +269,15 @@ public class NetworkManager {
                         throw NetworkError.badRequest("请求参数错误")
                     }
                 case 401:
+                    // 清除过期令牌
+                    UserDefaults.standard.removeObject(forKey: Config.UserData.tokenKey)
+                    UserDefaults.standard.removeObject(forKey: Config.UserData.userIdKey)
+                    
+                    // 通知认证服务处理token过期
+                    DispatchQueue.main.async {
+                        AuthService.shared.handleTokenExpired()
+                    }
+                    
                     // 提取具体的401错误信息
                     if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                        let message = json["message"] as? String {

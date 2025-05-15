@@ -1379,6 +1379,24 @@ class APIService {
             request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         
+        // 从UserDefaults获取当前尝试次数
+        let retryKey = "topDessertsRetryCount"
+        let retryCount = UserDefaults.standard.integer(forKey: retryKey)
+        
+        // 如果已经尝试3次并且失败，直接返回空数据
+        if retryCount >= 3 {
+            DRInfo("[APIService] 排行榜数据已尝试3次，返回空数据")
+            // 创建一个空的响应数据
+            let emptyResponse = TopDessertResponse(
+                code: 0,
+                message: "暂无数据",
+                data: TopDessertStatsResponse(items: [])
+            )
+            return Just(emptyResponse)
+                .setFailureType(to: APIServiceError.self)
+                .eraseToAnyPublisher()
+        }
+        
         // 执行请求并手动解析响应
         return URLSession.shared.dataTaskPublisher(for: request)
             .tryMap { data, response -> Data in
@@ -1395,8 +1413,25 @@ class APIService {
                 // 处理HTTP状态码
                 switch httpResponse.statusCode {
                 case 200..<300:
+                    // 重置尝试次数
+                    UserDefaults.standard.set(0, forKey: retryKey)
                     return data
+                case 401:
+                    // 处理401错误 - 令牌过期
+                    if let token = UserDefaults.standard.string(forKey: Config.UserData.tokenKey) {
+                        UserDefaults.standard.removeObject(forKey: Config.UserData.tokenKey)
+                        UserDefaults.standard.removeObject(forKey: Config.UserData.userIdKey)
+                        
+                        // 通知认证服务处理token过期
+                        DispatchQueue.main.async {
+                            AuthService.shared.handleTokenExpired()
+                        }
+                    }
+                    throw NetworkError.unauthorized("登录已过期，请重新登录")
                 default:
+                    // 增加尝试次数
+                    UserDefaults.standard.set(retryCount + 1, forKey: retryKey)
+                    
                     if let jsonString = String(data: data, encoding: .utf8) {
                         throw NetworkError.serverError(httpResponse.statusCode, jsonString)
                     } else {
@@ -1407,6 +1442,9 @@ class APIService {
             .decode(type: TopDessertResponse.self, decoder: JSONDecoder())
             .mapError { error -> APIServiceError in
                 if let networkError = error as? NetworkError {
+                    if case .unauthorized = networkError {
+                        return .tokenExpired
+                    }
                     return .networkError(APINetworkError(error: networkError))
                 } else if let decodingError = error as? DecodingError {
                     DRError("[APIService] 排行榜数据解析错误: \(decodingError)")
