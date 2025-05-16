@@ -23,11 +23,17 @@ struct DessertVoucherCardSimple: View {
     /// 从后端获取的图片URL
     @State private var voucherImageURL: URL? = nil
     
+    /// 从后端获取的图标URL
+    @State private var iconImageURL: URL? = nil
+    
     /// 提供一个环境变量，用于触发弹窗展示
     @Environment(\.presentationMode) var presentationMode
     
     /// 添加环境对象，用于获取美食券信息
     @EnvironmentObject var appState: AppState
+    
+    /// 添加状态变量存储图标图片
+    @State private var iconImage: UIImage? = nil
     
     // 获取与当前记录关联的美食券
     private var associatedVoucher: DessertVoucher? {
@@ -104,8 +110,29 @@ struct DessertVoucherCardSimple: View {
         let dessertId = record.dessert.id
         voucherImageURL = APIService.shared.getDessertImageURL(dessertId: dessertId, type: "voucher")
         
+        // 从后端获取icon类型图片URL
+        if let url = APIService.shared.getDessertImageURL(dessertId: dessertId, type: "icon") {
+            // 记录尝试加载的icon URL
+            DRInfo("[DessertVoucherCard] 尝试加载icon图片: \(url.absoluteString)")
+            
+            // 使用改进的ImageCacheService直接获取图片
+            ImageCacheService.shared.downloadAndCacheImage(url: url.absoluteString) { image in
+                if let image = image {
+                    DispatchQueue.main.async {
+                        self.iconImage = image
+                        DRInfo("[DessertVoucherCard] 成功加载icon图片")
+                    }
+                } else {
+                    DRError("[DessertVoucherCard] 加载美食图标失败: \(url)")
+                    // 加载失败时不要设置图标，将使用默认值
+                }
+            }
+        } else {
+            DRWarning("[DessertVoucherCard] 获取icon URL失败，dessertId: \(dessertId)")
+        }
+        
         // 记录日志
-        DRDebug("[DessertVoucherCard] 加载美食图片: voucher=\(voucherImageURL?.absoluteString ?? "nil")")
+        DRDebug("[DessertVoucherCard] 加载美食图片: voucher=\(voucherImageURL?.absoluteString ?? "nil"), icon=\(APIService.shared.getDessertImageURL(dessertId: dessertId, type: "icon")?.absoluteString ?? "nil")")
     }
     
     // MARK: - 卡片主体部分
@@ -260,20 +287,22 @@ struct DessertVoucherCardSimple: View {
                                     .scaledToFit()
                                     .frame(width: forceExpanded ? 120 : 100, height: forceExpanded ? 120 : 100)
                             case .failure:
-                                // 加载失败时显示默认图像
-                                Image("dessert_background")
+                                // 使用系统图像作为兜底图
+                                Image(systemName: "fork.knife.circle.fill")
                                     .resizable()
                                     .scaledToFit()
+                                    .foregroundColor(Color(hex: "#FF9D0B"))
                                     .frame(width: forceExpanded ? 120 : 100, height: forceExpanded ? 120 : 100)
                             @unknown default:
                                 EmptyView()
                             }
                         }
                     } else {
-                        // 默认图像
-                        Image("dessert_background")
+                        // 使用系统图像作为兜底图
+                        Image(systemName: "fork.knife.circle.fill")
                             .resizable()
                             .scaledToFit()
+                            .foregroundColor(Color(hex: "#FF9D0B"))
                             .frame(width: forceExpanded ? 120 : 100, height: forceExpanded ? 120 : 100)
                     }
                 }
@@ -282,12 +311,26 @@ struct DessertVoucherCardSimple: View {
                 .zIndex(0) // 确保图片在文字下面
                 
                 // 5. 左侧美食图标 - 使用绝对定位确保靠左对齐
-                Image("milktea_icon")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: forceExpanded ? 55 : 50, height: forceExpanded ? 55 : 50)
-                    .position(x: 40, y: forceExpanded ? (isAnimating ? 130 : 60) : 50) // 微调位置
-                    .zIndex(0) // 确保图标在底层
+                Group {
+                    if let uiImage = iconImage {
+                        // 如果通过ImageCacheService成功加载了图片
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: forceExpanded ? 55 : 50, height: forceExpanded ? 55 : 50)
+                            .position(x: 40, y: forceExpanded ? (isAnimating ? 130 : 60) : 50)
+                            .zIndex(0)
+                    } else {
+                        // 默认图标
+                        Image(systemName: "cup.and.saucer.fill")
+                            .resizable()
+                            .scaledToFit()
+                            .foregroundColor(Color(hex: "#FF9D0B"))
+                            .frame(width: forceExpanded ? 55 : 50, height: forceExpanded ? 55 : 50)
+                            .position(x: 40, y: forceExpanded ? (isAnimating ? 130 : 60) : 50)
+                            .zIndex(0)
+                    }
+                }
             }
             .frame(height: forceExpanded ? 250 : 100)
         }

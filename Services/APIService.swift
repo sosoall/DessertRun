@@ -1736,12 +1736,15 @@ class APIService {
             .eraseToAnyPublisher()
     }
     
-    // 获取美食图片URL
+    // 获取美食图片URL（处理重定向）
     func getDessertImageURL(dessertId: String, type: String = "regular") -> URL? {
         let baseURLString = Config.API.baseURL
         let endpoint = "api/v1/desserts/\(dessertId)/image?type=\(type)"
+        let urlString = "\(baseURLString)/\(endpoint)"
         
-        return URL(string: "\(baseURLString)/\(endpoint)")
+        // 直接返回URL，让URLSession处理重定向
+        // ImageCacheService已经被改进为可以处理重定向
+        return URL(string: urlString)
     }
 }
 

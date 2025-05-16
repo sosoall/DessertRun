@@ -460,8 +460,11 @@ struct ExerciseRecordView: View {
         for dayOffset in 0...6 {
             guard let currentDate = calendar.date(byAdding: .day, value: dayOffset, to: startOfWeek) else { continue }
             
-            // 获取当天的运动记录
-            let dayRecords = viewModel.getRecordsForDate(currentDate)
+            // 获取当天的运动记录并按时间排序
+            let dayRecords = viewModel.getRecordsForDate(currentDate).sorted(by: { $0.date < $1.date })
+            
+            // 获取最早记录的甜品ID（如果有）
+            let firstDessertId = dayRecords.first?.dessert.id
             
             // 计算总消耗热量
             let totalBurned = dayRecords.reduce(0.0) { $0 + $1.caloriesBurned }
@@ -482,7 +485,8 @@ struct ExerciseRecordView: View {
                 caloriesBurned: Int(totalBurned),
                 hasWorkout: !dayRecords.isEmpty,
                 isGoalAchieved: isGoalAchieved,
-                targetCalories: totalTarget > 0 ? Int(totalTarget) : nil
+                targetCalories: totalTarget > 0 ? Int(totalTarget) : nil,
+                dessertId: firstDessertId
             )
             
             weekData.append(dataPoint)
@@ -560,14 +564,46 @@ struct ExerciseRecordCard: View {
             // 主要内容
             HStack(alignment: .center, spacing: 16) {
                 // 甜品图标
-                DessertIconView(
-                    dessert: record.dessert,
-                    size: 60,
-                    color: .white
-                )
-                .padding(10)
-                .background(Color(hex: "FE2D55").opacity(0.1))
-                .clipShape(Circle())
+                ZStack {
+                    Circle()
+                        .fill(Color(hex: "FE2D55").opacity(0.1))
+                        .frame(width: 80, height: 80)
+                    
+                    // 从后端获取图标
+                    if let iconURL = APIService.shared.getDessertImageURL(dessertId: record.dessert.id, type: "icon") {
+                        AsyncImage(url: iconURL) { phase in
+                            switch phase {
+                            case .empty:
+                                // 加载中显示空白
+                                ProgressView()
+                                    .frame(width: 60, height: 60)
+                            case .success(let image):
+                                // 加载成功显示图片
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 60, height: 60)
+                            case .failure:
+                                // 加载失败显示默认图标
+                                Image(systemName: "cup.and.saucer.fill")
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .foregroundColor(.gray)
+                                    .frame(width: 60, height: 60)
+                            @unknown default:
+                                // 未知状态
+                                Color.clear.frame(width: 60, height: 60)
+                            }
+                        }
+                    } else {
+                        // 无法获取URL时显示默认图标
+                        Image(systemName: "cup.and.saucer.fill")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .foregroundColor(.gray)
+                            .frame(width: 60, height: 60)
+                    }
+                }
                 
                 // 甜品信息和进度
                 VStack(alignment: .leading, spacing: 6) {
@@ -690,6 +726,7 @@ struct WeekDayData: Identifiable {
     let hasWorkout: Bool
     let isGoalAchieved: Bool
     let targetCalories: Int?
+    var dessertId: String? // 添加甜品ID
 }
 
 // 周视图柱状图
@@ -715,10 +752,50 @@ struct WeeklyCalorieChart: View {
                         
                         if point.hasWorkout {
                             // 柱状
-                            RoundedRectangle(cornerRadius: 5)
-                                .fill(point.isGoalAchieved ? Color(hex: "FE2D55") : Color(hex: "FF9901"))
-                                .frame(height: calculateBarHeight(calories: point.caloriesBurned))
-                                .frame(width: 25)
+                            VStack(spacing: 0) {
+                                // 柱子
+                                RoundedRectangle(cornerRadius: 5)
+                                    .fill(point.isGoalAchieved ? Color(hex: "FE2D55") : Color(hex: "FF9901"))
+                                    .frame(height: calculateBarHeight(calories: point.caloriesBurned))
+                                    .frame(width: 25)
+                                
+                                // 美食图标 - 新增部分
+                                if let dessertId = point.dessertId, !dessertId.isEmpty {
+                                    if let iconURL = APIService.shared.getDessertImageURL(dessertId: dessertId, type: "icon") {
+                                        // 使用AsyncImage加载图标
+                                        AsyncImage(url: iconURL) { phase in
+                                            switch phase {
+                                            case .empty:
+                                                // 加载中显示空白
+                                                Color.clear.frame(width: 25, height: 25)
+                                            case .success(let image):
+                                                // 加载成功显示图片
+                                                image
+                                                    .resizable()
+                                                    .aspectRatio(contentMode: .fit)
+                                                    .frame(width: 25, height: 25)
+                                            case .failure:
+                                                // 加载失败显示默认图标
+                                                Image(systemName: "cup.and.saucer.fill")
+                                                    .resizable()
+                                                    .aspectRatio(contentMode: .fit)
+                                                    .foregroundColor(.gray)
+                                                    .frame(width: 25, height: 25)
+                                            @unknown default:
+                                                // 未知状态
+                                                Color.clear.frame(width: 25, height: 25)
+                                            }
+                                        }
+                                    } else {
+                                        // 无法获取URL时显示默认图标
+                                        Image(systemName: "cup.and.saucer.fill")
+                                            .resizable()
+                                            .aspectRatio(contentMode: .fit)
+                                            .foregroundColor(.gray)
+                                            .frame(width: 25, height: 25)
+                                    }
+                                }
+                            }
                         } else {
                             // 无运动记录时显示浅灰色柱子
                             RoundedRectangle(cornerRadius: 5)

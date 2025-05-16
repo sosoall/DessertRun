@@ -142,7 +142,8 @@ struct MonthCalendarView: View {
     
     // 单个日历单元格
     private func calendarCell(for date: Date) -> some View {
-        let records = viewModel.getRecordsForDate(date)
+        // 获取当天的运动记录并按时间排序
+        let records = viewModel.getRecordsForDate(date).sorted(by: { $0.date < $1.date })
         let dayNumber = Calendar.current.component(.day, from: date)
         
         // 计算多条记录的总消耗热量和总目标热量
@@ -179,13 +180,42 @@ struct MonthCalendarView: View {
             } else {
                 // 有运动记录，居中显示甜品图标和总卡路里数值
                 VStack(spacing: 4) {
-                    // 使用第一条记录的甜品图标
+                    // 使用时间最早的记录的甜品图标
                     if let firstRecord = records.first {
-                        DessertIconView(
-                            dessert: firstRecord.dessert,
-                            size: 24,
-                            color: .white
-                        )
+                        // 从后端获取图标URL
+                        if let iconURL = APIService.shared.getDessertImageURL(dessertId: firstRecord.dessert.id, type: "icon") {
+                            // 使用AsyncImage加载图标
+                            AsyncImage(url: iconURL) { phase in
+                                switch phase {
+                                case .empty:
+                                    // 加载中显示空白
+                                    Color.clear.frame(width: 24, height: 24)
+                                case .success(let image):
+                                    // 加载成功显示图片
+                                    image
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fit)
+                                        .frame(width: 24, height: 24)
+                                case .failure:
+                                    // 加载失败显示默认图标
+                                    Image(systemName: "cup.and.saucer.fill")
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fit)
+                                        .foregroundColor(.white)
+                                        .frame(width: 24, height: 24)
+                                @unknown default:
+                                    // 未知状态
+                                    Color.clear.frame(width: 24, height: 24)
+                                }
+                            }
+                        } else {
+                            // 无法获取URL时显示默认图标
+                            Image(systemName: "cup.and.saucer.fill")
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .foregroundColor(.white)
+                                .frame(width: 24, height: 24)
+                        }
                     }
                     
                     // 显示总卡路里数字
