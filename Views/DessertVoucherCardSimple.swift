@@ -52,7 +52,7 @@ struct DessertVoucherCardSimple: View {
     }
     
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 0) { // 使用VStack并设置spacing为0确保没有间距
             // 卡片主体部分
             cardHeader
             
@@ -153,22 +153,76 @@ struct DessertVoucherCardSimple: View {
     private var cardHeader: some View {
         GeometryReader { geometry in 
             ZStack(alignment: .leading) {
-                // 1. 背景渐变 - 放在最底层，确保完全填充
-                LinearGradient(
-                    gradient: Gradient(stops: [
-                        .init(color: Color(hex: "#FF9D0B"), location: 0),
-                        .init(color: Color(hex: "#FFEAC5"), location: 0.59),
-                        .init(color: Color(hex: "#FFE5EC"), location: 1)
-                    ]),
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-                .cornerRadius(20, corners: [.topLeft, .topRight])
+                // 1. 背景 - 根据状态选择不同的背景色
+                if forceExpanded {
+                    // 展开状态使用渐变背景
+                    LinearGradient(
+                        gradient: Gradient(stops: [
+                            .init(color: Color(hex: "#FF9D0B"), location: 0),
+                            .init(color: Color(hex: "#FFEAC5"), location: 0.59),
+                            .init(color: Color(hex: "#FFE5EC"), location: 1)
+                        ]),
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                    .clipShape(
+                        RoundedCorner(
+                            radius: 20,
+                            corners: [.topLeft, .topRight]
+                        )
+                    )
+                } else {
+                    // 收起状态使用白色背景
+                    Color.white
+                        .clipShape(
+                            RoundedCorner(
+                                radius: 20,
+                                corners: [.topLeft, .topRight]
+                            )
+                        )
+                }
                 
                 // 2. 白色边框 - 只在上边加圆角
-                RoundedRectangle(cornerRadius: 20)
-                    .stroke(Color.white, lineWidth: 1)
-                    .clipShape(RoundedCorner(radius: 20, corners: [.topLeft, .topRight]))
+                // 注意：使用Path而不是clipShape以确保边框正确渲染
+                Path { path in
+                    // 上边的圆角边框路径
+                    let rect = CGRect(x: 0, y: 0, width: geometry.size.width, height: geometry.size.height)
+                    let cornerSize = CGSize(width: 20, height: 20)
+                    
+                    // 从左上角开始，顺时针绘制
+                    path.move(to: CGPoint(x: 0, y: 20)) // 左上圆角起始点
+                    
+                    // 添加左上圆角
+                    path.addArc(
+                        center: CGPoint(x: 20, y: 20),
+                        radius: 20,
+                        startAngle: .degrees(180),
+                        endAngle: .degrees(270),
+                        clockwise: false
+                    )
+                    
+                    // 上边
+                    path.addLine(to: CGPoint(x: geometry.size.width - 20, y: 0))
+                    
+                    // 添加右上圆角
+                    path.addArc(
+                        center: CGPoint(x: geometry.size.width - 20, y: 20),
+                        radius: 20,
+                        startAngle: .degrees(270),
+                        endAngle: .degrees(0),
+                        clockwise: false
+                    )
+                    
+                    // 右边
+                    path.addLine(to: CGPoint(x: geometry.size.width, y: geometry.size.height))
+                    
+                    // 底部 - 无圆角
+                    path.addLine(to: CGPoint(x: 0, y: geometry.size.height))
+                    
+                    // 左边
+                    path.addLine(to: CGPoint(x: 0, y: 20))
+                }
+                .stroke(Color.gray.opacity(0.2), lineWidth: 1) // 边框颜色调整为浅灰色
                 
                 // 3. 内容布局 - 三段式布局
                 HStack(spacing: 0) {
@@ -178,26 +232,26 @@ struct DessertVoucherCardSimple: View {
                             // 移除这里的图标，使用绝对定位的图标替代
                             
                             // 左侧美食及消耗美食数量的文本信息
-                            VStack(alignment: .leading, spacing: 4) {
+                            VStack(alignment: .leading, spacing: 3) {
                                 HStack(alignment: .center, spacing: 5) {
                                     Text(String(format: "%.1f", record.equivalentDessertCount))
-                                        .font(.system(size: forceExpanded ? 32 : 20, weight: .semibold))
+                                        .font(.system(size: forceExpanded ? 28 : 18, weight: .semibold))
                                         .foregroundColor(Color(hex: "#FE5C72"))
                                     
                                     Text("x")
-                                        .font(.system(size: forceExpanded ? 24 : 16, weight: .semibold))
+                                        .font(.system(size: forceExpanded ? 20 : 14, weight: .semibold))
                                         .foregroundColor(Color(hex: "#FE5C72"))
                                 }
                                 .fixedSize(horizontal: true, vertical: false) // 确保"1.4x"在一行内显示
                                 
                                 Text(record.dessert.name)
-                                    .font(.system(size: forceExpanded ? 16 : 16, weight: .medium))
+                                    .font(.system(size: forceExpanded ? 16 : 14, weight: .medium))
                                     .foregroundColor(Color(hex: "#FE5C72"))
-                                    .lineLimit(forceExpanded ? nil : 1)
+                                    .lineLimit(forceExpanded ? nil : 2) // 允许两行显示
                                     .multilineTextAlignment(.leading)
                             }
-                            .padding(.leading, forceExpanded ? 65 : 60) // 为绝对定位的图标留出空间
-                            .offset(y: isAnimating && forceExpanded ? -10 : 0)
+                            .padding(.leading, forceExpanded ? 58 : 52) // 为绝对定位的图标留出空间
+                            .offset(y: isAnimating && forceExpanded ? -8 : 0)
                         }
                     }
                     .frame(width: geometry.size.width * 0.4 - 20) // 固定宽度
@@ -206,21 +260,22 @@ struct DessertVoucherCardSimple: View {
                     // 中间分隔线
                     Rectangle()
                         .fill(Color(hex: "#D7B8BE"))
-                        .frame(width: 1, height: forceExpanded ? 140 : 70)
+                        .frame(width: 1, height: forceExpanded ? 120 : 64)
                         .padding(.horizontal, 10)
                     
                     // 右侧信息区
-                    VStack(alignment: .leading, spacing: forceExpanded ? 8 : 4) {
+                    VStack(alignment: .leading, spacing: forceExpanded ? 6 : 3) {
                         Text(record.exerciseType.name)
-                            .font(.system(size: forceExpanded ? 32 : 20, weight: .semibold))
-                            .lineLimit(nil) // 允许换行
+                            .font(.system(size: forceExpanded ? 28 : 18, weight: .semibold))
+                            .lineLimit(2) // 限制最多2行
                             .fixedSize(horizontal: false, vertical: true) // 确保文字完整显示
                             .offset(y: isAnimating && forceExpanded ? -5 : 0)
+                            .frame(maxWidth: forceExpanded ? geometry.size.width * 0.6 - 120 : geometry.size.width * 0.6 - 100, alignment: .leading) // 限制宽度防止与图片重叠
                         
                         if forceExpanded {
                             // 确保显示运动标签文本，根据tag内容调整颜色
                             Text(record.displayWorkoutTag)
-                                .font(.system(size: 16, weight: .semibold))
+                                .font(.system(size: 14, weight: .semibold))
                                 // 根据tag类型设置不同颜色
                                 .foregroundColor(record.displayWorkoutTag.contains("super") ? 
                                                Color(hex: "#F8A41C") : Color(hex: "#939393"))
@@ -228,63 +283,71 @@ struct DessertVoucherCardSimple: View {
                                 .multilineTextAlignment(.leading)
                                 .padding(.top, isAnimating ? 2 : 0)
                                 .opacity(isAnimating ? 1 : 0)
+                                .frame(maxWidth: geometry.size.width * 0.6 - 120, alignment: .leading) // 限制宽度防止与图片重叠
                             
                             // 展开时显示运动详情
-                            VStack(alignment: .leading, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 8) {
                                 // 运动时长
                                 if let duration = record.duration {
-                                    HStack(spacing: 8) {
+                                    HStack(spacing: 6) {
                                         Image(systemName: "clock")
+                                            .font(.system(size: 14))
                                             .foregroundColor(Color(hex: "#FF7B15"))
                                         
                                         Text(formatDuration(seconds: Int(duration)))
-                                            .font(.system(size: 16, weight: .medium))
+                                            .font(.system(size: 14))
                                             .fixedSize(horizontal: false, vertical: true)
                                     }
                                     .opacity(isAnimating ? 1 : 0)
+                                    .frame(maxWidth: geometry.size.width * 0.6 - 120, alignment: .leading) // 限制宽度防止与图片重叠
                                 }
                                 
                                 // 运动距离
                                 if let distance = record.distance {
-                                    HStack(spacing: 8) {
+                                    HStack(spacing: 6) {
                                         Image(systemName: "figure.walk")
+                                            .font(.system(size: 14))
                                             .foregroundColor(Color(hex: "#FF7B15"))
                                         
                                         Text(String(format: "%.1f公里", distance / 1000))
-                                            .font(.system(size: 16, weight: .medium))
+                                            .font(.system(size: 14))
                                             .fixedSize(horizontal: false, vertical: true)
                                     }
                                     .opacity(isAnimating ? 1 : 0)
+                                    .frame(maxWidth: geometry.size.width * 0.6 - 120, alignment: .leading) // 限制宽度防止与图片重叠
                                 }
                                 
                                 // 消耗热量
-                                HStack(spacing: 8) {
+                                HStack(spacing: 6) {
                                     Image(systemName: "flame.fill")
+                                        .font(.system(size: 14))
                                         .foregroundColor(.red)
                                     
                                     Text("\(Int(record.caloriesBurned))卡路里")
-                                        .font(.system(size: 16, weight: .medium))
+                                        .font(.system(size: 14))
                                         .fixedSize(horizontal: false, vertical: true)
                                 }
                                 .opacity(isAnimating ? 1 : 0)
+                                .frame(maxWidth: geometry.size.width * 0.6 - 120, alignment: .leading) // 限制宽度防止与图片重叠
                                 
                                 // 日期放在这里与其他信息对齐 - 去掉icon
                                 Text(formattedDateTime(record.date))
-                                    .font(.system(size: 14, weight: .regular))
+                                    .font(.system(size: 12))
                                     .foregroundColor(Color(hex: "#919191"))
                                     .fixedSize(horizontal: false, vertical: true)
                                     .opacity(isAnimating ? 1 : 0)
-                                    .padding(.top, 4)
+                                    .padding(.top, 2)
+                                    .frame(maxWidth: geometry.size.width * 0.6 - 120, alignment: .leading) // 限制宽度防止与图片重叠
                             }
-                            .padding(.top, 8)
+                            .padding(.top, 6)
                         }
                     }
-                    .padding(.trailing, 70) // 为右侧图片留出空间
+                    .padding(.trailing, 55) // 为右侧图片留出空间
                     .zIndex(10) // 确保文字在最上层
                     
                     Spacer(minLength: 0)
                 }
-                .padding(.top, forceExpanded ? 15 : 10)
+                .padding(.top, forceExpanded ? 14 : 10)
                 .padding(.leading, 16) // 左侧留出空间
                 
                 // 4. 右侧美食图像 - 使用绝对定位确保靠右对齐
@@ -294,19 +357,19 @@ struct DessertVoucherCardSimple: View {
                             switch phase {
                             case .empty:
                                 ProgressView()
-                                    .frame(width: forceExpanded ? 120 : 100, height: forceExpanded ? 120 : 100)
+                                    .frame(width: forceExpanded ? 110 : 80, height: forceExpanded ? 110 : 80)
                             case .success(let image):
                                 image
                                     .resizable()
                                     .scaledToFit()
-                                    .frame(width: forceExpanded ? 120 : 100, height: forceExpanded ? 120 : 100)
+                                    .frame(width: forceExpanded ? 110 : 80, height: forceExpanded ? 110 : 80)
                             case .failure:
                                 // 使用系统图像作为兜底图
                                 Image(systemName: "fork.knife.circle.fill")
                                     .resizable()
                                     .scaledToFit()
                                     .foregroundColor(Color(hex: "#FF9D0B"))
-                                    .frame(width: forceExpanded ? 120 : 100, height: forceExpanded ? 120 : 100)
+                                    .frame(width: forceExpanded ? 110 : 80, height: forceExpanded ? 110 : 80)
                             @unknown default:
                                 EmptyView()
                             }
@@ -317,12 +380,12 @@ struct DessertVoucherCardSimple: View {
                             .resizable()
                             .scaledToFit()
                             .foregroundColor(Color(hex: "#FF9D0B"))
-                            .frame(width: forceExpanded ? 120 : 100, height: forceExpanded ? 120 : 100)
+                            .frame(width: forceExpanded ? 110 : 80, height: forceExpanded ? 110 : 80)
                     }
                 }
                 .offset(y: isAnimating && forceExpanded ? 50 : 0)
-                .position(x: geometry.size.width - (forceExpanded ? 60 : 50), y: forceExpanded ? 100 : 50) // 用绝对定位确保靠右
-                .zIndex(0) // 确保图片在文字下面
+                .position(x: geometry.size.width - (forceExpanded ? 60 : 50), y: forceExpanded ? 90 : 42) // 用绝对定位确保靠右
+                .zIndex(1) // 确保图片在文字下面
                 
                 // 5. 左侧美食图标 - 使用绝对定位确保靠左对齐
                 Group {
@@ -331,24 +394,25 @@ struct DessertVoucherCardSimple: View {
                         Image(uiImage: uiImage)
                             .resizable()
                             .scaledToFit()
-                            .frame(width: forceExpanded ? 55 : 50, height: forceExpanded ? 55 : 50)
-                            .position(x: 40, y: forceExpanded ? (isAnimating ? 130 : 60) : 50)
-                            .zIndex(0)
+                            .frame(width: forceExpanded ? 50 : 42, height: forceExpanded ? 50 : 42)
+                            .position(x: 36, y: forceExpanded ? (isAnimating ? 110 : 60) : 42)
+                            .zIndex(5) // 确保图标在背景上层但不遮挡文字
                     } else {
                         // 默认图标
                         Image(systemName: "cup.and.saucer.fill")
                             .resizable()
                             .scaledToFit()
                             .foregroundColor(Color(hex: "#FF9D0B"))
-                            .frame(width: forceExpanded ? 55 : 50, height: forceExpanded ? 55 : 50)
-                            .position(x: 40, y: forceExpanded ? (isAnimating ? 130 : 60) : 50)
-                            .zIndex(0)
+                            .frame(width: forceExpanded ? 50 : 42, height: forceExpanded ? 50 : 42)
+                            .position(x: 36, y: forceExpanded ? (isAnimating ? 110 : 60) : 42)
+                            .zIndex(5) // 确保图标在背景上层但不遮挡文字
                     }
                 }
             }
-            .frame(height: forceExpanded ? 250 : 100)
+            .frame(height: forceExpanded ? 220 : 84)
+            .background(Color.clear) // 确保背景透明
         }
-        .frame(height: forceExpanded ? 250 : 100)
+        .frame(height: forceExpanded ? 220 : 84)
     }
     
     // 格式化时长的辅助函数
@@ -390,20 +454,21 @@ struct DessertVoucherCardSimple: View {
     
     // MARK: - 卡片底部部分
     private var cardFooter: some View {
-        // 底部核销区域
-        VStack {
+        // 底部核销区域 - 直接返回视图，不使用GeometryReader
+        VStack(spacing: 0) {
             HStack {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 1) {
                     if forceExpanded {
                         Text("美食券")
-                            .font(.system(size: 16, weight: .bold))
+                            .font(.system(size: 14, weight: .bold))
                     }
                     
                     // 使用美食券的剩余天数
                     let daysRemaining = associatedVoucher?.remainingDays ?? calculateRemainingDays()
                     // 剩余天数
                     Text("剩余\(daysRemaining)天")
-                        .font(.system(size: 14, weight: .regular))
+                        .font(.system(size: 12))
+                        .foregroundColor(.gray)
                 }
                 
                 Spacer()
@@ -413,32 +478,30 @@ struct DessertVoucherCardSimple: View {
                     showRedeemConfirm = true
                 }) {
                     Text("立即核销")
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundColor(.white)
-                        .padding(.vertical, 6)
-                        .padding(.horizontal, 16)
+                        .padding(.vertical, 5)
+                        .padding(.horizontal, 14)
                         .background(Color(hex: forceExpanded ? "#FF318D" : "#FE2D55"))
-                        .cornerRadius(10)
+                        .cornerRadius(8)
                 }
                 .disabled(isRedeeming)
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, forceExpanded ? 15 : 10) // 增加底部高度
+            .padding(.vertical, forceExpanded ? 16 : 10) // 增加垂直内边距，使底部更高
             .background(Color.white)
-            .cornerRadius(10, corners: [.bottomLeft, .bottomRight])
             .overlay(
+                // 虚线边框和圆角
                 RoundedRectangle(cornerRadius: 10)
                     .stroke(
                         Color.gray.opacity(0.5),
-                        style: StrokeStyle(
-                            lineWidth: 1,
-                            dash: [5, 5]
-                        )
+                        style: StrokeStyle(lineWidth: 1, dash: [5, 5])
                     )
                     .clipShape(RoundedCorner(radius: 10, corners: [.bottomLeft, .bottomRight]))
             )
+            .clipShape(RoundedCorner(radius: 10, corners: [.bottomLeft, .bottomRight]))
         }
-        .frame(height: forceExpanded ? 65 : 45) // 增加底部高度
+        .frame(height: forceExpanded ? 68 : 44) // 增加高度
     }
     
     // 计算美食券剩余天数（使用美食券的过期日期）

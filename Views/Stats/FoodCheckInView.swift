@@ -11,21 +11,12 @@ struct FoodCheckInView: View {
     @State private var showExpandedCard: Bool = false  // 是否显示展开视图
     @State private var hasAppeared: Bool = false  // 添加状态标志，追踪视图是否已出现
     @State private var forceRefresh: Bool = false  // 强制刷新标记
-    @State private var viewModelAddress: String = "" // 存储ViewModel的内存地址，用于调试
     
     var body: some View {
         ZStack {
             // 主内容
             ScrollView {
-                VStack(spacing: 24) {
-                    // 调试信息显示
-                    if !viewModelAddress.isEmpty {
-                        Text("VM地址: \(viewModelAddress)")
-                            .font(.caption)
-                            .foregroundColor(.gray)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    
+                VStack(spacing: 20) {
                     // 美食记录卡片
                     foodRecordCard
                     
@@ -49,20 +40,16 @@ struct FoodCheckInView: View {
             }
         }
         .onAppear {
-            // 记录ViewModel的内存地址，用于调试追踪
-            viewModelAddress = "\(Unmanaged.passUnretained(viewModel).toOpaque())"
-            DRDebug("[FoodCheckInView] 视图出现，使用ViewModel实例: \(viewModelAddress)")
-            
             // 使用hasAppeared标志防止多次调用
             if !hasAppeared {
-                DRDebug("[FoodCheckInView] 首次显示，准备加载数据，ViewModel实例: \(viewModelAddress)")
+                DRDebug("[FoodCheckInView] 首次显示，准备加载数据")
                 
                 // 立即设置标志，防止重复加载
                 hasAppeared = true
                 
                 // 延迟加载，确保视图已完全呈现
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    DRDebug("[FoodCheckInView] 开始加载数据，ViewModel实例: \(viewModelAddress)")
+                    DRDebug("[FoodCheckInView] 开始加载数据")
                     viewModel.loadData() // 这会同时加载打卡记录、美食券和排行榜数据
                     
                     // 强制刷新UI，确保使用正确的ViewModel实例
@@ -231,199 +218,123 @@ struct FoodCheckInView: View {
     
     // 美食记录卡片
     private var foodRecordCard: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 16) {
             // 标题
-            VStack(spacing: 8) {
+            HStack {
+                Text("美食券")
+                    .font(.system(size: 20, weight: .semibold)) // H2字体样式
+                
+                Spacer()
+            }
+            
+            // 美食排行榜卡片
+            VStack(spacing: 16) {
+                // 标题栏
                 HStack {
-                    Text("美食记录")
-                        .font(.system(size: 22, weight: .semibold))
+                    Text("美食排行榜")
+                        .font(.system(size: 16, weight: .medium)) // Title字体样式
                     
                     Spacer()
-                }
-            }
-            
-            // 美食排行榜和记录卡片
-            VStack(spacing: 20) {
-                // 直接创建排行榜卡片，不使用计算属性
-                VStack(spacing: 16) {
-                    // 标题栏
-                    HStack {
-                        Text("美食排行榜")
-                            .font(.system(size: 16, weight: .medium))
-                        
-                        Spacer()
-                        
-                        // 刷新按钮
-                        Button(action: {
-                            // 刷新排行榜数据
-                            viewModel.loadTopDesserts(limit: 5)
-                            DRDebug("[FoodCheckInView] 用户手动刷新排行榜")
-                            
-                            // 强制刷新UI
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                forceRefresh.toggle()
-                                DRDebug("[FoodCheckInView] 刷新排行榜后强制刷新UI: \(viewModel.topDesserts.count)项")
-                            }
-                        }) {
-                            Image(systemName: "arrow.clockwise")
-                                .font(.system(size: 14))
-                                .foregroundColor(viewModel.isLoadingTopDesserts ? .gray : .blue)
-                        }
-                        .disabled(viewModel.isLoadingTopDesserts)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 16)
                     
-                    // 美食排行榜水平布局
-                    if viewModel.isLoadingTopDesserts {
-                        // 加载中状态
-                        HStack {
-                            Spacer()
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle())
-                                .scaleEffect(1.2)
+                    // 刷新按钮
+                    Button(action: {
+                        // 刷新排行榜数据
+                        viewModel.loadTopDesserts(limit: 5)
+                        DRDebug("[FoodCheckInView] 用户手动刷新排行榜")
+                        
+                        // 强制刷新UI
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            forceRefresh.toggle()
+                            DRDebug("[FoodCheckInView] 刷新排行榜后强制刷新UI: \(viewModel.topDesserts.count)项")
+                        }
+                    }) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 14))
+                            .foregroundColor(viewModel.isLoadingTopDesserts ? .gray : .blue)
+                    }
+                    .disabled(viewModel.isLoadingTopDesserts)
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                
+                // 美食排行榜水平布局
+                if viewModel.isLoadingTopDesserts {
+                    // 加载中状态
+                    HStack {
+                        Spacer()
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle())
+                            .scaleEffect(1.2)
+                            .padding()
+                        Spacer()
+                    }
+                    .frame(height: 100) // 更紧凑
+                } else if viewModel.topDesserts.isEmpty {
+                    // 空状态
+                    HStack {
+                        Spacer()
+                        VStack {
+                            Text("暂无记录")
+                                .font(.system(size: 14)) // Caption字体样式
+                                .foregroundColor(.gray)
                                 .padding()
-                            Spacer()
                         }
-                        .frame(height: 120)
-                    } else if viewModel.topDesserts.isEmpty {
-                        // 空状态
-                        HStack {
-                            Spacer()
-                            VStack {
-                                Text("暂无记录")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.gray)
-                                    .padding()
-                            }
-                            Spacer()
+                        Spacer()
+                    }
+                    .frame(height: 100) // 更紧凑
+                    .onAppear {
+                        DRDebug("[FoodCheckInView] 排行榜显示空状态，数据量: \(viewModel.topDesserts.count)")
+                        
+                        // 如果是空的，尝试再加载一次
+                        if !viewModel.isLoadingTopDesserts {
+                            viewModel.loadTopDesserts(limit: 5)
+                            DRDebug("[FoodCheckInView] 排行榜为空，自动尝试再次加载")
                         }
-                        .frame(height: 120)
-                        .onAppear {
-                            DRDebug("[FoodCheckInView] 排行榜显示空状态，数据量: \(viewModel.topDesserts.count)")
-                            
-                            // 如果是空的，尝试再加载一次
-                            if !viewModel.isLoadingTopDesserts {
-                                viewModel.loadTopDesserts(limit: 5)
-                                DRDebug("[FoodCheckInView] 排行榜为空，自动尝试再次加载")
-                            }
-                        }
-                    } else {
-                        // 有数据状态
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            LazyHStack(spacing: 24) {
-                                ForEach(viewModel.topDesserts.prefix(4), id: \.id) { dessert in
-                                    VStack(spacing: 8) {
-                                        ZStack(alignment: .top) {
-                                            VStack {
-                                                Spacer()
-                                                
-                                                // 使用CachedImage加载图片
-                                                CachedImage(url: dessert.imageName, dessertId: dessert.dessertId)
-                                                    .scaledToFit()
-                                                    .frame(height: dessert.id == viewModel.topDesserts.first?.id ? 120 : 75)
-                                                    .cornerRadius(8)
-                                            }
-                                            .frame(height: 120)
+                    }
+                } else {
+                    // 有数据状态
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        LazyHStack(spacing: 16) { // 减少间距
+                            ForEach(viewModel.topDesserts.prefix(4), id: \.id) { dessert in
+                                VStack(spacing: 6) { // 更紧凑
+                                    ZStack(alignment: .top) {
+                                        VStack {
+                                            Spacer()
                                             
-                                            if dessert.id == viewModel.topDesserts.first?.id {
-                                                Image("crown")
-                                                    .resizable()
-                                                    .renderingMode(.original)
-                                                    .scaledToFit()
-                                                    .frame(width: 40, height: 40)
-                                                    .offset(x: 10, y: -15)
-                                            }
+                                            // 使用CachedImage加载图片，尺寸更小
+                                            CachedImage(url: dessert.imageName, dessertId: dessert.dessertId)
+                                                .scaledToFit()
+                                                .frame(height: dessert.id == viewModel.topDesserts.first?.id ? 90 : 60) // 更小的图片
+                                                .cornerRadius(8)
                                         }
-                                        .onAppear {
-                                            DRDebug("[FoodCheckInView] 渲染排行榜项目: \(dessert.name)")
-                                        }
+                                        .frame(height: 100) // 更紧凑
                                         
-                                        Text("打卡\(dessert.count)次")
-                                            .font(.system(size: 12))
-                                            .foregroundColor(.black)
+                                        if dessert.id == viewModel.topDesserts.first?.id {
+                                            Image("crown")
+                                                .resizable()
+                                                .renderingMode(.original)
+                                                .scaledToFit()
+                                                .frame(width: 32, height: 32) // 更小的皇冠
+                                                .offset(x: 8, y: -10)
+                                        }
                                     }
+                                    
+                                    Text("打卡\(dessert.count)次")
+                                        .font(.system(size: 12)) // Caption字体样式
+                                        .foregroundColor(.black)
                                 }
                             }
-                            .padding(.vertical, 16)
-                            .padding(.horizontal, 16)
                         }
-                        .onAppear {
-                            DRDebug("[FoodCheckInView] 排行榜显示数据: \(viewModel.topDesserts.count)项")
-                        }
+                        .padding(.vertical, 12) // 更紧凑
+                        .padding(.horizontal, 16)
                     }
                 }
-                .background(Color.white)
-                .cornerRadius(16)
-                .shadow(color: Color.black.opacity(0.05), radius: 3, x: 0, y: 2)
-                .id("topDesserts-\(forceRefresh)")
-                .onAppear {
-                    DRDebug("[FoodCheckInView] 排行榜卡片出现，数据数量: \(viewModel.topDesserts.count)")
-                }
-                
-                // 数据统计卡片行
-                HStack(spacing: 16) {
-                    foodCheckInCountCard
-                    foodVarietyCard
-                }
             }
+            .background(Color.white)
+            .cornerRadius(16)
+            .shadow(color: Color.black.opacity(0.05), radius: 3, x: 0, y: 2)
+            .id("topDesserts-\(forceRefresh)")
         }
-    }
-    
-    // 美食打卡次数卡片
-    private var foodCheckInCountCard: some View {
-        HStack(spacing: 12) {
-            Image("Number_of_check_in")
-                .resizable()
-                .renderingMode(.original)
-                .scaledToFit()
-                .frame(width: 24, height: 24)
-            
-            HStack(alignment: .firstTextBaseline, spacing: 2) {
-                Text("\(viewModel.totalFoodCheckInCount)")
-                    .font(.system(size: 20, weight: .semibold))
-                    .minimumScaleFactor(0.8)
-                    .lineLimit(1)
-                
-                Text("次美食打卡")
-                    .font(.system(size: 13))
-                    .foregroundColor(.gray)
-                    .lineLimit(1)
-            }
-        }
-        .padding(.vertical, 10)
-        .padding(.horizontal, 12)
-        .background(Color.white)
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.1), radius: 2, x: 2, y: 2)
-    }
-    
-    // 美食种类卡片
-    private var foodVarietyCard: some View {
-        HStack(spacing: 12) {
-            Image("Number_of_sort")
-                .resizable()
-                .renderingMode(.original)
-                .scaledToFit()
-                .frame(width: 24, height: 24)
-            
-            HStack(alignment: .firstTextBaseline, spacing: 2) {
-                Text("\(viewModel.allUniqueDessertTypes)")
-                    .font(.system(size: 20, weight: .semibold))
-                    .minimumScaleFactor(0.8)
-                    .lineLimit(1)
-                
-                Text("种美食")
-                    .font(.system(size: 13))
-                    .foregroundColor(.gray)
-                    .lineLimit(1)
-            }
-        }
-        .padding(.vertical, 10)
-        .padding(.horizontal, 12)
-        .background(Color.white)
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.1), radius: 2, x: 2, y: 2)
     }
     
     // 所有美食打卡记录列表
@@ -433,7 +344,7 @@ struct FoodCheckInView: View {
             VStack(spacing: 12) {
                 HStack {
                     Text("全部打卡记录")
-                        .font(.system(size: 20, weight: .semibold))
+                        .font(.system(size: 18, weight: .semibold)) // Title字体样式
                     
                     Spacer()
                 }
@@ -475,13 +386,13 @@ struct FoodCheckInView: View {
                         }
                     }) {
                         Text(filter.rawValue)
-                            .font(.subheadline)
+                            .font(.system(size: 14)) // Body字体样式
                             .fontWeight(selectedFilter == filter ? .semibold : .regular)
-                            .padding(.vertical, 8)
-                            .padding(.horizontal, 16)
+                            .padding(.vertical, 6) // 更紧凑
+                            .padding(.horizontal, 14) // 更紧凑
                             .background(selectedFilter == filter ? Color.accentColor : Color(UIColor.secondarySystemBackground))
                             .foregroundColor(selectedFilter == filter ? .white : .primary)
-                            .cornerRadius(20)
+                            .cornerRadius(16)
                     }
                 }
             }
@@ -655,7 +566,7 @@ struct FoodCheckInView: View {
     
     // 所有美食打卡记录
     private var allFoodRecords: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 20) {
             if appState.workoutRecords.isEmpty {
                 emptyRecordsView
             } else {
@@ -666,16 +577,16 @@ struct FoodCheckInView: View {
                     // 无筛选结果
                     VStack {
                         Image(systemName: "magnifyingglass")
-                            .font(.system(size: 40))
+                            .font(.system(size: 32))
                             .foregroundColor(.gray.opacity(0.5))
                             .padding()
                         
                         Text("未找到符合条件的记录")
-                            .font(.headline)
+                            .font(.system(size: 16))
                             .foregroundColor(.gray)
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 40)
+                    .padding(.vertical, 32)
                 } else {
                     // 获取日期到时间戳的映射表
                     let dateToTimestamp = getDateStringToTimestampMapping()
@@ -691,13 +602,13 @@ struct FoodCheckInView: View {
                     }
                     
                     ForEach(sortedDates, id: \.self) { dateString in
-                        VStack(alignment: .leading, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 12) {
                             // 日期标题，增加上边距防止被卡片遮挡
                             Text(dateString)
-                                .font(.system(size: 18, weight: .medium))
+                                .font(.system(size: 16, weight: .medium)) // Title字体样式
                                 .padding(.leading, 4)
-                                .padding(.top, 16)
-                                .padding(.bottom, 8)
+                                .padding(.top, 12)
+                                .padding(.bottom, 6)
                             
                             // 当天的记录，按时间戳倒序排列
                             let sortedRecords = groupedRecords[dateString]!.sorted { record1, record2 in
@@ -721,15 +632,15 @@ struct FoodCheckInView: View {
                                         // 为新记录显示动画效果，只有从顶部出现的动画
                                         DessertVoucherCardSimple(record: record)
                                             .environmentObject(appState)  // 显式传递AppState
-                                            .padding(.horizontal, 12)  // 额外卡片内边距
+                                            .padding(.horizontal, 8)  // 减少卡片内边距
                                             .transition(.move(edge: .top).combined(with: .opacity))
                                     } else {
                                         DessertVoucherCardSimple(record: record)
                                             .environmentObject(appState)  // 显式传递AppState
-                                            .padding(.horizontal, 12)  // 额外卡片内边距
+                                            .padding(.horizontal, 8)  // 减少卡片内边距
                                     }
                                 }
-                                .padding(.bottom, 12)  // 增加卡片底部边距
+                                .padding(.bottom, 8)  // 减少卡片底部边距
                                 .onAppear {
                                     // 记录显示时打印调试信息
                                     if let voucher = appState.dessertVouchers.first(where: { $0.workoutRecordId == record.id }) {
@@ -752,28 +663,28 @@ struct FoodCheckInView: View {
                                 if viewModel.isLoadingMore {
                                     ProgressView()
                                         .progressViewStyle(CircularProgressViewStyle())
-                                        .frame(width: 20, height: 20)
-                                        .padding(.trailing, 8)
+                                        .frame(width: 18, height: 18)
+                                        .padding(.trailing, 6)
                                 }
                                 
                                 Text(viewModel.isLoadingMore ? "加载中..." : "加载更多")
-                                    .font(.system(size: 16))
+                                    .font(.system(size: 14))  // Caption字体样式
                                     .foregroundColor(.gray)
                             }
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 15)
+                            .padding(.vertical, 12)
                             .background(Color(.systemBackground))
                             .cornerRadius(8)
                             .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
                         }
-                        .padding(.top, 10)
-                        .padding(.bottom, 20)
+                        .padding(.top, 8)
+                        .padding(.bottom, 16)
                         .disabled(viewModel.isLoadingMore)
                     } else if !appState.workoutRecords.isEmpty {
                         Text("没有更多记录了")
-                            .font(.system(size: 14))
+                            .font(.system(size: 12))  // Caption字体样式
                             .foregroundColor(.gray)
-                            .padding(.vertical, 20)
+                            .padding(.vertical, 16)
                             .frame(maxWidth: .infinity)
                     }
                 }
@@ -785,17 +696,17 @@ struct FoodCheckInView: View {
     private var emptyRecordsView: some View {
         VStack {
             Image(systemName: "tray.fill")
-                .font(.system(size: 40))
+                .font(.system(size: 32))
                 .foregroundColor(.gray.opacity(0.5))
                 .padding()
             
             Text("暂无美食打卡记录")
-                .font(.headline)
+                .font(.system(size: 16))  // Body字体样式
                 .foregroundColor(.gray)
-                .padding(.bottom, 30)
+                .padding(.bottom, 24)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 40)
+        .padding(.vertical, 32)
     }
 }
 
@@ -830,11 +741,11 @@ struct ExpandedCardView: View {
                         ZStack {
                             Circle()
                                 .fill(Color.white.opacity(0.9))
-                                .frame(width: 36, height: 36)
+                                .frame(width: 32, height: 32)
                                 .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
                             
                             Image(systemName: "xmark")
-                                .font(.system(size: 16, weight: .semibold))
+                                .font(.system(size: 14, weight: .semibold))
                                 .foregroundColor(.gray)
                         }
                     }
@@ -853,15 +764,15 @@ struct ExpandedCardView: View {
                 }) {
                     HStack {
                         Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 18))
+                            .font(.system(size: 16))
                         
                         Text("分享可以获得5颗星星")
-                            .font(.system(size: 16, weight: .medium))
+                            .font(.system(size: 14, weight: .medium))  // Body Bold字体样式
                     }
                     .foregroundColor(.white)
-                    .padding(.vertical, 12)
-                    .padding(.horizontal, 32)
-                    .frame(minWidth: 280)
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 28)
+                    .frame(minWidth: 260)
                     .background(
                         LinearGradient(
                             gradient: Gradient(
@@ -874,11 +785,11 @@ struct ExpandedCardView: View {
                             endPoint: .trailing
                         )
                     )
-                    .cornerRadius(30)
+                    .cornerRadius(24)
                     .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
                 }
-                .padding(.top, 8)
-                .padding(.bottom, 24)
+                .padding(.top, 6)
+                .padding(.bottom, 20)
             }
             .background(Color.white.opacity(0))
             .padding(.horizontal, 20)
@@ -887,10 +798,11 @@ struct ExpandedCardView: View {
             // 分享视图
             VStack {
                 Text("分享美食券")
-                    .font(.title)
+                    .font(.system(size: 18, weight: .medium))  // Title字体样式
                     .padding()
                 
                 Text("分享\(record.dessert.name)的美食打卡记录")
+                    .font(.system(size: 16))  // Body字体样式
                     .padding()
                 
                 Button("关闭") {
