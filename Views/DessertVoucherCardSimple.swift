@@ -106,12 +106,25 @@ struct DessertVoucherCardSimple: View {
     
     // 加载美食图片
     private func loadImages() {
-        // 从后端获取voucher类型图片URL
-        let dessertId = record.dessert.id
-        voucherImageURL = APIService.shared.getDessertImageURL(dessertId: dessertId, type: "voucher")
+        // 首先检查是否有关联的美食券与固定图片
+        if let voucher = associatedVoucher, let imageId = voucher.imageId {
+            // 从后端通过image_id参数获取固定的图片
+            let dessertId = record.dessert.id
+            voucherImageURL = APIService.shared.getDessertImageURLWithImageID(dessertId: dessertId, type: "voucher", imageId: imageId)
+            
+            DRDebug("[DessertVoucherCard] 使用美食券固定图片: image_id=\(imageId), URL=\(voucherImageURL?.absoluteString ?? "nil")")
+        } else {
+            // 回退：如果没有关联的美食券或imageId，使用老方法
+            let dessertId = record.dessert.id
+            voucherImageURL = APIService.shared.getDessertImageURL(dessertId: dessertId, type: "voucher")
+            
+            DRWarning("[DessertVoucherCard] 使用随机美食券图片，可能导致显示不一致: \(voucherImageURL?.absoluteString ?? "nil")")
+        }
         
         // 从后端获取icon类型图片URL
-        if let url = APIService.shared.getDessertImageURL(dessertId: dessertId, type: "icon") {
+        let dessertId = record.dessert.id
+        let iconURL = APIService.shared.getDessertImageURL(dessertId: dessertId, type: "icon")
+        if let url = iconURL {
             // 记录尝试加载的icon URL
             DRInfo("[DessertVoucherCard] 尝试加载icon图片: \(url.absoluteString)")
             
@@ -132,7 +145,8 @@ struct DessertVoucherCardSimple: View {
         }
         
         // 记录日志
-        DRDebug("[DessertVoucherCard] 加载美食图片: voucher=\(voucherImageURL?.absoluteString ?? "nil"), icon=\(APIService.shared.getDessertImageURL(dessertId: dessertId, type: "icon")?.absoluteString ?? "nil")")
+        let iconURLString = APIService.shared.getDessertImageURL(dessertId: dessertId, type: "icon")?.absoluteString ?? "nil"
+        DRDebug("[DessertVoucherCard] 加载美食图片: voucher=\(voucherImageURL?.absoluteString ?? "nil"), icon=\(iconURLString)")
     }
     
     // MARK: - 卡片主体部分

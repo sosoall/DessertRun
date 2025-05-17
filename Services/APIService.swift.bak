@@ -1133,8 +1133,6 @@ class APIService {
                 let created_at: String
                 let updated_at: String?
                 let expire_at: String?
-                let image_id: String?
-                let image_url: String?
             }
         }
         
@@ -1332,9 +1330,7 @@ class APIService {
                         status: dto.status,
                         createdAt: createdAt,
                         updatedAt: updateDate,
-                        expireAt: expireDate,
-                        imageId: dto.image_id,
-                        imageURL: dto.image_url
+                        expireAt: expireDate
                     )
                 }
             }
@@ -1740,6 +1736,12 @@ class APIService {
             .eraseToAnyPublisher()
     }
     
+
+        // 直接返回URL，让URLSession处理重定向
+        // ImageCacheService已经被改进为可以处理重定向
+        return URL(string: urlString)
+    }
+    
     // MARK: - 美食图片相关
     
     /// 获取美食图片URL
@@ -1749,7 +1751,6 @@ class APIService {
     /// - Returns: 美食图片URL
     func getDessertImageURL(dessertId: String, type: String) -> URL? {
         let baseURL = Config.API.baseURL
-        // 统一使用一种URL路径格式
         let endpoint = "/api/v1/desserts/\(dessertId)/images/\(type)"
         return URL(string: baseURL + endpoint)
     }

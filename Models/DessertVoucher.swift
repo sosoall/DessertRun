@@ -49,6 +49,12 @@ struct DessertVoucher: Identifiable, Codable, Equatable {
     /// 过期时间
     let expireAt: Date?
     
+    /// 图片ID
+    let imageId: String?
+    
+    /// 图片URL（API直接返回的URL）
+    let imageURL: String?
+    
     /// 获取格式化的卡路里价值
     var formattedCalories: String {
         return String(format: "%.0f卡路里", caloriesValue)
@@ -103,5 +109,22 @@ struct DessertVoucher: Identifiable, Codable, Equatable {
         return lhs.id == rhs.id && 
                lhs.status == rhs.status &&
                lhs.createdAt == rhs.createdAt
+    }
+    
+    /// 定义CodingKeys枚举来处理字段名称映射
+    enum CodingKeys: String, CodingKey {
+        case id
+        case userId = "user_id"
+        case dessertId = "dessert_id"
+        case dessertName = "dessert_name"
+        case equivalentDessertCount = "equivalent_dessert_count"
+        case caloriesValue = "calories_value"
+        case workoutRecordId = "workout_record_id"
+        case status
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+        case expireAt = "expire_at"
+        case imageId = "image_id"
+        case imageURL = "image_url"
     }
 } 
