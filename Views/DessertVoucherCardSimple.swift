@@ -119,7 +119,7 @@ struct DessertVoucherCardSimple: View {
                                 .frame(width: 90, height: 90)
                         }
                     }
-                    .position(x: max(30, geometry.size.width - 60), y: 160)
+                    .position(x: max(30, geometry.size.width - 60), y: 170)
                     .zIndex(1)
                 } else {
                     // 收起状态下的图片位置
@@ -421,37 +421,41 @@ struct DessertVoucherCardSimple: View {
                             
                             // 展开时显示运动详情
                             VStack(alignment: .leading, spacing: 8) {
-                                // 运动时长
-                                if let duration = record.duration {
+                                // 只展示有效数据（不为0的数据）
+                                
+                                // 运动时长 - 如果有效则显示
+                                if let duration = record.duration, duration > 0 {
                                     HStack(spacing: 6) {
                                         Image(systemName: "clock")
                                             .font(.system(size: 14))
                                             .foregroundColor(Color(hex: "#FF7B15"))
                                         
-                                        Text(formatDuration(seconds: Int(duration)))
+                                        // 后端返回的是分钟数，而不是秒数
+                                        Text(formatDuration(minutes: Int(duration)))
                                             .font(.system(size: 14))
                                             .fixedSize(horizontal: false, vertical: true)
                                     }
                                     .opacity(isAnimating ? 1 : 0)
-                                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading) // 修改为可扩展最大宽度
+                                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                                 }
                                 
-                                // 运动距离
-                                if let distance = record.distance {
+                                // 运动距离 - 如果有效则显示
+                                if let distance = record.distance, distance > 0 {
                                     HStack(spacing: 6) {
                                         Image(systemName: "figure.walk")
                                             .font(.system(size: 14))
                                             .foregroundColor(Color(hex: "#FF7B15"))
                                         
-                                        Text(String(format: "%.1f公里", distance / 1000))
+                                        // 后端返回的单位已经是公里
+                                        Text(String(format: "%.1f公里", distance))
                                             .font(.system(size: 14))
                                             .fixedSize(horizontal: false, vertical: true)
                                     }
                                     .opacity(isAnimating ? 1 : 0)
-                                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading) // 修改为可扩展最大宽度
+                                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                                 }
                                 
-                                // 消耗热量
+                                // 消耗热量 - 所有类型都显示
                                 HStack(spacing: 6) {
                                     Image(systemName: "flame.fill")
                                         .font(.system(size: 14))
@@ -462,7 +466,7 @@ struct DessertVoucherCardSimple: View {
                                         .fixedSize(horizontal: false, vertical: true)
                                 }
                                 .opacity(isAnimating ? 1 : 0)
-                                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading) // 修改为可扩展最大宽度
+                                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                                 
                                 // 日期放在这里与其他信息对齐 - 去掉icon
                                 Text(formattedDateTime(record.date))
@@ -501,13 +505,18 @@ struct DessertVoucherCardSimple: View {
         .frame(height: forceExpanded ? 220 : 75)
     }
     
-    // 格式化时长的辅助函数
-    private func formatDuration(seconds: Int) -> String {
-        let hours = seconds / 3600
-        let minutes = (seconds % 3600) / 60
+    // 格式化时长的辅助函数 - 修改单位为分钟
+    private func formatDuration(minutes: Int) -> String {
+        // 如果分钟数为0，返回默认时长
+        if minutes <= 0 {
+            return "未记录时间"
+        }
+        
+        let hours = minutes / 60
+        let mins = minutes % 60
         
         if hours > 0 {
-            return "\(hours)小时\(minutes)分钟"
+            return "\(hours)小时\(mins)分钟"
         } else {
             return "\(minutes)分钟"
         }
@@ -693,4 +702,4 @@ struct DessertVoucherCardSimple_Previews: PreviewProvider {
             .padding()
             .background(Color.gray.opacity(0.1))
     }
-} 
+}
