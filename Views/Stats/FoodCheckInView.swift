@@ -218,7 +218,7 @@ struct FoodCheckInView: View {
     
     // 美食记录卡片
     private var foodRecordCard: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 14) {
             // 标题
             HStack {
                 Text("美食券")
@@ -255,7 +255,7 @@ struct FoodCheckInView: View {
                     .disabled(viewModel.isLoadingTopDesserts)
                 }
                 .padding(.horizontal, 16)
-                .padding(.top, 16)
+                .padding(.top, 14)
                 
                 // 美食排行榜水平布局
                 if viewModel.isLoadingTopDesserts {
@@ -268,7 +268,7 @@ struct FoodCheckInView: View {
                             .padding()
                         Spacer()
                     }
-                    .frame(height: 100) // 更紧凑
+                    .frame(height: 90) // 更紧凑
                 } else if viewModel.topDesserts.isEmpty {
                     // 空状态
                     HStack {
@@ -281,7 +281,7 @@ struct FoodCheckInView: View {
                         }
                         Spacer()
                     }
-                    .frame(height: 100) // 更紧凑
+                    .frame(height: 90) // 更紧凑
                     .onAppear {
                         DRDebug("[FoodCheckInView] 排行榜显示空状态，数据量: \(viewModel.topDesserts.count)")
                         
@@ -294,9 +294,9 @@ struct FoodCheckInView: View {
                 } else {
                     // 有数据状态
                     ScrollView(.horizontal, showsIndicators: false) {
-                        LazyHStack(spacing: 16) { // 减少间距
+                        LazyHStack(spacing: 12) { // 减少间距
                             ForEach(viewModel.topDesserts.prefix(4), id: \.id) { dessert in
-                                VStack(spacing: 6) { // 更紧凑
+                                VStack(spacing: 4) { // 更紧凑
                                     ZStack(alignment: .top) {
                                         VStack {
                                             Spacer()
@@ -307,14 +307,14 @@ struct FoodCheckInView: View {
                                                 .frame(height: dessert.id == viewModel.topDesserts.first?.id ? 90 : 60) // 更小的图片
                                                 .cornerRadius(8)
                                         }
-                                        .frame(height: 100) // 更紧凑
+                                        .frame(height: 90) // 更紧凑
                                         
                                         if dessert.id == viewModel.topDesserts.first?.id {
                                             Image("crown")
                                                 .resizable()
                                                 .renderingMode(.original)
                                                 .scaledToFit()
-                                                .frame(width: 32, height: 32) // 更小的皇冠
+                                                .frame(width: 28, height: 28) // 更小的皇冠
                                                 .offset(x: 8, y: -10)
                                         }
                                     }
@@ -325,8 +325,8 @@ struct FoodCheckInView: View {
                                 }
                             }
                         }
-                        .padding(.vertical, 12) // 更紧凑
-                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10) // 更紧凑
+                        .padding(.horizontal, 14)
                     }
                 }
             }
