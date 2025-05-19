@@ -1,0 +1,44 @@
+import SwiftUI
+import Combine
+
+/// 运动视图模型，处理运动打卡相关的业务逻辑
+class ExerciseViewModel: ObservableObject {
+    // API服务实例
+    private let apiService = APIService.shared
+    
+    // 应用状态
+    private let appState: AppState
+    
+    // 取消订阅令牌
+    private var cancellables = Set<AnyCancellable>()
+    
+    // 初始化
+    init(appState: AppState) {
+        self.appState = appState
+    }
+    
+    /// 创建运动打卡记录
+    /// - Parameter params: 打卡记录参数
+    /// - Returns: 结果发布者
+    func createWorkoutRecord(params: [String: Any]) -> AnyPublisher<WorkoutRecord?, APIServiceError> {
+        return apiService.createWorkoutRecord(params: params)
+            .handleEvents(receiveOutput: { responseData in
+                // 处理打卡成功，使用后端返回的数据
+                if let recordData = responseData {
+                    DRInfo("[ExerciseViewModel] 发送打卡成功通知 WorkoutCompleted")
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("WorkoutCompleted"),
+                        object: recordData
+                    )
+                } else {
+                    DRWarning("[ExerciseViewModel] 后端返回的记录数据为空，跳过发送通知")
+                }
+            })
+            .eraseToAnyPublisher()
+    }
+    
+    /// 批量获取运动记录
+    func getWorkoutRecordsByIds(recordIds: String) -> AnyPublisher<[WorkoutRecord], APIServiceError> {
+        return apiService.getWorkoutRecordsByIds(recordIds: recordIds)
+    }
+} 

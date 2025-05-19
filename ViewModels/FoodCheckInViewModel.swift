@@ -71,6 +71,8 @@ class FoodCheckInViewModel: ObservableObject {
     var isLoadingMoreVouchers: Bool = false
     var currentVoucherPage: Int = 1
     var totalVouchersCount: Int = 0
+    // 添加标记，明确确认没有更多美食券数据
+    var noMoreVouchersConfirmed: Bool = false
     
     // MARK: - 初始化方法
     
@@ -564,9 +566,15 @@ class FoodCheckInViewModel: ObservableObject {
     
     /// 加载更多美食券
     func loadMoreVouchers() {
-        // 检查是否正在加载
-        guard hasMoreVouchers && !isLoadingMoreVouchers && !isLoadingVouchers else {
-            DRDebug("[FoodCheckInViewModel] 加载条件不满足，跳过加载更多美食券")
+        // 修改检查条件 - 只要不在加载中就可以尝试加载更多
+        guard !isLoadingMoreVouchers && !isLoadingVouchers else {
+            DRDebug("[FoodCheckInViewModel] 加载条件不满足，跳过加载更多美食券: isLoadingMoreVouchers=\(isLoadingMoreVouchers), isLoadingVouchers=\(isLoadingVouchers)")
+            return
+        }
+        
+        // 如果已明确确认没有更多记录，则不再尝试加载
+        if noMoreVouchersConfirmed {
+            DRInfo("[FoodCheckInViewModel] 已明确确认没有更多记录，不再尝试加载")
             return
         }
         
@@ -576,7 +584,7 @@ class FoodCheckInViewModel: ObservableObject {
         // 增加页码
         currentVoucherPage += 1
         
-        DRInfo("[FoodCheckInViewModel] 加载更多美食券, 页码: \(currentVoucherPage)")
+        DRInfo("[FoodCheckInViewModel] 加载更多美食券, 页码: \(currentVoucherPage), 当前已加载: \(AppState.shared.dessertVouchers.count), 总数: \(totalVouchersCount)")
         
         // 调用独立加载方法 - 不要在这里重置状态，而是在loadVouchersIndependently完成后重置
         loadVouchersIndependently(forceRefresh: false)
@@ -619,10 +627,14 @@ class FoodCheckInViewModel: ObservableObject {
                     let currentLoaded = (self.currentVoucherPage == 1) ? 
                         0 : AppState.shared.dessertVouchers.count
                     
-                    // 判断是否还有更多美食券
-                    self.hasMoreVouchers = (currentLoaded + voucherResponse.vouchers.count) < voucherResponse.total
+                    // 修正判断逻辑：确保加载更多按钮显示
+                    let currentPageTotal = currentLoaded + voucherResponse.vouchers.count
+                    self.hasMoreVouchers = currentPageTotal < voucherResponse.total
                     
-                    DRInfo("[FoodCheckInViewModel] 当前已加载: \(currentLoaded + voucherResponse.vouchers.count), 总美食券数: \(voucherResponse.total), 是否有更多: \(self.hasMoreVouchers)")
+                    // 更新没有更多记录的确认标记
+                    self.noMoreVouchersConfirmed = !self.hasMoreVouchers
+                    
+                    DRInfo("[FoodCheckInViewModel] 美食券分页信息: 当前总数=\(currentPageTotal), API返回总数=\(voucherResponse.total), 当前页=\(voucherResponse.page), 是否有更多=\(self.hasMoreVouchers), 确认无更多=\(self.noMoreVouchersConfirmed)")
                     
                     // 处理获取到的美食券数据
                     let newVouchers = voucherResponse.vouchers.map { voucherDTO in

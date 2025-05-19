@@ -30,6 +30,9 @@ struct DessertToExerciseTransition: View {
     /// 应用状态
     @EnvironmentObject var appState: AppState
     
+    /// 运动视图模型
+    @StateObject private var viewModel: ExerciseViewModel
+    
     /// 屏幕尺寸
     let screenSize: CGSize
     
@@ -97,6 +100,9 @@ struct DessertToExerciseTransition: View {
     init(animationState: TransitionAnimationState, screenSize: CGSize) {
         self.animationState = animationState
         self.screenSize = screenSize
+        
+        // 初始化运动视图模型
+        _viewModel = StateObject(wrappedValue: ExerciseViewModel(appState: AppState.shared))
         
         // 初始化时加载运动类型
         _isLoadingExerciseTypes = State(initialValue: true)
@@ -242,7 +248,10 @@ struct DessertToExerciseTransition: View {
         var params: [String: Any] = [
             // 直接使用原始dessert.id，现在它已经是String类型
             "dessert_id": dessert.id,
+            "dessert_name": dessert.name,
+            "dessert_calories": Double(dessert.calories.replacingOccurrences(of: "kcal", with: "")) ?? 0,
             "exercise_type": exerciseType.type,
+            "exercise_name": exerciseType.name,
             "equivalent_dessert_count": Double(equivalentDessertCount), // 确保是Double类型
             "note": ""
         ]
@@ -284,8 +293,11 @@ struct DessertToExerciseTransition: View {
             DRError("无法序列化参数到JSON: \(error.localizedDescription)")
         }
         
-        // 调用API创建运动记录
-        APIService.shared.createWorkoutRecord(params: params)
+        // 显示加载中视图
+        isLoading = true
+        
+        // 调用视图模型创建运动记录
+        viewModel.createWorkoutRecord(params: params)
             .receive(on: DispatchQueue.main)
             .sink(
                 receiveCompletion: { completion in
@@ -295,8 +307,7 @@ struct DessertToExerciseTransition: View {
                         DRError("创建运动记录失败: \(error.errorMessage)")
                         
                         // 增加更详细的错误信息
-                        if let apiError = error
-                            as? APIServiceError {
+                        if let apiError = error as? APIServiceError {
                             DRError("API错误详情: \(apiError)")
                             
                             if case .networkError(let networkError) = apiError {
@@ -306,26 +317,36 @@ struct DessertToExerciseTransition: View {
                     }
                 },
                 receiveValue: { response in
-                    self.isLoading = false
-                    
-                    // 设置刚完成打卡标记，用于触发动画
-                    appState.justCompletedWorkout = true
-                    
-                    // 手动添加记录到本地状态
+                    // 等待后端返回数据后，再执行后续操作
                     if let record = response {
+                        // 设置加载状态为false
+                        self.isLoading = false
+                        
+                        // 设置刚完成打卡标记，用于触发动画
+                        appState.justCompletedWorkout = true
+                        
+                        // 将记录添加到本地状态
                         appState.addWorkoutRecord(record)
                         DRInfo("成功创建运动记录: \(record.id)")
-                    }
-                    
-                    // 关闭面板
-                    animationState.dismissPanel()
-                    
-                    // 短暂延迟后切换到甜品打卡标签页
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            // 将TabBar切换到甜品打卡标签（索引为1）
-                            appState.selectedTabIndex = 1
+                        
+                        // 关闭面板
+                        animationState.dismissPanel()
+                        
+                        // 修改流程：先完成美食图回到气泡的动画，然后再打开中间页
+                        // 不直接跳转到美食打卡页面，仅显示中间页
+                        // 美食打卡页的打开由WorkoutCompleteView的关闭按钮来处理
+                        
+                        // 优化：等待0.5秒，让美食图片完成回到气泡的动画后再显示中间页
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            // 通过协调器显示中间页，不再直接修改tabIndex
+                            WorkoutFlowCoordinator.shared.handleWorkoutCompletion(record: record)
+                            DRInfo("打卡成功：美食图片动画完成后打开中间页")
                         }
+                    } else {
+                        // API返回为空，显示错误
+                        self.isLoading = false
+                        self.errorMessage = "服务器返回的数据为空，请重试"
+                        DRError("服务器返回的打卡数据为空")
                     }
                 }
             )
@@ -784,23 +805,59 @@ struct DessertToExerciseTransition: View {
             Button(action: {
                 submitWorkout()
             }) {
-                Text("完成打卡")
-                    .font(.system(size: 17, weight: .bold))
-                    .foregroundColor(.white)
+                if isLoading {
+                    // 加载中状态
+                    HStack {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            .scaleEffect(0.8)
+                        Text("处理中...")
+                            .font(.system(size: 17, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.leading, 8)
+                    }
                     .frame(maxWidth: .infinity)
                     .frame(height: 50)
                     .background(
                         LinearGradient(
-                            gradient: Gradient(colors: [Color(hex: "FF5E57"), Color(hex: "FF2D55")]),
+                            gradient: Gradient(colors: [Color(hex: "FF5E57").opacity(0.7), Color(hex: "FF2D55").opacity(0.7)]),
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                         .cornerRadius(25)
                     )
-                    .shadow(color: Color(hex: "FF2D55").opacity(0.3), radius: 6, x: 0, y: 3)
+                    .shadow(color: Color(hex: "FF2D55").opacity(0.2), radius: 6, x: 0, y: 3)
+                } else {
+                    // 正常状态
+                    Text("完成打卡")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(
+                            LinearGradient(
+                                gradient: Gradient(colors: [Color(hex: "FF5E57"), Color(hex: "FF2D55")]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                            .cornerRadius(25)
+                        )
+                        .shadow(color: Color(hex: "FF2D55").opacity(0.3), radius: 6, x: 0, y: 3)
+                }
             }
+            .disabled(isLoading)
             .padding(.horizontal, 24)
-            .padding(.bottom, 20)
+            .padding(.bottom, errorMessage == nil ? 20 : 10) // 有错误信息时减少底部间距
+            
+            // 错误消息显示
+            if let errorMsg = errorMessage {
+                Text(errorMsg)
+                    .font(.system(size: 14))
+                    .foregroundColor(.red)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 20)
+                    .transition(.opacity)
+            }
         }
         .background(
             RoundedRectangle(cornerRadius: 16)

@@ -17,6 +17,9 @@ struct FoodCheckInView: View {
     // 添加静态变量，用于全局追踪是否已经完成初始加载
     private static var hasInitialDataLoaded: Bool = false
     
+    // 添加变量，记录视图是否通过打卡完成页导航过来
+    @State private var navigatedFromWorkoutComplete: Bool = false
+    
     var body: some View {
         ZStack {
             // 主内容
@@ -54,75 +57,106 @@ struct FoodCheckInView: View {
                 }
             }
             
-            // 分别加载不同数据，避免相互影响
-            // 1. 如果美食记录为空，加载美食记录
-            if appState.workoutRecords.isEmpty {
-                viewModel.loadWorkoutRecordsIndependently()
+            // 检查是否是从打卡完成页面导航过来，如果是，则标记并等待真正显示时才加载数据
+            if appState.justCompletedWorkout {
+                navigatedFromWorkoutComplete = true
+                DRInfo("[FoodCheckInView] 检测到从打卡完成页导航过来，将延迟加载数据")
             }
             
-            // 2. 单独加载排行榜数据
-            if viewModel.topDesserts.isEmpty && !viewModel.isLoadingTopDesserts {
-                viewModel.loadTopDessertsIndependently(limit: 5)
-            }
-            
-            // 3. 如果美食券为空，加载美食券数据
-            if appState.dessertVouchers.isEmpty {
-                viewModel.loadVouchersIndependently()
-            }
-            
-            // 首次加载检查全局标记，而不是仅基于hasAppeared
-            if !Self.hasInitialDataLoaded {
-                // 立即设置标志，防止重复加载
-                hasAppeared = true
-                Self.hasInitialDataLoaded = true
+            // 修改加载逻辑：如果是从打卡完成页导航过来，则检查navigatedFromWorkoutComplete标志
+            // 如果不是，则按原来逻辑加载
+            if !navigatedFromWorkoutComplete {
+                // 分别加载不同数据，避免相互影响
+                // 1. 如果美食记录为空，加载美食记录
+                if appState.workoutRecords.isEmpty {
+                    viewModel.loadWorkoutRecordsIndependently()
+                }
                 
-                // 延迟加载，确保视图已完全呈现
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    // 使用分离的加载函数代替单一的loadData()
-                    if appState.workoutRecords.isEmpty {
-                        viewModel.loadWorkoutRecordsIndependently()
-                    }
+                // 2. 单独加载排行榜数据
+                if viewModel.topDesserts.isEmpty && !viewModel.isLoadingTopDesserts {
+                    viewModel.loadTopDessertsIndependently(limit: 5)
+                }
+                
+                // 3. 如果美食券为空，加载美食券数据
+                if appState.dessertVouchers.isEmpty {
+                    viewModel.loadVouchersIndependently()
+                }
+                
+                // 首次加载检查全局标记，而不是仅基于hasAppeared
+                if !Self.hasInitialDataLoaded {
+                    // 立即设置标志，防止重复加载
+                    hasAppeared = true
+                    Self.hasInitialDataLoaded = true
                     
-                    if appState.dessertVouchers.isEmpty {
-                        viewModel.loadVouchersIndependently()
+                    // 延迟加载，确保视图已完全呈现
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        // 使用分离的加载函数代替单一的loadData()
+                        if appState.workoutRecords.isEmpty {
+                            viewModel.loadWorkoutRecordsIndependently()
+                        }
+                        
+                        if appState.dessertVouchers.isEmpty {
+                            viewModel.loadVouchersIndependently()
+                        }
+                        
+                        if viewModel.topDesserts.isEmpty {
+                            viewModel.loadTopDessertsIndependently(limit: 5)
+                        }
+                        
+                        // 设置美食券已加载标记
+                        self.hasLoadedVouchers = true
                     }
+                }
+            } else {
+                // 如果是从打卡完成页导航过来，在视图完全出现后才加载数据
+                DRInfo("[FoodCheckInView] 从打卡完成页导航过来，将延迟加载数据")
+                
+                // 延迟加载数据，确保中间页已完全关闭
+                // 增加延迟时间，从0.5秒改为0.8秒，确保中间页完全关闭且转场动画结束
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                    DRInfo("[FoodCheckInView] 中间页完全关闭后，开始加载数据")
                     
-                    if viewModel.topDesserts.isEmpty {
-                        viewModel.loadTopDessertsIndependently(limit: 5)
-                    }
+                    // 加载最新的美食券数据
+                    viewModel.loadVouchersIndependently()
+                    
+                    // 加载最新的运动记录数据
+                    viewModel.loadWorkoutRecordsIndependently()
+                    
+                    // 加载排行榜数据
+                    viewModel.loadTopDessertsIndependently(limit: 5)
+                    
+                    // 重置标志
+                    navigatedFromWorkoutComplete = false
                     
                     // 设置美食券已加载标记
                     self.hasLoadedVouchers = true
-                }
-            } else {
-                // 如果不是首次加载，检查是否有新数据需要展示
-                
-                // 如果用户刚完成打卡，处理新记录动画
-                if appState.justCompletedWorkout {
-                    // 加载最新的美食券数据，确保新打卡记录能够显示
-                    DispatchQueue.main.async {
-                        DRDebug("[FoodCheckInView] 检测到新完成的打卡记录，主动刷新所有数据")
-                        viewModel.refreshDataAfterNewRecord()
-                    }
                     
-                    if let latestRecord = viewModel.getSortedAllRecords().first {
-                        // 将新记录ID存入状态变量
-                        newRecordId = "\(latestRecord.id)"
-                        
-                        withAnimation(.easeInOut(duration: 0.5)) {
-                            showNewRecordAnimation = true
+                    // 处理新记录动画
+                    if appState.justCompletedWorkout {
+                        // 增加延迟时间，从0.3秒改为0.5秒，确保数据完全加载后再显示动画
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            if let latestRecord = viewModel.getSortedAllRecords().first {
+                                // 将新记录ID存入状态变量
+                                newRecordId = "\(latestRecord.id)"
+                                
+                                DRInfo("[FoodCheckInView] 显示新记录动画，记录ID: \(latestRecord.id)")
+                                
+                                withAnimation(.easeInOut(duration: 0.5)) {
+                                    showNewRecordAnimation = true
+                                }
+                                
+                                // 3秒后重置状态，但不需要消失动画
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                                    // 没有动画效果，只重置状态
+                                    showNewRecordAnimation = false
+                                    newRecordId = nil
+                                    appState.justCompletedWorkout = false
+                                }
+                                
+                                // 强制刷新列表，确保新记录显示
+                                self.forceRefresh.toggle()
+                            }
                         }
-                        
-                        // 3秒后重置状态，但不需要消失动画
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                            // 没有动画效果，只重置状态
-                            showNewRecordAnimation = false
-                            newRecordId = nil
-                            appState.justCompletedWorkout = false
-                        }
-                        
-                        // 强制刷新列表，确保新记录显示
-                        self.forceRefresh.toggle()
                     }
                 }
             }
@@ -342,7 +376,7 @@ struct FoodCheckInView: View {
                     // 有数据状态
                     ScrollView(.horizontal, showsIndicators: false) {
                         LazyHStack(spacing: 12) { // 减少间距
-                            ForEach(viewModel.topDesserts.prefix(4), id: \.id) { dessert in
+                            ForEach(viewModel.topDesserts, id: \.id) { dessert in
                                 VStack(spacing: 4) { // 更紧凑
                                     ZStack(alignment: .top) {
                                         VStack {
@@ -735,48 +769,58 @@ struct FoodCheckInView: View {
                         }
                     }
                     
-                    // 加载更多按钮
-                    if viewModel.hasMoreVouchers {
-                        Button(action: {
-                            DRInfo("[FoodCheckInView] 用户点击加载更多美食券按钮")
-                            viewModel.loadMoreVouchers()
-                            
-                            // 延迟一点时间再强制刷新视图，确保数据加载有时间完成
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                                self.forceRefresh.toggle()
+                    // 修改加载更多按钮 - 始终显示按钮，不再使用if viewModel.hasMoreVouchers判断
+                    Button(action: {
+                        DRInfo("[FoodCheckInView] 用户点击加载更多美食券按钮，当前页: \(viewModel.currentVoucherPage), 总数: \(viewModel.totalVouchersCount), 已加载: \(appState.dessertVouchers.count)")
+                        viewModel.loadMoreVouchers()
+                        
+                        // 延迟一点时间再强制刷新视图，确保数据加载有时间完成
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                            self.forceRefresh.toggle()
+                            DRInfo("[FoodCheckInView] 加载更多后强制刷新，当前记录数: \(appState.dessertVouchers.count)")
+                        }
+                    }) {
+                        HStack {
+                            if viewModel.isLoadingMoreVouchers {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle())
+                                    .frame(width: 18, height: 18)
+                                    .padding(.trailing, 6)
                             }
-                        }) {
-                            HStack {
-                                if viewModel.isLoadingMoreVouchers {
-                                    ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle())
-                                        .frame(width: 18, height: 18)
-                                        .padding(.trailing, 6)
-                                }
-                                
-                                Text(viewModel.isLoadingMoreVouchers ? "加载中..." : "加载更多")
-                                    .font(.system(size: 14))  // Caption字体样式
+                            
+                            // 根据状态显示不同文本
+                            if appState.dessertVouchers.isEmpty {
+                                Text("暂无记录")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.gray)
+                            } else if viewModel.noMoreVouchersConfirmed {
+                                Text("没有更多记录了")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.gray)
+                            } else if viewModel.isLoadingMoreVouchers {
+                                Text("加载中...")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.gray)
+                            } else {
+                                Text("加载更多")
+                                    .font(.system(size: 14))
                                     .foregroundColor(.gray)
                             }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .background(Color(.systemBackground))
-                            .cornerRadius(8)
-                            .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
                         }
-                        .padding(.top, 8)
-                        .padding(.bottom, 16)
-                        .disabled(viewModel.isLoadingMoreVouchers)
-                        // 使用ID确保按钮的状态变化能触发重新渲染
-                        .id("load-more-btn-\(viewModel.isLoadingMoreVouchers)-\(forceRefresh)")
-                    } else if !appState.dessertVouchers.isEmpty {
-                        Text("没有更多记录了")
-                            .font(.system(size: 12))  // Caption字体样式
-                            .foregroundColor(.gray)
-                            .padding(.vertical, 16)
-                            .frame(maxWidth: .infinity)
-                            // 使用唯一ID确保文本状态能正确更新
-                            .id("no-more-records-\(forceRefresh)")
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color(.systemBackground))
+                        .cornerRadius(8)
+                        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
+                    }
+                    .padding(.top, 8)
+                    .padding(.bottom, 16)
+                    // 仅在确认无更多记录或正在加载时禁用按钮
+                    .disabled(viewModel.isLoadingMoreVouchers || viewModel.noMoreVouchersConfirmed)
+                    // 使用ID确保按钮的状态变化能触发重新渲染
+                    .id("load-more-btn-\(viewModel.isLoadingMoreVouchers)-\(viewModel.noMoreVouchersConfirmed)-\(forceRefresh)")
+                    .onAppear {
+                        DRInfo("[FoodCheckInView] 显示加载更多按钮，当前记录数: \(appState.dessertVouchers.count), 总记录数: \(viewModel.totalVouchersCount)")
                     }
                 }
             }

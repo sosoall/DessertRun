@@ -846,40 +846,132 @@ class APIService {
             DRError("序列化请求参数失败: \(error.localizedDescription)")
         }
         
-        return networkManager.request(
+        // 定义API响应结构
+        struct WorkoutRecordResponse: Decodable {
+            let code: Int
+            let message: String
+            let data: WorkoutRecordDTO
+            
+            struct WorkoutRecordDTO: Decodable {
+                let id: String
+                let user_id: String
+                let exercise_type: String
+                let exercise_name: String
+                let duration: Double?
+                let distance: Double?
+                let calories_burned: Double
+                let dessert_id: String
+                let dessert_name: String
+                let dessert_calories: Double
+                let completion_date: String
+                let equivalent_dessert_count: Double
+                let workout_tag: String
+                let created_at: String
+            }
+        }
+        
+        return networkManager.requestRaw(
             endpoint: endpoint,
             method: .post,
             parameters: params,
             requiresAuth: true
         )
-        .handleEvents(receiveOutput: { responseData in
-            DRDebug("收到createWorkoutRecord响应")
-        })
-        .map { (responseData: EmptyResponseData) -> WorkoutRecord? in
-            // 将响应直接解析为WorkoutRecord对象
-            // 这里通常API会返回创建的记录，但如果不返回，我们可以返回nil
-            return nil
-        }
-        .mapError { [weak self] networkError -> APIServiceError in
-            guard let self = self else { return .unknown }
+        .tryMap { data, response -> WorkoutRecord? in
+            // 打印响应数据，用于调试
+            if let jsonString = String(data: data, encoding: .utf8) {
+                DRDebug("[APIService] 创建打卡响应: \(jsonString)")
+            }
             
-            DRError("createWorkoutRecord网络错误: \(networkError)")
+            // 解析响应
+            let decoder = JSONDecoder()
+            let apiResponse = try decoder.decode(WorkoutRecordResponse.self, from: data)
             
-            // 针对特定错误类型进行更详细的错误提取
-            if case .badRequest(let message) = networkError {
-                DRError("请求参数错误详情: \(message)")
-                
-                // 尝试从错误消息中解析更多信息
-                if message.contains("{") && message.contains("}") {
-                    DRError("服务器可能返回了JSON格式的错误信息")
+            // 检查响应状态
+            guard apiResponse.code == 0 || apiResponse.code == 200 else {
+                DRError("[APIService] 创建打卡失败，错误码: \(apiResponse.code), 消息: \(apiResponse.message)")
+                return nil
+            }
+            
+            let dto = apiResponse.data
+            
+            // 解析日期
+            let dateFormatter = ISO8601DateFormatter()
+            dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            
+            var completionDate: Date?
+            // 尝试多种日期解析方法
+            if let date = dateFormatter.date(from: dto.completion_date) {
+                completionDate = date
+            } else {
+                // 如果失败，尝试不带毫秒的格式
+                dateFormatter.formatOptions = [.withInternetDateTime]
+                if let date = dateFormatter.date(from: dto.completion_date) {
+                    completionDate = date
+                } else {
+                    // 使用更简单的格式再次尝试
+                    let backupFormatter = DateFormatter()
+                    backupFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZ"
+                    completionDate = backupFormatter.date(from: dto.completion_date) ?? Date()
                 }
             }
             
-            // 针对网络错误进行特殊处理
-            if case .unauthorized = networkError {
-                return self.handleError(networkError)
+            // 获取运动类型
+            let exerciseType = APIExerciseType.fromString(dto.exercise_type, name: dto.exercise_name)
+            
+            // 创建甜品对象
+            let dessert = DessertItem(
+                id: dto.dessert_id,
+                name: dto.dessert_name,
+                imageName: "dessert_placeholder",
+                calories: String(format: "%.0f", dto.dessert_calories),
+                category: .dessert,
+                description: "",
+                backgroundColor: nil,
+                isFeatured: false,
+                relatedItems: [],
+                categoryId: "0",
+                categoryName: "甜点",
+                displayOrder: 0,
+                images: []
+            )
+            
+            // 创建并返回WorkoutRecord对象
+            return WorkoutRecord(
+                id: dto.id,
+                userId: dto.user_id,
+                exerciseType: exerciseType,
+                duration: dto.duration,
+                distance: dto.distance,
+                caloriesBurned: dto.calories_burned,
+                dessert: dessert,
+                date: completionDate ?? Date(),
+                workoutTag: dto.workout_tag,
+                equivalentDessertCount: dto.equivalent_dessert_count
+            )
+        }
+        .mapError { [weak self] error -> APIServiceError in
+            guard let self = self else { return .unknown }
+            
+            if let networkError = error as? NetworkError {
+                DRError("createWorkoutRecord网络错误: \(networkError)")
+                
+                // 针对特定错误类型进行更详细的错误提取
+                if case .badRequest(let message) = networkError {
+                    DRError("请求参数错误详情: \(message)")
+                }
+                
+                // 针对网络错误进行特殊处理
+                if case .unauthorized = networkError {
+                    return self.handleError(networkError)
+                } else {
+                    return .networkError(APINetworkError(error: networkError))
+                }
+            } else if let decodingError = error as? DecodingError {
+                DRError("创建打卡记录响应解析错误: \(decodingError)")
+                return .decodeError(decodingError.localizedDescription)
             } else {
-                return .networkError(APINetworkError(error: networkError))
+                DRError("创建打卡记录未知错误: \(error)")
+                return .unknown
             }
         }
         .eraseToAnyPublisher()
