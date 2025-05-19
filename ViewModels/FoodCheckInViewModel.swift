@@ -695,52 +695,40 @@ class FoodCheckInViewModel: ObservableObject {
             return
         }
         
-        DRInfo("[FoodCheckInViewModel] 检测到\(missingRecordIds.count)个缺失的运动记录，正在逐个加载...")
+        DRInfo("[FoodCheckInViewModel] 检测到\(missingRecordIds.count)个缺失的运动记录，正在批量加载...")
         
-        // 使用已有的API方法分别获取每条记录
-        // 创建一个计数器，跟踪已完成的请求数量
-        var completedRequests = 0
-        var loadedRecords: [WorkoutRecord] = []
+        // 将ID数组转换为逗号分隔的字符串
+        let idsString = missingRecordIds.joined(separator: ",")
         
-        for recordId in missingRecordIds {
-            // 使用现有API获取单条记录
-            APIService.shared.getWorkoutRecord(recordId: recordId)
-                .receive(on: DispatchQueue.main)
-                .sink(
-                    receiveCompletion: { completion in
-                        completedRequests += 1
-                        
-                        if case .failure(let error) = completion {
-                            DRError("[FoodCheckInViewModel] 加载缺失的运动记录失败 ID=\(recordId): \(error.errorMessage)")
-                        }
-                        
-                        // 当所有请求完成时，更新UI
-                        if completedRequests == missingRecordIds.count && !loadedRecords.isEmpty {
-                            // 将新加载的记录添加到现有记录中
-                            let existingIds = Set(AppState.shared.workoutRecords.map { $0.id })
-                            let newRecords = loadedRecords.filter { !existingIds.contains($0.id) }
-                            
-                            if !newRecords.isEmpty {
-                                AppState.shared.workoutRecords.append(contentsOf: newRecords)
-                                DRInfo("[FoodCheckInViewModel] 成功加载\(newRecords.count)个缺失的运动记录")
-                                
-                                // 发送通知，告知视图需要更新
-                                NotificationCenter.default.post(
-                                    name: NSNotification.Name("WorkoutRecordsUpdated"),
-                                    object: nil
-                                )
-                            } else {
-                                DRDebug("[FoodCheckInViewModel] 没有新的运动记录需要添加")
-                            }
-                        }
-                    },
-                    receiveValue: { record in
-                        // 添加到临时数组
-                        loadedRecords.append(record)
+        // 使用批量获取API
+        APIService.shared.getWorkoutRecordsByIds(recordIds: idsString)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { completion in
+                    if case .failure(let error) = completion {
+                        DRError("[FoodCheckInViewModel] 批量加载缺失的运动记录失败: \(error.errorMessage)")
                     }
-                )
-                .store(in: &cancellables)
-        }
+                },
+                receiveValue: { records in
+                    // 将新加载的记录添加到现有记录中
+                    let existingIds = Set(AppState.shared.workoutRecords.map { $0.id })
+                    let newRecords = records.filter { !existingIds.contains($0.id) }
+                    
+                    if !newRecords.isEmpty {
+                        AppState.shared.workoutRecords.append(contentsOf: newRecords)
+                        DRInfo("[FoodCheckInViewModel] 成功批量加载\(newRecords.count)个缺失的运动记录")
+                        
+                        // 发送通知，告知视图需要更新
+                        NotificationCenter.default.post(
+                            name: NSNotification.Name("WorkoutRecordsUpdated"),
+                            object: nil
+                        )
+                    } else {
+                        DRDebug("[FoodCheckInViewModel] 没有新的运动记录需要添加")
+                    }
+                }
+            )
+            .store(in: &cancellables)
     }
     
     /// 缓存所有图片URL

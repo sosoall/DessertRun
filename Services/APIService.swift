@@ -1998,6 +1998,52 @@ class APIService {
         }
         .eraseToAnyPublisher()
     }
+    
+    /// 根据多个ID批量获取运动记录
+    /// - Parameter recordIds: 逗号分隔的记录ID字符串，例如："id1,id2,id3"
+    /// - Returns: 返回运动记录对象的发布者
+    func getWorkoutRecordsByIds(recordIds: String) -> AnyPublisher<[WorkoutRecord], APIServiceError> {
+        // 构建API端点
+        let endpoint = "/api/v1/workouts/batch?ids=\(recordIds)"
+        
+        DRInfo("[APIService] 批量获取指定ID的运动记录: IDs=\(recordIds)")
+        
+        // 创建结构体来匹配API的真实返回格式
+        struct WorkoutBatchResponse: Decodable {
+            let code: Int
+            let message: String
+            let data: [WorkoutRecordDTO]
+        }
+        
+        return networkManager.request(
+            endpoint: endpoint,
+            method: .get,
+            parameters: nil,
+            requiresAuth: true,
+            responseType: WorkoutBatchResponse.self
+        )
+        .tryMap { response -> [WorkoutRecord] in
+            // 将DTO转换为领域模型
+            let records = response.data.map { dto in
+                return dto.toDomainModel()
+            }
+            
+            DRInfo("[APIService] 成功获取\(records.count)条指定的运动记录")
+            return records
+        }
+        .mapError { error -> APIServiceError in
+            DRError("[APIService] 批量获取运动记录失败: \(error)")
+            if let apiError = error as? APIServiceError {
+                return apiError
+            }
+            if let networkError = error as? NetworkError {
+                return self.handleError(networkError)
+            }
+            // 对于其他类型的错误，创建一个通用的APIServiceError
+            return .unknown
+        }
+        .eraseToAnyPublisher()
+    }
 }
 
 // MARK: - 数据模型

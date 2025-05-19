@@ -433,7 +433,7 @@ public class NetworkManager {
     ///   - requiresAuth: 是否需要认证令牌
     ///   - responseType: 自定义响应类型
     /// - Returns: 包含解码后数据的发布者
-    public func request<T: Decodable, R: Decodable>(
+    public func request<R: Decodable>(
         endpoint: String,
         method: HTTPMethod,
         parameters: [String: Any]? = nil,
