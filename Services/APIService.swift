@@ -76,7 +76,17 @@ class APIService {
     private let networkManager = NetworkManager.shared
     private var cancellables = Set<AnyCancellable>()
     
+    // 添加跳过缓存的控制变量
+    private var skipCache: Bool = false
+    
     private init() {}
+    
+    /// 设置是否跳过缓存
+    /// - Parameter skip: 是否跳过缓存
+    func setSkipCache(_ skip: Bool) {
+        skipCache = skip
+        DRDebug("[APIService] 设置skipCache=\(skip)")
+    }
     
     // MARK: - 授权相关 API
     
@@ -1352,6 +1362,12 @@ class APIService {
         var parameters: [String: Any] = ["page": page, "limit": limit]
         if let status = status {
             parameters["status"] = status
+        }
+        
+        // 如果设置了跳过缓存，添加时间戳参数以防止服务器返回缓存结果
+        if skipCache {
+            parameters["_t"] = Int(Date().timeIntervalSince1970 * 1000)
+            DRInfo("[APIService] 强制刷新美食券数据 (skipCache=true)")
         }
         
         DRInfo("[APIService] 批量获取美食券及相关图片: 状态=\(status ?? "all"), 页码=\(page), 每页数量=\(limit)")

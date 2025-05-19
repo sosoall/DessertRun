@@ -409,13 +409,22 @@ class FoodCheckInViewModel: ObservableObject {
     }
     
     /// 单独加载运动记录
-    func loadWorkoutRecordsIndependently() {
+    func loadWorkoutRecordsIndependently(forceRefresh: Bool = false) {
+        guard !isLoadingMore else {
+            DRDebug("[FoodCheckInViewModel] 上一个打卡记录请求仍在进行中，跳过")
+            return
+        }
+        
+        isLoadingMore = true
+        
         DRDebug("[FoodCheckInViewModel] 独立加载美食记录，页码: \(currentPage)，每页数量: \(pageSize)")
         
         APIService.shared.getUserWorkoutRecordsWithTotal(page: currentPage, limit: pageSize)
             .receive(on: DispatchQueue.main)
             .sink(
                 receiveCompletion: { [weak self] completion in
+                    self?.isLoadingMore = false
+                    
                     if case .failure(let error) = completion {
                         self?.errorMessage = error.errorMessage
                         DRError("[FoodCheckInViewModel] 加载美食记录失败: \(error.errorMessage)")
@@ -446,14 +455,14 @@ class FoodCheckInViewModel: ObservableObject {
     }
     
     /// 单独加载排行榜
-    func loadTopDessertsIndependently(limit: Int = 5) {
-        // 防止重复加载
-        if isLoadingTopDesserts {
-            DRDebug("[FoodCheckInViewModel] 正在加载美食排行榜，忽略重复请求")
+    func loadTopDessertsIndependently(limit: Int, forceRefresh: Bool = false) {
+        guard !isLoadingTopDesserts else {
+            DRDebug("[FoodCheckInViewModel] 上一个排行榜请求仍在进行中，跳过")
             return
         }
         
         isLoadingTopDesserts = true
+        
         DRDebug("[FoodCheckInViewModel] 开始单独加载排行榜数据")
         
         // 强制清空旧数据，确保发布更新
@@ -532,7 +541,7 @@ class FoodCheckInViewModel: ObservableObject {
                                 }
                             }
                         }
-                        } else {
+                    } else {
                         DispatchQueue.main.async {
                             // 重置加载状态
                             self.isLoadingTopDesserts = false
@@ -548,97 +557,41 @@ class FoodCheckInViewModel: ObservableObject {
     }
     
     /// 独立加载美食券
-    func loadVouchersIndependently(status: String? = nil) {
-        // 添加加载状态标记，防止重复请求
-        if isLoadingVouchers {
-            DRDebug("[FoodCheckInViewModel] 正在加载美食券，忽略重复请求")
+    func loadVouchersIndependently(forceRefresh: Bool = false) {
+        guard !isLoadingVouchers else {
+            DRDebug("[FoodCheckInViewModel] 上一个美食券请求仍在进行中，跳过")
             return
         }
         
         isLoadingVouchers = true
-        DRDebug("[FoodCheckInViewModel] 开始单独加载美食券数据")
+        DRInfo("[FoodCheckInViewModel] 开始加载美食券数据")
         
-        // 使用批量API获取美食券和相关图片
-        APIService.shared.getUserVouchersWithImages(status: status, page: 1, limit: 20)
+        APIService.shared.getUserVouchersWithImages(status: "", page: 1, limit: 50)
             .receive(on: DispatchQueue.main)
             .sink(
                 receiveCompletion: { [weak self] completion in
-                    self?.isLoadingVouchers = false
-                    if case .failure(let error) = completion {
-                        DRError("[FoodCheckInViewModel] 加载美食券失败: \(error)")
-                        self?.errorMessage = "加载美食券失败"
-                    }
-                },
-                receiveValue: { [weak self] batchResponse in
                     guard let self = self else { return }
                     self.isLoadingVouchers = false
-                    DRDebug("[FoodCheckInViewModel] 成功接收批量美食券数据，美食券数量: \(batchResponse.vouchers.count)，图片数量: \(batchResponse.images.count + batchResponse.dessertIcons.count + batchResponse.recordImages.count)")
                     
-                    // 转换为常规美食券模型
-                    let vouchers = batchResponse.vouchers.map { voucherWithImages in
-                        voucherWithImages.toDessertVoucher(
-                            imageURLs: batchResponse.images,
-                            iconURLs: batchResponse.dessertIcons
-                        )
+                    if case .failure(let error) = completion {
+                        DRError("[FoodCheckInViewModel] 加载美食券失败: \(error.errorMessage)")
+                    }
+                },
+                receiveValue: { [weak self] voucherResponse in
+                    guard let self = self else { return }
+                    
+                    // 处理获取到的美食券数据
+                    AppState.shared.dessertVouchers = voucherResponse.vouchers.map { voucherDTO in
+                        return voucherDTO.toDessertVoucher(imageURLs: voucherResponse.images, iconURLs: voucherResponse.dessertIcons)
                     }
                     
-                    // 缓存所有图片URL，并设置合理的过期时间（1小时）
-                    self.cacheImageURLs(
-                        voucherImages: batchResponse.images, 
-                        dessertIcons: batchResponse.dessertIcons, 
-                        recordImages: batchResponse.recordImages
+                    // 发送更新通知
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("VouchersUpdated"),
+                        object: nil
                     )
                     
-                    // 预加载图片(只提取URL)
-                    var imageUrls = [String]()
-                    for url in batchResponse.images.values {
-                        if !url.isEmpty { imageUrls.append(url) }
-                    }
-                    for url in batchResponse.dessertIcons.values {
-                        if !url.isEmpty { imageUrls.append(url) }
-                    }
-                    for url in batchResponse.recordImages.values {
-                        if !url.isEmpty { imageUrls.append(url) }
-                    }
-                    
-                    if !imageUrls.isEmpty {
-                        DRDebug("[FoodCheckInViewModel] 开始预加载\(imageUrls.count)张美食券相关图片")
-                        // 轻量级预加载，只缓存但不等待加载完成
-                        ImageCacheService.shared.prefetchImages(urls: imageUrls) { _, _ in
-                            // 不在这里发送通知，避免影响性能
-                        }
-                    }
-                    
-                    // 更新应用状态中的美食券列表
-                    DispatchQueue.main.async {
-                        // 检查是否有关联记录但不在workoutRecords中的情况
-                        var needRefreshRecords = false
-                        var missingRecordIds = Set<String>()
-                        
-                        // 收集当前已加载的记录ID
-                        let existingRecordIds = Set(self.appState.workoutRecords.map { $0.id })
-                        
-                        // 检查美食券关联的记录是否都已加载
-                        for voucher in vouchers {
-                            if let recordId = voucher.workoutRecordId, !existingRecordIds.contains(recordId) {
-                                missingRecordIds.insert(recordId)
-                                needRefreshRecords = true
-                            }
-                        }
-                        
-                        if needRefreshRecords {
-                            DRDebug("[FoodCheckInViewModel] 发现\(missingRecordIds.count)个记录未加载，刷新记录数据")
-                            // 发现未加载的记录，强制刷新记录数据
-                            self.loadWorkoutRecordsIndependently()
-                        }
-                        
-                        // 更新美食券数据
-                        self.appState.dessertVouchers = vouchers
-                        DRInfo("[FoodCheckInViewModel] 成功加载\(vouchers.count)张美食券")
-                        
-                        // 强制刷新视图
-                        NotificationCenter.default.post(name: NSNotification.Name("VouchersUpdated"), object: nil)
-                    }
+                    DRInfo("[FoodCheckInViewModel] 美食券数据加载成功: \(voucherResponse.vouchers.count)个")
                 }
             )
             .store(in: &cancellables)
@@ -706,21 +659,42 @@ class FoodCheckInViewModel: ObservableObject {
     
     /// 在创建新的打卡记录后立即刷新美食券和记录数据
     func refreshDataAfterNewRecord() {
-        DRDebug("[FoodCheckInViewModel] 新打卡记录创建后立即刷新数据")
+        DRInfo("[FoodCheckInViewModel] 新打卡记录创建后立即刷新数据")
         
         // 确保在主线程执行UI更新
         DispatchQueue.main.async {
-            // 1. 先加载最新的美食记录
-            self.loadWorkoutRecordsIndependently()
+            // 清除加载状态，避免冲突
+            self.isLoadingVouchers = false
+            self.isLoadingTopDesserts = false
             
-            // 2. 加载最新的美食券数据
-            self.loadVouchersIndependently()
+            // 强制发送通知，告知视图需要刷新
+            NotificationCenter.default.post(name: NSNotification.Name("NewRecordCreated"), object: nil)
             
-            // 3. 更新排行榜数据
-            self.loadTopDessertsIndependently(limit: 5)
+            // 设置APIService跳过缓存
+            APIService.shared.setSkipCache(true)
             
-            // 4. 设置更新标记
-            NotificationCenter.default.post(name: NSNotification.Name("VouchersUpdated"), object: nil)
+            // 先短暂延迟，让服务器有时间处理新记录
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                // 1. 首先刷新美食券数据 - 这是显示新记录的关键
+                DRInfo("[FoodCheckInViewModel] 正在强制刷新美食券数据...")
+                self.loadVouchersIndependently()
+                
+                // 2. 然后刷新打卡记录数据
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    self.loadWorkoutRecordsIndependently()
+                    
+                    // 3. 最后刷新排行榜数据
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        self.loadTopDessertsIndependently(limit: 5)
+                        
+                        // 额外发送通知，确保视图更新
+                        NotificationCenter.default.post(name: NSNotification.Name("VouchersUpdated"), object: nil)
+                        
+                        // 重置缓存跳过标志
+                        APIService.shared.setSkipCache(false)
+                    }
+                }
+            }
         }
     }
 }

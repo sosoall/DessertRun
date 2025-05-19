@@ -16,6 +16,9 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         // 设置CoreGraphics数值错误忽略
         UserDefaults.standard.set(false, forKey: "_UIConstraintBasedLayoutLogUnsatisfiable")
         
+        // 配置日志过滤，禁用美食券和图片缓存的调试日志
+        configureLogging()
+        
         // 设置摇一摇菜单（仅Debug模式生效）
         application.setupShakeGestureMenu()
         
@@ -105,6 +108,14 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 
 // MARK: - 私有辅助方法
 extension AppDelegate {
+    /// 配置日志过滤器
+    private func configureLogging() {
+        // 默认禁用美食券和图片缓存的调试日志，减少日志输出
+        LogModuleFilter.enableFoodVoucherDebugLogs = false
+        LogModuleFilter.enableImageCacheDebugLogs = false
+        DRInfo("[AppDelegate] 已配置日志过滤器: 美食券调试日志:\(LogModuleFilter.enableFoodVoucherDebugLogs), 图片缓存调试日志:\(LogModuleFilter.enableImageCacheDebugLogs)")
+    }
+    
     /// 设置网络缓存
     private func setupNetworkCache() {
         // 设置URLCache

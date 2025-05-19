@@ -2,6 +2,37 @@ import Foundation
 import UIKit
 import WebKit
 
+/// 线程安全的原子值包装器
+class Atomic<T> {
+    private var value: T
+    private let lock = NSLock()
+    
+    init(value: T) {
+        self.value = value
+    }
+    
+    func get() -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return value
+    }
+    
+    func set(_ newValue: T) {
+        lock.lock()
+        value = newValue
+        lock.unlock()
+    }
+    
+    /// 原子递增操作(仅用于整数类型)
+    @discardableResult
+    func increment() -> Int where T == Int {
+        lock.lock()
+        defer { lock.unlock() }
+        value += 1
+        return value
+    }
+}
+
 /// 图片缓存服务，用于下载、缓存和管理图片
 class ImageCacheService {
     static let shared = ImageCacheService()
@@ -83,8 +114,6 @@ class ImageCacheService {
         urlCacheLock.lock()
         urlCache[id] = (url: url, expiresAt: expiresAt)
         urlCacheLock.unlock()
-        
-        DRDebug("[ImageCacheService] 缓存URL: \(url) 对应ID: \(id), 过期时间: \(expiresAt)")
     }
     
     /// 获取缓存的图片URL
@@ -223,13 +252,8 @@ class ImageCacheService {
             return
         }
         
-        DRInfo("[ImageCacheService] 开始从网络下载图片")
-        
         // 检查是否是SVG格式的图片（通过URL后缀或类型参数）
         let isSVG = url.lowercased().contains(".svg") || url.lowercased().contains("type=icon") && !url.lowercased().contains(".png")
-        if isSVG {
-            DRInfo("[ImageCacheService] 检测到SVG图片")
-        }
         
         // 创建URL请求
         var request = URLRequest(url: imageUrl)
@@ -251,14 +275,14 @@ class ImageCacheService {
             
             // 检查是否有错误
             if let error = error {
-                DRError("[ImageCacheService] 图片下载失败: \(url), 错误: \(error.localizedDescription)")
+                DRError("[ImageCacheService] 图片下载失败: \(error.localizedDescription)")
                 completion(nil)
                 return
             }
             
             // 检查是否有数据
             guard let data = data else {
-                DRError("[ImageCacheService] 图片下载失败: \(url), 错误: 没有数据")
+                DRError("[ImageCacheService] 图片下载失败: 没有数据")
                 completion(nil)
                 return
             }
@@ -268,11 +292,6 @@ class ImageCacheService {
             if let httpResponse = response as? HTTPURLResponse {
                 let statusCode = httpResponse.statusCode
                 mimeType = httpResponse.mimeType
-                
-                // 日志记录响应信息，帮助调试
-                if let mimeType = mimeType {
-                    DRInfo("[ImageCacheService] 收到图片响应: 状态码: \(statusCode), MIME类型: \(mimeType), 数据大小: \(data.count)字节")
-                }
                 
                 // 处理不同的响应状态码
                 if statusCode < 200 || statusCode >= 300 {
@@ -286,23 +305,16 @@ class ImageCacheService {
             let isPNG = mimeType == "image/png" || url.lowercased().contains(".png")
             let isSVGResponse = mimeType == "image/svg+xml" || (isSVG && !isPNG)
             
-            DRInfo("[ImageCacheService] 图片格式: \(isPNG ? "PNG" : isSVGResponse ? "SVG" : "其他格式")")
-            
             // 尝试从数据创建图像
             if isSVGResponse {
                 // 处理SVG图片
-                DRInfo("[ImageCacheService] 处理SVG图片数据: 大小: \(data.count)字节")
-                
                 // 使用WebKit渲染SVG
                 self.renderSVG(svgData: data, url: url) { renderedImage in
                     if let finalImage = renderedImage {
                         // 缓存图像
                         self.saveImageToCache(finalImage, forKey: cacheKey)
-                        
-                        DRInfo("[ImageCacheService] 成功渲染和缓存SVG图片")
                         completion(finalImage)
                     } else {
-                        DRError("[ImageCacheService] SVG渲染失败")
                         // 创建备用图标
                         let fallbackImage = self.createFallbackImage()
                         completion(fallbackImage)
@@ -313,11 +325,9 @@ class ImageCacheService {
                 if let standardImage = UIImage(data: data) {
                     // 缓存图像
                     self.saveImageToCache(standardImage, forKey: cacheKey)
-                    
-                    DRInfo("[ImageCacheService] 成功下载和缓存\(isPNG ? "PNG" : "标准")图片")
                     completion(standardImage)
                 } else {
-                    DRError("[ImageCacheService] 无法创建\(isPNG ? "PNG" : "标准")图像: 数据大小: \(data.count)字节")
+                    DRError("[ImageCacheService] 无法创建图像: 数据大小: \(data.count)字节")
                     completion(nil)
                 }
             }
@@ -338,9 +348,6 @@ class ImageCacheService {
             
             // 创建SVG内容
             if let svgString = String(data: svgData, encoding: .utf8) {
-                // 只显示SVG内容的前100个字符作为日志
-                DRInfo("[ImageCacheService] SVG内容: \(svgString.prefix(100))...")
-                
                 // 构建HTML页面，确保SVG缩放适应容器
                 let html = """
                 <!DOCTYPE html>
@@ -368,13 +375,7 @@ class ImageCacheService {
                     let image = UIGraphicsGetImageFromCurrentImageContext()
                     UIGraphicsEndImageContext()
                     
-                    if let finalImage = image {
-                        DRInfo("[ImageCacheService] SVG渲染成功")
-                        completion(finalImage)
-                    } else {
-                        DRError("[ImageCacheService] SVG渲染失败，无法截取图像")
-                        completion(nil)
-                    }
+                    completion(image)
                 }
             } else {
                 DRError("[ImageCacheService] 无法将SVG数据转换为字符串")
@@ -423,8 +424,6 @@ class ImageCacheService {
         
         // 保存到磁盘缓存
         saveToDisk(image: image, forKey: key)
-        
-        DRInfo("[ImageCacheService] 图像已缓存, key: \(key)")
     }
     
     /// 保存图片到磁盘
@@ -434,9 +433,8 @@ class ImageCacheService {
             if let data = image.jpegData(compressionQuality: 0.8) {
                 do {
                     try data.write(to: diskCachePath)
-                    DRDebug("[ImageCacheService] 图片保存到磁盘: \(key)")
                 } catch {
-                    DRError("[ImageCacheService] 图片保存到磁盘失败: \(key), 错误: \(error.localizedDescription)")
+                    DRError("[ImageCacheService] 图片保存到磁盘失败: \(error.localizedDescription)")
                 }
             }
         }
@@ -535,42 +533,30 @@ class ImageCacheService {
         return result
     }
     
-    /// 批量预缓存图片 - 可以在应用启动时或进入特定页面前调用
-    func prefetchImages(urls: [String], progress: ((Int, Int) -> Void)? = nil, completion: (() -> Void)? = nil) {
+    /// 预加载多个图片URL
+    /// - Parameters:
+    ///   - urls: 图片URL数组
+    ///   - progress: 进度回调，参数为已加载数量和总数量
+    func prefetchImages(urls: [String], progress: @escaping (Int, Int) -> Void) {
         guard !urls.isEmpty else {
-            completion?()
+            progress(0, 0)
             return
         }
         
-        let totalCount = urls.count
-        var loadedCount = 0
-        let group = DispatchGroup()
+        // 去重，避免重复下载
+        let uniqueUrls = Array(Set(urls))
         
-        DRInfo("[ImageCacheService] 开始批量预缓存 \(totalCount) 张图片")
+        // 一个线程安全的计数器，用于跟踪加载完成的图片数量
+        let loadedCount = Atomic<Int>(value: 0)
+        let totalCount = uniqueUrls.count
         
-        for url in urls {
-            group.enter()
-            
-            // 检查是否已缓存
-            let cacheKey = getCacheKey(from: url)
-            if memoryCache.object(forKey: cacheKey as NSString) != nil {
-                // 内存中已有，直接标记完成
-                loadedCount += 1
-                progress?(loadedCount, totalCount)
-                group.leave()
-                continue
-            }
-            
+        for url in uniqueUrls {
             downloadAndCacheImage(url: url) { _ in
-                loadedCount += 1
-                progress?(loadedCount, totalCount)
-                group.leave()
+                let current = loadedCount.increment()
+                DispatchQueue.main.async {
+                    progress(current, totalCount)
+                }
             }
-        }
-        
-        group.notify(queue: .main) {
-            DRInfo("[ImageCacheService] 批量预缓存完成: \(loadedCount)/\(totalCount)")
-            completion?()
         }
     }
     

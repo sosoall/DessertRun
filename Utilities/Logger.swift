@@ -25,6 +25,34 @@ enum LogLevel: String {
     }
 }
 
+/// 日志模块过滤配置
+struct LogModuleFilter {
+    /// 食物和美食券模块的日志状态
+    static var enableFoodVoucherDebugLogs = false
+    
+    /// 图片缓存模块的日志状态
+    static var enableImageCacheDebugLogs = false
+    
+    /// 检查是否允许特定模块的日志输出
+    static func shouldLog(message: String, level: LogLevel) -> Bool {
+        // 错误级别的日志始终输出
+        if level == .error || level == .critical {
+            return true
+        }
+        
+        // 针对特定模块的过滤规则
+        if message.contains("[FoodCheckInViewModel]") && !enableFoodVoucherDebugLogs && level == .debug {
+            return false
+        }
+        
+        if message.contains("[ImageCacheService]") && !enableImageCacheDebugLogs && level == .debug {
+            return false
+        }
+        
+        return true
+    }
+}
+
 /// 简单日志系统
 class Logger {
     static let shared = Logger()
@@ -48,6 +76,11 @@ class Logger {
         // 构建完整日志消息
         let fileName = (file as NSString).lastPathComponent
         let logMessage = "[\(level.rawValue)] [\(fileName):\(line)] \(function): \(message)"
+        
+        // 应用模块过滤规则
+        if !LogModuleFilter.shouldLog(message: message, level: level) {
+            return
+        }
         
         // 输出到控制台
         os_log("%{public}@", log: log, type: level.osLogType, logMessage)
