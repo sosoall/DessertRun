@@ -85,57 +85,64 @@ struct VoucherWithImages: Codable, Identifiable {
     
     /// 将VoucherWithImages转换为DessertVoucher
     func toDessertVoucher(imageURLs: [String: String], iconURLs: [String: String]) -> DessertVoucher {
-        // 处理日期
-        let dateFormatter = ISO8601DateFormatter()
-        dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        
-        // 确保日期解析正确，如果解析失败则打印错误，不使用当前日期作为默认值
-        var createdAtDate: Date
-        if let date = dateFormatter.date(from: createdAt) {
-            createdAtDate = date
-        } else {
-            DRError("[BatchVoucherResponse] 无法解析美食券创建日期: \(createdAt)")
-            // 尝试使用没有毫秒的格式再解析一次
-            let simpleFormatter = ISO8601DateFormatter()
-            if let date = simpleFormatter.date(from: createdAt) {
-                createdAtDate = date
-            } else {
-                // 如果仍然解析失败，打印详细错误并使用服务器当前时间
-                DRError("[BatchVoucherResponse] 第二次尝试解析美食券创建日期失败: \(createdAt)，使用当前日期")
-                createdAtDate = Date()
+        // 使用更健壮的日期解析方法
+        func parseISODate(_ dateString: String) -> Date? {
+            // 1. 首先尝试使用完整ISO8601格式（带毫秒和时区）
+            let fullFormatter = ISO8601DateFormatter()
+            fullFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = fullFormatter.date(from: dateString) {
+                return date
             }
+            
+            // 2. 尝试不带毫秒的ISO8601格式
+            let simpleFormatter = ISO8601DateFormatter()
+            simpleFormatter.formatOptions = [.withInternetDateTime]
+            if let date = simpleFormatter.date(from: dateString) {
+                return date
+            }
+            
+            // 3. 尝试手动解析常见的日期格式
+            let dateFormats = [
+                "yyyy-MM-dd'T'HH:mm:ssZ",         // 基本ISO8601，带时区
+                "yyyy-MM-dd'T'HH:mm:ss.SSSZ",     // 带毫秒和时区
+                "yyyy-MM-dd'T'HH:mm:ssZZZZZ",     // 带扩展时区格式(+08:00)
+                "yyyy-MM-dd'T'HH:mm:ss.SSSZZZZZ", // 带毫秒和扩展时区
+                "yyyy-MM-dd HH:mm:ss",            // 简单格式，无T分隔符和时区
+                "yyyy-MM-dd"                      // 仅日期
+            ]
+            
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")  // 使用标准区域设置
+            
+            for format in dateFormats {
+                formatter.dateFormat = format
+                if let date = formatter.date(from: dateString) {
+                    return date
+                }
+            }
+            
+            // 所有尝试都失败
+            DRError("[BatchVoucherResponse] 所有日期格式解析尝试失败: \(dateString)")
+            return nil
         }
         
+        // 解析创建日期
+        let createdAtDate = parseISODate(createdAt) ?? Date()
+        
+        // 解析过期日期
         var expireAtDate: Date? = nil
         if let expireAt = expireAt {
-            if let date = dateFormatter.date(from: expireAt) {
-                expireAtDate = date
-            } else {
-                DRError("[BatchVoucherResponse] 无法解析美食券过期日期: \(expireAt)")
-                // 尝试使用没有毫秒的格式再解析一次
-                let simpleFormatter = ISO8601DateFormatter()
-                if let date = simpleFormatter.date(from: expireAt) {
-                    expireAtDate = date
-                }
-            }
+            expireAtDate = parseISODate(expireAt)
         }
         
+        // 解析核销日期
         var redeemedAtDate: Date? = nil
         if let redeemedAt = redeemedAt {
-            if let date = dateFormatter.date(from: redeemedAt) {
-                redeemedAtDate = date
-            } else {
-                DRError("[BatchVoucherResponse] 无法解析美食券核销日期: \(redeemedAt)")
-                // 尝试使用没有毫秒的格式再解析一次
-                let simpleFormatter = ISO8601DateFormatter()
-                if let date = simpleFormatter.date(from: redeemedAt) {
-                    redeemedAtDate = date
-                }
-            }
+            redeemedAtDate = parseISODate(redeemedAt)
         }
         
-        // 记录日期解析结果，方便调试
-        DRDebug("[BatchVoucherResponse] 解析美食券日期: 创建时间=\(createdAt) -> \(createdAtDate)")
+        // 记录解析成功的创建日期，便于调试
+        DRInfo("[BatchVoucherResponse] 解析美食券日期成功: \(createdAt) -> \(createdAtDate)")
         
         // 确定图片URL
         let imageURL: String

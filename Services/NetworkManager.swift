@@ -425,6 +425,190 @@ public class NetworkManager {
             .eraseToAnyPublisher()
     }
     
+    /// 创建API请求（自定义响应类型）
+    /// - Parameters:
+    ///   - endpoint: API端点路径
+    ///   - method: HTTP方法
+    ///   - parameters: 请求参数
+    ///   - requiresAuth: 是否需要认证令牌
+    ///   - responseType: 自定义响应类型
+    /// - Returns: 包含解码后数据的发布者
+    public func request<T: Decodable, R: Decodable>(
+        endpoint: String,
+        method: HTTPMethod,
+        parameters: [String: Any]? = nil,
+        requiresAuth: Bool = true,
+        responseType: R.Type
+    ) -> AnyPublisher<R, NetworkError> {
+        // 构建完整URL
+        let urlString: String
+        if endpoint.hasPrefix("http") {
+            urlString = endpoint
+        } else {
+            urlString = Config.API.baseURL + endpoint
+        }
+        
+        guard let url = URL(string: urlString) else {
+            return Fail(error: NetworkError.invalidURL).eraseToAnyPublisher()
+        }
+        
+        // 检查授权令牌是否已过期（如果请求需要授权）
+        if requiresAuth {
+            if let token = UserDefaults.standard.string(forKey: Config.UserData.tokenKey) {
+                // 检查令牌是否为空字符串或格式明显无效
+                if token.isEmpty || token.count < 10 {
+                    DRWarning("[NetworkManager] 发现无效令牌，可能已过期")
+                    
+                    // 删除无效令牌
+                    UserDefaults.standard.removeObject(forKey: Config.UserData.tokenKey)
+                    UserDefaults.standard.removeObject(forKey: Config.UserData.userIdKey)
+                    
+                    // 通知认证服务处理token过期
+                    DispatchQueue.main.async {
+                        AuthService.shared.handleTokenExpired()
+                    }
+                    
+                    return Fail(error: NetworkError.unauthorized("令牌无效，请重新登录")).eraseToAnyPublisher()
+                }
+            } else {
+                // 如果需要授权但没有令牌，直接返回未授权错误
+                DRWarning("[NetworkManager] 请求需要授权但未找到令牌")
+                
+                // 通知认证服务处理token过期
+                DispatchQueue.main.async {
+                    AuthService.shared.handleTokenExpired()
+                }
+                
+                return Fail(error: NetworkError.unauthorized("未登录或登录已过期")).eraseToAnyPublisher()
+            }
+        }
+        
+        // 创建URL请求
+        var request = URLRequest(url: url)
+        request.httpMethod = method.rawValue
+        request.timeoutInterval = Config.API.timeout
+        
+        // 添加通用头部
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        request.addValue("\(Config.App.appName)/\(Config.App.appVersion)", forHTTPHeaderField: "User-Agent")
+        
+        // 添加认证令牌
+        if requiresAuth, let token = UserDefaults.standard.string(forKey: Config.UserData.tokenKey) {
+            request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        
+        // 处理参数
+        if let parameters = parameters {
+            if method == .get {
+                // 对于GET请求，将参数添加到URL中
+                var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+                components.queryItems = parameters.map { URLQueryItem(name: $0.key, value: "\($0.value)") }
+                if let queryURL = components.url {
+                    request.url = queryURL
+                }
+                DRDebug("[NetworkManager] GET请求参数: \(parameters)")
+            } else {
+                // 对于其他请求，将参数添加到请求体中
+                do {
+                    let jsonData = try JSONSerialization.data(withJSONObject: parameters)
+                    request.httpBody = jsonData
+                    
+                    // 增加请求参数日志
+                    DRDebug("[NetworkManager] \(method.rawValue)请求参数: \(parameters)")
+                } catch {
+                    DRError("[NetworkManager] 参数序列化失败: \(error.localizedDescription)")
+                    return Fail(error: NetworkError.requestFailed(error)).eraseToAnyPublisher()
+                }
+            }
+        }
+        
+        // 执行请求
+        return URLSession.shared.dataTaskPublisher(for: request)
+            .mapError { NetworkError.requestFailed($0) }
+            .tryMap { data, response in
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    throw NetworkError.invalidResponse
+                }
+                
+                // 处理HTTP状态码
+                switch httpResponse.statusCode {
+                case 200..<300:
+                    return data
+                case 400:
+                    // 提取具体的400错误信息
+                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let message = json["message"] as? String {
+                        throw NetworkError.badRequest(message)
+                    } else if let jsonString = String(data: data, encoding: .utf8) {
+                        throw NetworkError.badRequest(jsonString)
+                    } else {
+                        throw NetworkError.badRequest("请求参数错误")
+                    }
+                case 401:
+                    // 清除过期令牌
+                    UserDefaults.standard.removeObject(forKey: Config.UserData.tokenKey)
+                    UserDefaults.standard.removeObject(forKey: Config.UserData.userIdKey)
+                    
+                    // 通知认证服务处理token过期
+                    DispatchQueue.main.async {
+                        AuthService.shared.handleTokenExpired()
+                    }
+                    
+                    // 提取具体的401错误信息
+                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let message = json["message"] as? String {
+                        throw NetworkError.unauthorized(message)
+                    } else {
+                        throw NetworkError.unauthorized("未授权访问")
+                    }
+                case 404:
+                    // 提取具体的404错误信息
+                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let message = json["message"] as? String {
+                        throw NetworkError.notFound(message)
+                    } else {
+                        throw NetworkError.notFound("请求的资源不存在")
+                    }
+                default:
+                    // 尝试解析服务器错误消息
+                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let message = json["message"] as? String {
+                        throw NetworkError.serverError(httpResponse.statusCode, message)
+                    } else {
+                        throw NetworkError.serverError(httpResponse.statusCode, "未知服务器错误")
+                    }
+                }
+            }
+            .decode(type: R.self, decoder: JSONDecoder())
+            .mapError { error -> NetworkError in
+                if let networkError = error as? NetworkError {
+                    return networkError
+                } else if let decodingError = error as? DecodingError {
+                    DRError("[NetworkManager] 解析自定义响应失败: \(decodingError.localizedDescription)")
+                    
+                    // 提供更详细的解码错误信息
+                    switch decodingError {
+                    case .keyNotFound(let key, let context):
+                        DRError("[NetworkManager] 找不到键: \(key.stringValue), 路径: \(context.codingPath.map { $0.stringValue })")
+                    case .valueNotFound(let type, let context):
+                        DRError("[NetworkManager] 找不到\(type)类型的值, 路径: \(context.codingPath.map { $0.stringValue })")
+                    case .typeMismatch(let type, let context):
+                        DRError("[NetworkManager] 类型不匹配: 期望\(type), 路径: \(context.codingPath.map { $0.stringValue })")
+                    case .dataCorrupted(let context):
+                        DRError("[NetworkManager] 数据损坏: \(context)")
+                    @unknown default:
+                        DRError("[NetworkManager] 未知解码错误: \(decodingError)")
+                    }
+                    
+                    return NetworkError.decodingFailed(error)
+                } else {
+                    return NetworkError.requestFailed(error)
+                }
+            }
+            .eraseToAnyPublisher()
+    }
+    
     // 处理响应数据
     private func handleResponse<T: Decodable>(_ data: Data, _ response: URLResponse) throws -> T {
         // 检查HTTP响应状态码

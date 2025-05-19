@@ -1955,6 +1955,49 @@ class APIService {
         // ImageCacheService已经被改进为可以处理重定向
         return URL(string: urlString)
     }
+
+    /// 获取单个运动记录
+    /// - Parameter recordId: 要获取的运动记录ID
+    /// - Returns: 返回单个运动记录对象的发布者
+    func getWorkoutRecord(recordId: String) -> AnyPublisher<WorkoutRecord, APIServiceError> {
+        // 构建API端点
+        let endpoint = "/api/v1/workouts/\(recordId)"
+        
+        DRInfo("[APIService] 获取单个运动记录: ID=\(recordId)")
+        
+        // 创建结构体来匹配API的真实返回格式
+        struct WorkoutRecordResponse: Decodable {
+            let code: Int
+            let message: String
+            let data: WorkoutRecordDTO
+        }
+        
+        return networkManager.request(
+            endpoint: endpoint,
+            method: .get,
+            parameters: nil,
+            requiresAuth: true,
+            responseType: WorkoutRecordResponse.self
+        )
+        .tryMap { response -> WorkoutRecord in
+            // 将DTO转换为领域模型
+            let record = response.data.toDomainModel()
+            DRInfo("[APIService] 成功获取运动记录 ID=\(recordId)")
+            return record
+        }
+        .mapError { error -> APIServiceError in
+            DRError("[APIService] 获取运动记录失败 ID=\(recordId): \(error)")
+            if let apiError = error as? APIServiceError {
+                return apiError
+            }
+            if let networkError = error as? NetworkError {
+                return self.handleError(networkError)
+            }
+            // 对于其他类型的错误，创建一个通用的APIServiceError
+            return .unknown
+        }
+        .eraseToAnyPublisher()
+    }
 }
 
 // MARK: - 数据模型
@@ -2178,5 +2221,95 @@ private struct CustomCodingKey: CodingKey {
     init?(intValue: Int) {
         self.stringValue = String(intValue)
         self.intValue = intValue
+    }
+}
+
+// MARK: - 美食记录DTO
+
+/// 美食打卡记录DTO
+struct WorkoutRecordDTO: Decodable {
+    let id: String
+    let user_id: String
+    let exercise_type: String
+    let exercise_name: String?
+    let duration: Int?
+    let distance: Double?
+    let calories_burned: Double
+    let completion_date: String
+    let dessert_id: String
+    let dessert_name: String
+    let dessert_calories: Double
+    let equivalent_dessert_count: Double
+    let workout_tag: String?
+    let created_at: String
+    
+    /// 将DTO转换为领域模型
+    func toDomainModel() -> WorkoutRecord {
+        // 1. 处理运动类型
+        let exerciseType = APIExerciseType.fromString(exercise_type, name: exercise_name)
+        
+        // 2. 创建甜品对象
+        let dessert = DessertItem(
+            id: dessert_id,
+            name: dessert_name,
+            imageName: dessert_id,
+            calories: "\(dessert_calories)",
+            category: .dessert,
+            description: "",
+            backgroundColor: nil,
+            isFeatured: false,
+            relatedItems: [],
+            categoryId: "0",
+            categoryName: "默认分类",
+            displayOrder: 0,
+            images: []
+        )
+        
+        // 3. 处理日期
+        let dateFormatter = ISO8601DateFormatter()
+        dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        
+        var recordDate: Date?
+        // 尝试多种日期解析方法
+        if let date = dateFormatter.date(from: completion_date) {
+            recordDate = date
+        } else {
+            // 如果失败，尝试不带毫秒的格式
+            dateFormatter.formatOptions = [.withInternetDateTime]
+            if let date = dateFormatter.date(from: completion_date) {
+                recordDate = date
+            } else {
+                // 如果仍然失败，尝试其他格式
+                let backupFormatter = DateFormatter()
+                backupFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZ"
+                if let date = backupFormatter.date(from: completion_date) {
+                    recordDate = date
+                } else {
+                    // 尝试简单的年月日格式
+                    backupFormatter.dateFormat = "yyyy-MM-dd"
+                    if let date = backupFormatter.date(from: completion_date) {
+                        recordDate = date
+                    } else {
+                        // 日期解析失败，使用当前时间
+                        DRError("[WorkoutRecordDTO] 无法解析日期: \(completion_date)，使用当前时间")
+                        recordDate = Date()
+                    }
+                }
+            }
+        }
+        
+        // 4. 创建WorkoutRecord对象
+        return WorkoutRecord(
+            id: id,
+            userId: user_id,
+            exerciseType: exerciseType,
+            duration: duration.map { TimeInterval($0) },
+            distance: distance,
+            caloriesBurned: calories_burned,
+            dessert: dessert,
+            date: recordDate ?? Date(),
+            workoutTag: workout_tag ?? "",
+            equivalentDessertCount: equivalent_dessert_count
+        )
     }
 }

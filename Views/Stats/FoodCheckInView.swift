@@ -177,6 +177,33 @@ struct FoodCheckInView: View {
                 // 强制刷新视图
                 DispatchQueue.main.async {
                     self.forceRefresh.toggle()
+                    DRInfo("[FoodCheckInView] 收到VouchersUpdated通知，当前美食券数量: \(self.appState.dessertVouchers.count)")
+                }
+            }
+            
+            // 专门添加"加载更多"数据完成的通知观察者
+            NotificationCenter.default.addObserver(
+                forName: NSNotification.Name("NewRecordCreated"),
+                object: nil,
+                queue: .main
+            ) { _ in
+                // 强制整个视图刷新
+                DispatchQueue.main.async {
+                    DRInfo("[FoodCheckInView] 收到全局刷新通知，强制刷新所有记录视图")
+                    self.forceRefresh.toggle()
+                }
+            }
+            
+            // 添加运动记录更新通知的观察者 
+            NotificationCenter.default.addObserver(
+                forName: NSNotification.Name("WorkoutRecordsUpdated"),
+                object: nil,
+                queue: .main
+            ) { _ in
+                // 强制刷新视图
+                DispatchQueue.main.async {
+                    DRInfo("[FoodCheckInView] 收到运动记录更新通知，当前运动记录数量: \(self.appState.workoutRecords.count)")
+                    self.forceRefresh.toggle()
                 }
             }
             
@@ -223,6 +250,20 @@ struct FoodCheckInView: View {
             NotificationCenter.default.removeObserver(
                 self,
                 name: NSNotification.Name("TopDessertsUpdated"),
+                object: nil
+            )
+            
+            // 移除运动记录更新的观察者
+            NotificationCenter.default.removeObserver(
+                self,
+                name: NSNotification.Name("WorkoutRecordsUpdated"),
+                object: nil
+            )
+            
+            // 移除新记录创建的观察者
+            NotificationCenter.default.removeObserver(
+                self,
+                name: NSNotification.Name("NewRecordCreated"),
                 object: nil
             )
         }
@@ -346,7 +387,7 @@ struct FoodCheckInView: View {
         }
     }
     
-    // 所有美食打卡记录列表
+    // 所有美食打卡记录
     private var foodRecordsList: some View {
         VStack(alignment: .leading, spacing: 16) {
             // 标题和筛选区域
@@ -357,8 +398,9 @@ struct FoodCheckInView: View {
             }
             .padding(.top, 8)
             
-            // 所有打卡记录
+            // 所有打卡记录 - 添加ID使其能在数据变化时刷新
             allFoodRecords
+                .id("allFoodRecords-\(appState.dessertVouchers.count)-\(selectedFilter)-\(forceRefresh)")
         }
     }
     
@@ -421,6 +463,8 @@ struct FoodCheckInView: View {
                     self.viewModel.loadVouchersIndependently()
                 }
             }
+        } else {
+            DRDebug("[FoodCheckInView] 处理记录过滤，当前美食券数量: \(vouchersCount)")
         }
         
         // 根据筛选条件获取记录
@@ -443,6 +487,7 @@ struct FoodCheckInView: View {
         
         // 创建一个record ID到美食券的映射
         let recordIdToVoucher = Dictionary(grouping: appState.dessertVouchers, by: { $0.workoutRecordId ?? "" })
+        DRDebug("[FoodCheckInView] 构建记录映射，美食券总数: \(appState.dessertVouchers.count), 有效记录ID映射: \(recordIdToVoucher.count)")
         
         // 按日期分组记录
         let dateFormatter = DateFormatter()
@@ -479,6 +524,11 @@ struct FoodCheckInView: View {
                 }
             }
         }
+        
+        // 记录一下处理前的状态，用于诊断
+        let filteredCount = filteredList.count
+        let recordsCount = sortedRecords.count
+        DRDebug("[FoodCheckInView] 开始处理所有记录: 总记录数=\(recordsCount), 筛选后记录数=\(filteredCount), 美食券数=\(vouchersCount)")
         
         // 处理所有记录
         for record in filteredList {
@@ -523,6 +573,14 @@ struct FoodCheckInView: View {
                     DRWarning("[FoodCheckInView] 警告: 新记录无对应美食券，无法显示: id=\(recordId)")
                 }
             }
+        }
+        
+        // 计算实际处理的记录数，用于诊断
+        let totalGroupedCount = groupedRecords.values.map { $0.count }.reduce(0, +)
+        DRDebug("[FoodCheckInView] 分组后的记录总数: \(totalGroupedCount), 分组数: \(groupedRecords.count)")
+        
+        if totalGroupedCount < vouchersCount {
+            DRWarning("[FoodCheckInView] 警告: 处理后的记录数(\(totalGroupedCount))少于美食券数(\(vouchersCount))")
         }
         
         return groupedRecords
@@ -678,19 +736,25 @@ struct FoodCheckInView: View {
                     }
                     
                     // 加载更多按钮
-                    if viewModel.hasMoreRecords {
+                    if viewModel.hasMoreVouchers {
                         Button(action: {
-                            viewModel.loadMoreRecords()
+                            DRInfo("[FoodCheckInView] 用户点击加载更多美食券按钮")
+                            viewModel.loadMoreVouchers()
+                            
+                            // 延迟一点时间再强制刷新视图，确保数据加载有时间完成
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                                self.forceRefresh.toggle()
+                            }
                         }) {
                             HStack {
-                                if viewModel.isLoadingMore {
+                                if viewModel.isLoadingMoreVouchers {
                                     ProgressView()
                                         .progressViewStyle(CircularProgressViewStyle())
                                         .frame(width: 18, height: 18)
                                         .padding(.trailing, 6)
                                 }
                                 
-                                Text(viewModel.isLoadingMore ? "加载中..." : "加载更多")
+                                Text(viewModel.isLoadingMoreVouchers ? "加载中..." : "加载更多")
                                     .font(.system(size: 14))  // Caption字体样式
                                     .foregroundColor(.gray)
                             }
@@ -702,13 +766,17 @@ struct FoodCheckInView: View {
                         }
                         .padding(.top, 8)
                         .padding(.bottom, 16)
-                        .disabled(viewModel.isLoadingMore)
-                    } else if !appState.workoutRecords.isEmpty {
+                        .disabled(viewModel.isLoadingMoreVouchers)
+                        // 使用ID确保按钮的状态变化能触发重新渲染
+                        .id("load-more-btn-\(viewModel.isLoadingMoreVouchers)-\(forceRefresh)")
+                    } else if !appState.dessertVouchers.isEmpty {
                         Text("没有更多记录了")
                             .font(.system(size: 12))  // Caption字体样式
                             .foregroundColor(.gray)
                             .padding(.vertical, 16)
                             .frame(maxWidth: .infinity)
+                            // 使用唯一ID确保文本状态能正确更新
+                            .id("no-more-records-\(forceRefresh)")
                     }
                 }
             }
