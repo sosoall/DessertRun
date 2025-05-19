@@ -20,6 +20,23 @@ struct DessertVoucherCardSimple: View {
     /// 动画状态
     @State private var isAnimating: Bool = false
     
+    /// 添加新的动画状态变量
+    @State private var animateGradientBackground: Bool = false  // 第一阶段：渐变背景
+    @State private var animateBaseContent: Bool = false         // 第一阶段：基础文字内容
+    @State private var animateFooterBase: Bool = false          // 第一阶段：副券基础部分(底色、虚线边框、文字、按钮)
+    @State private var animateExtraContent: Bool = false        // 第二阶段：其他文字内容
+    @State private var animateVisuals: Bool = false             // 第三阶段：图标和美食图
+    @State private var animateBackgroundShine: Bool = false     // 第四阶段：背景光韵效果
+    @State private var animateEdgeHighlight: Bool = false       // 第四阶段：边缘勾边效果
+    @State private var animateButtonShine: Bool = false         // 第五阶段：按钮光韵效果
+    
+    // 光韵效果的位置参数
+    @State private var shineOffset: CGFloat = -200
+    @State private var buttonShineOffset: CGFloat = -100
+    
+    // 边缘勾边动画进度
+    @State private var edgeProgress: CGFloat = 0
+    
     /// 从后端获取的图片URL
     @State private var voucherImageURL: URL? = nil
     
@@ -54,9 +71,9 @@ struct DessertVoucherCardSimple: View {
     var body: some View {
         GeometryReader { geometry in // 使用GeometryReader获取整体宽度
             ZStack(alignment: .top) {
-                // 1. 首先声明背景部分
+                // 1. 背景部分 - 直接使用渐变背景
                 if forceExpanded {
-                    // 展开状态使用渐变背景
+                    // 渐变背景 - 第一阶段直接出现
                     LinearGradient(
                         gradient: Gradient(stops: [
                             .init(color: Color(hex: "#FF9D0B"), location: 0),
@@ -72,7 +89,74 @@ struct DessertVoucherCardSimple: View {
                             corners: [.topLeft, .topRight]
                         )
                     )
-                    .frame(height: 220) // 添加高度限制以避免背景延伸露出
+                    .frame(height: 220)
+                    .opacity(animateGradientBackground ? 1 : 0)
+                    .animation(.easeIn(duration: 0.3), value: animateGradientBackground)
+                    
+                    // 完整卡片边缘勾边效果 - 第四阶段
+                    // 定义一个自定义形状，包含上半部分和下半部分
+                    ZStack {
+                        // 创建一个完整形状的边缘高亮，使用对角线渐变而不是勾边
+                        FullCardShape(
+                            topRadius: 20,
+                            bottomRadius: 10,
+                            topHeight: 220,
+                            bottomHeight: 68
+                        )
+                        .stroke(LinearGradient(
+                            gradient: Gradient(stops: [
+                                .init(color: Color.white.opacity(1), location: 0),
+                                .init(color: Color.white.opacity(0.8), location: 0.3),
+                                .init(color: Color.white.opacity(0.6), location: 0.7),
+                                .init(color: Color.white.opacity(0.4), location: 1)
+                            ]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ), lineWidth: 2)
+                        .mask(
+                            // 使用遮罩实现从左上角到右下角的对角线渐显效果
+                            DiagonalGradientMask(progress: edgeProgress)
+                                .frame(width: UIScreen.main.bounds.width, height: 220 + 68)
+                        )
+                    }
+                    .opacity(animateEdgeHighlight ? 1 : 0)
+                    
+                    // 光韵效果层 - 第四阶段
+                    ZStack {
+                        Color.clear
+                            .frame(height: 220)
+                            .clipShape(
+                                RoundedCorner(
+                                    radius: 20,
+                                    corners: [.topLeft, .topRight]
+                                )
+                            )
+                            .overlay(
+                                // 白色光韵从左到右扫过
+                                LinearGradient(
+                                    gradient: Gradient(stops: [
+                                        .init(color: Color.white.opacity(0.0), location: 0),
+                                        .init(color: Color.white.opacity(0.5), location: 0.4),
+                                        .init(color: Color.white.opacity(0.7), location: 0.5),
+                                        .init(color: Color.white.opacity(0.5), location: 0.6),
+                                        .init(color: Color.white.opacity(0.0), location: 1)
+                                    ]),
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                                .frame(width: 300)
+                                .offset(x: shineOffset)
+                                .opacity(animateBackgroundShine ? 1 : 0) // 控制整个光韵效果的显示
+                            )
+                            .mask(
+                                // 确保只有卡片范围内才有光韵效果
+                                RoundedCorner(
+                                    radius: 20,
+                                    corners: [.topLeft, .topRight]
+                                ).fill(Color.black)
+                            )
+                    }
+                    .frame(height: 220)
                 } else {
                     // 收起状态使用白色背景
                     Color.white
@@ -84,9 +168,9 @@ struct DessertVoucherCardSimple: View {
                         )
                 }
                 
-                // 2. 然后声明右侧美食图像 - 绝对定位的部分
+                // 2. 图标和美食图像 - 第三阶段出现
                 if forceExpanded {
-                    // 展开状态下的图片位置
+                    // 展开状态下的图片
                     Group {
                         if let imageURL = voucherImageURL {
                             AsyncImage(url: imageURL) { phase in
@@ -120,9 +204,39 @@ struct DessertVoucherCardSimple: View {
                         }
                     }
                     .position(x: max(30, geometry.size.width - 60), y: 170)
+                    .scaleEffect(animateVisuals ? 1 : 0.6)
+                    .opacity(animateVisuals ? 1 : 0)
+                    .animation(.spring(response: 0.5, dampingFraction: 0.7), value: animateVisuals)
                     .zIndex(1)
+                    
+                    // 展开状态下的左侧图标
+                    Group {
+                        if let uiImage = iconImage {
+                            // 如果通过ImageCacheService成功加载了图片
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 42, height: 42)
+                                .position(x: 22, y: 190)
+                                .scaleEffect(animateVisuals ? 1 : 0.6)
+                                .opacity(animateVisuals ? 1 : 0)
+                                .animation(.spring(response: 0.5, dampingFraction: 0.7), value: animateVisuals)
+                        } else {
+                            // 默认图标
+                            Image(systemName: "cup.and.saucer.fill")
+                                .resizable()
+                                .scaledToFit()
+                                .foregroundColor(Color(hex: "#FF9D0B"))
+                                .frame(width: 42, height: 42)
+                                .position(x: 22, y: 190)
+                                .scaleEffect(animateVisuals ? 1 : 0.6)
+                                .opacity(animateVisuals ? 1 : 0)
+                                .animation(.spring(response: 0.5, dampingFraction: 0.7), value: animateVisuals)
+                        }
+                    }
+                    .zIndex(5)
                 } else {
-                    // 收起状态下的图片位置
+                    // 收起状态下的图片
                     Group {
                         if let imageURL = voucherImageURL {
                             AsyncImage(url: imageURL) { phase in
@@ -157,42 +271,141 @@ struct DessertVoucherCardSimple: View {
                     }
                     .position(x: max(30, geometry.size.width - 40), y: 38)
                     .zIndex(1)
-                }
-                
-                // 3. 左侧美食图标
-                Group {
-                    if let uiImage = iconImage {
-                        // 如果通过ImageCacheService成功加载了图片
-                        Image(uiImage: uiImage)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: forceExpanded ? 42 : 36, height: forceExpanded ? 42 : 36)
-                            .position(x: 22, y: forceExpanded ? 190 : 56) // 将x值从36减小到22，与左侧内容对齐
-                            .zIndex(5) // 确保图标在背景上层但不遮挡文字
-                    } else {
-                        // 默认图标
-                        Image(systemName: "cup.and.saucer.fill")
-                            .resizable()
-                            .scaledToFit()
-                            .foregroundColor(Color(hex: "#FF9D0B"))
-                            .frame(width: forceExpanded ? 42 : 36, height: forceExpanded ? 42 : 36)
-                            .position(x: 22, y: forceExpanded ? 190 : 56) // 将x值从36减小到22，与左侧内容对齐
-                            .zIndex(5) // 确保图标在背景上层但不遮挡文字
+                    
+                    // 收起状态下的左侧图标
+                    Group {
+                        if let uiImage = iconImage {
+                            // 如果通过ImageCacheService成功加载了图片
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 36, height: 36)
+                                .position(x: 22, y: 56)
+                        } else {
+                            // 默认图标
+                            Image(systemName: "cup.and.saucer.fill")
+                                .resizable()
+                                .scaledToFit()
+                                .foregroundColor(Color(hex: "#FF9D0B"))
+                                .frame(width: 36, height: 36)
+                                .position(x: 22, y: 56)
+                        }
                     }
+                    .zIndex(5)
                 }
-                .zIndex(5)
                 
-                // 4. 最后声明文字内容部分 - 保证它在图片之上
+                // 3. 文字内容部分
                 VStack(spacing: 0) {
                     cardHeader
                 }
                 .zIndex(10)  // 确保文字在最上层
                 
-                // 5. 底部操作区
-                cardFooter
-                    .frame(width: geometry.size.width)
-                    .offset(y: forceExpanded ? 220 : 75)
-                    .zIndex(10)  // 与文字同层
+                // 4. 底部操作区 - 第一阶段就完整显示
+                if forceExpanded {
+                    // 展开状态下的底部区域
+                    VStack(spacing: 0) {
+                        // 底部核销区域背景、文字和按钮
+                        HStack {
+                            VStack(alignment: .leading, spacing: 1) {
+                                if forceExpanded {
+                                    Text("美食券")
+                                        .font(.system(size: 14, weight: .medium))
+                                }
+                                
+                                // 使用美食券的剩余天数
+                                let daysRemaining = associatedVoucher?.remainingDays ?? calculateRemainingDays()
+                                // 剩余天数
+                                Text("剩余\(daysRemaining)天")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.gray)
+                            }
+                            
+                            Spacer()
+                            
+                            // 核销按钮 - 加入到底部区域中
+                            Button(action: {
+                                showRedeemConfirm = true
+                            }) {
+                                // 按钮层
+                                ZStack {
+                                    Text("立即核销")
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundColor(.white)
+                                        .padding(.vertical, 5)
+                                        .padding(.horizontal, 14)
+                                        .background(Color(hex: "#FF318D"))
+                                        .cornerRadius(8)
+                                    
+                                    // 按钮光韵效果 - 第五阶段
+                                    Rectangle()
+                                        .fill(
+                                            LinearGradient(
+                                                gradient: Gradient(stops: [
+                                                    .init(color: Color.white.opacity(0.0), location: 0),
+                                                    .init(color: Color.white.opacity(0.5), location: 0.3),
+                                                    .init(color: Color.white.opacity(0.8), location: 0.5),
+                                                    .init(color: Color.white.opacity(0.5), location: 0.7),
+                                                    .init(color: Color.white.opacity(0.0), location: 1)
+                                                ]),
+                                                startPoint: .leading,
+                                                endPoint: .trailing
+                                            )
+                                        )
+                                        .frame(width: 100, height: 30)
+                                        .offset(x: buttonShineOffset)
+                                        .mask(
+                                            Text("立即核销")
+                                                .font(.system(size: 14, weight: .medium))
+                                                .padding(.vertical, 5)
+                                                .padding(.horizontal, 14)
+                                                .background(Color.white)
+                                                .cornerRadius(8)
+                                        )
+                                        .opacity(animateButtonShine ? 1 : 0)
+                                }
+                            }
+                            .disabled(isRedeeming)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 16) // 垂直内边距
+                    }
+                    .frame(width: geometry.size.width, height: 68) // 固定高度
+                    .background(
+                        CustomShape(radius: 10, corners: [.bottomLeft, .bottomRight])
+                            .fill(Color.white)
+                    )
+                    .overlay(
+                        // 只添加顶部的虚线分隔线
+                        Rectangle()
+                            .frame(width: geometry.size.width, height: 1)
+                            .foregroundColor(Color.gray.opacity(0.5))
+                            .position(x: geometry.size.width/2, y: 0.5) // 放置在顶部
+                            .overlay(
+                                Rectangle()
+                                    .frame(width: geometry.size.width, height: 1)
+                                    .foregroundColor(.white)
+                                    .mask(
+                                        HStack(spacing: 2.5) {
+                                            ForEach(0..<Int(geometry.size.width/5), id: \.self) { _ in
+                                                Rectangle().frame(width: 2.5, height: 1)
+                                                Spacer().frame(width: 2.5)
+                                            }
+                                        }
+                                    )
+                                    .position(x: geometry.size.width/2, y: 0.5) // 放置在顶部
+                            )
+                    )
+                    .offset(y: 220) // 位置固定，紧接着上面的卡片
+                    .opacity(animateFooterBase ? 1 : 0)
+                    .animation(.easeIn(duration: 0.2), value: animateFooterBase)
+                    .zIndex(10)
+                } else {
+                    // 收起状态下的底部
+                    cardFooter
+                        .frame(width: geometry.size.width)
+                        .offset(y: 75)
+                        .zIndex(10)
+                }
             }
             .frame(width: geometry.size.width) // 确保整体宽度一致
         }
@@ -204,12 +417,20 @@ struct DessertVoucherCardSimple: View {
             loadImages()
             
             if forceExpanded {
-                // 当显示为展开状态时，延迟一点启动动画
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
-                        isAnimating = true
-                    }
-                }
+                // 当显示为展开状态时，按顺序启动动画
+                animateSequence()
+            } else {
+                // 收起状态默认全部显示
+                resetAnimations(true)
+            }
+        }
+        .onChange(of: forceExpanded) { newValue in
+            // 当状态变化时，触发动画序列
+            if newValue {
+                animateSequence()
+            } else {
+                // 收起时反向动画
+                reverseAnimateSequence()
             }
         }
         .onTapGesture {
@@ -240,6 +461,144 @@ struct DessertVoucherCardSimple: View {
         } message: {
             Text(redeemError ?? "未知错误")
         }
+    }
+    
+    // 按照顺序执行动画序列
+    private func animateSequence() {
+        // 重置所有动画状态
+        resetAnimations(false)
+        
+        // 1. 第一阶段：渐变背景 + 基础文字内容 + 副券(包含立即核销按钮)
+        withAnimation(.easeIn(duration: 0.3)) {
+            animateGradientBackground = true
+            animateBaseContent = true
+            animateFooterBase = true
+        }
+        
+        // 2. 第二阶段：其他所有文字内容
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { // 增加延迟
+            withAnimation(.easeInOut(duration: 0.4)) {
+                animateExtraContent = true
+                isAnimating = true // 原有动画状态激活
+            }
+        }
+        
+        // 3. 第三阶段：图标和美食图直接出现并放大
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { // 增加延迟
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.7)) {
+                animateVisuals = true
+            }
+        }
+        
+        // 4. 第四阶段：边缘勾边效果和背景光韵效果 - 同步启动并保持一致的时长
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.7) { // 增加延迟
+            // 激活边缘勾边动画
+            withAnimation {
+                animateEdgeHighlight = true
+            }
+            
+            // 启动边缘勾边对角线渐显动画 - 调整为与光韵效果相同的时长(1.0秒)
+            withAnimation(.easeInOut(duration: 1.0)) {
+                edgeProgress = 1.0 // 完全显示边缘高亮
+            }
+            
+            // 延迟一点启动光韵扫过效果，等待边缘勾边开始后
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                // 激活背景光韵动画并设置初始位置
+                shineOffset = -200
+                animateBackgroundShine = true
+                
+                // 从左到右移动光韵
+                withAnimation(.easeInOut(duration: 1.0)) {
+                    self.shineOffset = UIScreen.main.bounds.width + 200 // 移动到右侧外部
+                }
+                
+                // 动画完成后隐藏光韵效果，但保留边缘勾边
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    animateBackgroundShine = false
+                }
+            }
+        }
+        
+        // 5. 第五阶段：按钮光韵效果
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { // 增加延迟，确保边缘勾边完成
+            // 激活按钮光韵并设置初始位置
+            animateButtonShine = true
+            buttonShineOffset = -100
+            
+            // 从左到右移动光韵
+            withAnimation(.easeInOut(duration: 0.8)) {
+                buttonShineOffset = 100 // 移动到右侧
+            }
+            
+            // 动画完成后隐藏按钮光韵
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                animateButtonShine = false
+            }
+        }
+        
+        // 6. 第六阶段：展示分享和关闭按钮 
+        // 这部分在ExpandedCardView中处理，通过延迟发送通知实现
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.8) { // 增加延迟
+            // 不再重置边缘勾边效果，保持其显示
+            // animateEdgeHighlight = false
+            
+            NotificationCenter.default.post(
+                name: NSNotification.Name("AnimationComplete"),
+                object: nil
+            )
+        }
+    }
+    
+    // 反向动画序列
+    private func reverseAnimateSequence() {
+        // 按相反顺序执行动画
+        
+        // 1. 首先隐藏图标和图片
+        withAnimation(.easeOut(duration: 0.2)) {
+            animateVisuals = false
+        }
+        
+        // 2. 隐藏额外文字内容
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            withAnimation(.easeOut(duration: 0.2)) {
+                animateExtraContent = false
+                isAnimating = false
+            }
+        }
+        
+        // 3. 最后隐藏基础内容、副券和渐变背景
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            withAnimation(.easeOut(duration: 0.3)) {
+                animateBaseContent = false
+                animateFooterBase = false
+                animateGradientBackground = false
+                animateEdgeHighlight = false // 一并隐藏边缘勾边
+                edgeProgress = 0
+            }
+        }
+        
+        // 延迟后再重置所有状态
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+            resetAnimations(false)
+            // 重置光韵和边缘勾边位置
+            shineOffset = -200
+            buttonShineOffset = -100
+            edgeProgress = 0
+        }
+    }
+    
+    // 重置所有动画状态
+    private func resetAnimations(_ value: Bool) {
+        animateGradientBackground = value
+        animateBaseContent = value
+        animateFooterBase = value
+        animateExtraContent = value
+        animateVisuals = value
+        animateBackgroundShine = value
+        animateButtonShine = value
+        animateEdgeHighlight = value
+        isAnimating = value
     }
     
     // 加载美食图片
@@ -348,6 +707,7 @@ struct DessertVoucherCardSimple: View {
                                         .foregroundColor(Color(hex: "757575"))
                                         .padding(.bottom, 12)
                                         .frame(height: 24) // 统一标题高度
+                                        .opacity(animateExtraContent ? 1 : 0) // 第二阶段：额外文字内容
                                     
                                     // 美食数量和名称整合显示
                                     Text("\(String(format: "%.1f", record.equivalentDessertCount))个\(record.dessert.name)")
@@ -357,6 +717,7 @@ struct DessertVoucherCardSimple: View {
                                         .fixedSize(horizontal: false, vertical: true) // 确保文字完整显示
                                         .multilineTextAlignment(.leading)
                                         .frame(width: geometry.size.width * 0.35 - 20) // 设置固定宽度
+                                        .opacity(animateBaseContent ? 1 : 0) // 第一阶段：基础文字内容
                                     
                                     // 移动workout_tag到左侧并修改颜色
                                     Text(record.displayWorkoutTag)
@@ -365,7 +726,7 @@ struct DessertVoucherCardSimple: View {
                                         .fixedSize(horizontal: false, vertical: true)
                                         .multilineTextAlignment(.leading)
                                         .padding(.top, 6)
-                                        .opacity(isAnimating ? 1 : 0)
+                                        .opacity(animateExtraContent ? 1 : 0) // 第二阶段：额外文字内容
                                         .frame(width: geometry.size.width * 0.35 - 20) // 设置与上面相同的宽度
                                 }
                                 .padding(.leading, forceExpanded ? 30 : 30) // 减少左侧内边距，从50/45减少到30
@@ -400,6 +761,7 @@ struct DessertVoucherCardSimple: View {
                         .fill(Color(hex: "#D7B8BE"))
                         .frame(width: 1, height: forceExpanded ? 180 : 55)
                         .padding(.horizontal, 15)
+                        .opacity(forceExpanded ? (animateExtraContent ? 1 : 0) : 1) // 第二阶段：额外文字内容
                     
                     // 右侧信息区
                     VStack(alignment: .leading, spacing: forceExpanded ? 6 : 2) {
@@ -411,6 +773,7 @@ struct DessertVoucherCardSimple: View {
                                 .foregroundColor(Color(hex: "757575"))
                                 .padding(.bottom, 4)
                                 .frame(height: 24) // 统一标题高度
+                                .opacity(animateExtraContent ? 1 : 0) // 第二阶段：额外文字内容
                                 
                             Text(record.exerciseType.name)
                                 .font(.system(size: 24, weight: .semibold)) 
@@ -418,6 +781,7 @@ struct DessertVoucherCardSimple: View {
                                 .fixedSize(horizontal: false, vertical: true) // 确保文字完整显示
                                 .offset(y: 0) // 删除向上偏移，保持与左侧文本对齐
                                 .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading) // 修改为可扩展最大宽度
+                                .opacity(animateBaseContent ? 1 : 0) // 第一阶段：基础文字内容
                             
                             // 展开时显示运动详情
                             VStack(alignment: .leading, spacing: 8) {
@@ -435,7 +799,7 @@ struct DessertVoucherCardSimple: View {
                                             .font(.system(size: 14))
                                             .fixedSize(horizontal: false, vertical: true)
                                     }
-                                    .opacity(isAnimating ? 1 : 0)
+                                    .opacity(animateExtraContent ? 1 : 0) // 第二阶段：额外文字内容
                                     .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                                 }
                                 
@@ -451,7 +815,7 @@ struct DessertVoucherCardSimple: View {
                                             .font(.system(size: 14))
                                             .fixedSize(horizontal: false, vertical: true)
                                     }
-                                    .opacity(isAnimating ? 1 : 0)
+                                    .opacity(animateExtraContent ? 1 : 0) // 第二阶段：额外文字内容
                                     .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                                 }
                                 
@@ -465,7 +829,7 @@ struct DessertVoucherCardSimple: View {
                                         .font(.system(size: 14))
                                         .fixedSize(horizontal: false, vertical: true)
                                 }
-                                .opacity(isAnimating ? 1 : 0)
+                                .opacity(animateExtraContent ? 1 : 0) // 第二阶段：额外文字内容
                                 .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                                 
                                 // 日期放在这里与其他信息对齐 - 去掉icon
@@ -473,7 +837,7 @@ struct DessertVoucherCardSimple: View {
                                     .font(.system(size: 12))
                                     .foregroundColor(Color(hex: "#919191"))
                                     .fixedSize(horizontal: false, vertical: true)
-                                    .opacity(isAnimating ? 1 : 0)
+                                    .opacity(animateExtraContent ? 1 : 0) // 第二阶段：额外文字内容
                                     .padding(.top, 2)
                                     .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading) // 修改为可扩展最大宽度
                             }
@@ -576,25 +940,40 @@ struct DessertVoucherCardSimple: View {
                     .foregroundColor(.white)
                     .padding(.vertical, 5)
                     .padding(.horizontal, 14)
-                    .background(Color(hex: forceExpanded ? "#FF318D" : "#FE2D55"))
+                    .background(Color(hex: "#FE2D55"))
                     .cornerRadius(8)
             }
             .disabled(isRedeeming)
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, forceExpanded ? 16 : 8) // 垂直内边距
-        .frame(height: forceExpanded ? 68 : 40) // 固定高度
+        .padding(.vertical, 8) // 垂直内边距
+        .frame(height: 40) // 固定高度
         .background(
             CustomShape(radius: 10, corners: [.bottomLeft, .bottomRight])
                 .fill(Color.white)
         )
         .overlay(
-            CustomShape(radius: 10, corners: [.bottomLeft, .bottomRight])
-                .stroke(
-                    Color.gray.opacity(0.5),
-                    style: StrokeStyle(lineWidth: 1, dash: [5, 5])
-                )
-                .padding(.top, -0.5) // 向上移动0.5像素，避免缝隙
+            // 只添加顶部的虚线分隔线
+            GeometryReader { geo in
+                Rectangle()
+                    .frame(width: geo.size.width, height: 1)
+                    .foregroundColor(Color.gray.opacity(0.5))
+                    .position(x: geo.size.width/2, y: 0.5) // 放置在顶部
+                    .overlay(
+                        Rectangle()
+                            .frame(width: geo.size.width, height: 1)
+                            .foregroundColor(.white)
+                            .mask(
+                                HStack(spacing: 2.5) {
+                                    ForEach(0..<Int(geo.size.width/5), id: \.self) { _ in
+                                        Rectangle().frame(width: 2.5, height: 1)
+                                        Spacer().frame(width: 2.5)
+                                    }
+                                }
+                            )
+                            .position(x: geo.size.width/2, y: 0.5) // 放置在顶部
+                    )
+            }
         )
     }
     
@@ -688,6 +1067,101 @@ struct CustomShape: Shape {
             cornerRadii: CGSize(width: radius, height: radius)
         )
         return Path(path.cgPath)
+    }
+}
+
+// 添加一个完整卡片形状的结构体，用于勾边效果
+struct FullCardShape: Shape {
+    var topRadius: CGFloat
+    var bottomRadius: CGFloat
+    var topHeight: CGFloat
+    var bottomHeight: CGFloat
+    
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let totalHeight = topHeight + bottomHeight
+        let width = rect.width
+        
+        // 从左上角开始，顺时针绘制
+        path.move(to: CGPoint(x: 0, y: topRadius))
+        
+        // 左上角圆弧
+        path.addArc(
+            center: CGPoint(x: topRadius, y: topRadius),
+            radius: topRadius,
+            startAngle: .degrees(180),
+            endAngle: .degrees(270),
+            clockwise: false
+        )
+        
+        // 上边
+        path.addLine(to: CGPoint(x: width - topRadius, y: 0))
+        
+        // 右上角圆弧
+        path.addArc(
+            center: CGPoint(x: width - topRadius, y: topRadius),
+            radius: topRadius,
+            startAngle: .degrees(270),
+            endAngle: .degrees(0),
+            clockwise: false
+        )
+        
+        // 右边到底部副券部分
+        path.addLine(to: CGPoint(x: width, y: topHeight))
+        
+        // 右边副券部分
+        path.addLine(to: CGPoint(x: width, y: totalHeight - bottomRadius))
+        
+        // 右下角圆弧
+        path.addArc(
+            center: CGPoint(x: width - bottomRadius, y: totalHeight - bottomRadius),
+            radius: bottomRadius,
+            startAngle: .degrees(0),
+            endAngle: .degrees(90),
+            clockwise: false
+        )
+        
+        // 底边
+        path.addLine(to: CGPoint(x: bottomRadius, y: totalHeight))
+        
+        // 左下角圆弧
+        path.addArc(
+            center: CGPoint(x: bottomRadius, y: totalHeight - bottomRadius),
+            radius: bottomRadius,
+            startAngle: .degrees(90),
+            endAngle: .degrees(180),
+            clockwise: false
+        )
+        
+        // 左边副券部分
+        path.addLine(to: CGPoint(x: 0, y: topHeight))
+        
+        // 左边回到起点
+        path.addLine(to: CGPoint(x: 0, y: topRadius))
+        
+        return path
+    }
+}
+
+// 添加一个用于对角线渐显效果的遮罩结构体
+struct DiagonalGradientMask: View {
+    var progress: CGFloat // 0到1表示显示进度
+    
+    var body: some View {
+        GeometryReader { geo in
+            let width = geo.size.width
+            let height = geo.size.height
+            let diagonal = sqrt(width * width + height * height)
+            
+            // 计算圆形的半径，根据进度从0增长到对角线长度
+            let radius = diagonal * progress
+            
+            // 创建以左上角为中心的圆形，用于实现扩散效果
+            Circle()
+                .frame(width: radius * 2, height: radius * 2)
+                .position(x: 0, y: 0) // 圆心位于左上角
+                .foregroundColor(.white) // 在遮罩中颜色不重要，只使用alpha值
+        }
     }
 }
 
