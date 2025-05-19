@@ -43,6 +43,12 @@ struct DessertVoucherCardSimple: View {
     /// 从后端获取的图标URL
     @State private var iconImageURL: URL? = nil
     
+    /// 添加图片加载状态标志，避免重复加载
+    @State private var hasLoadedImages: Bool = false
+    
+    /// 添加唯一ID，防止多个实例混淆状态
+    private let instanceId = UUID().uuidString
+    
     /// 提供一个环境变量，用于触发弹窗展示
     @Environment(\.presentationMode) var presentationMode
     
@@ -412,6 +418,7 @@ struct DessertVoucherCardSimple: View {
         // 确保整个卡片没有任何外部padding
         .padding(0)
         .frame(height: forceExpanded ? (220 + 68) : (75 + 40)) // 明确设置总高度为两部分高度之和
+        .id("card-\(record.id)-\(instanceId)") // 添加唯一ID避免状态混淆
         .onAppear {
             // 获取美食券相关图片
             loadImages()
@@ -424,7 +431,8 @@ struct DessertVoucherCardSimple: View {
                 resetAnimations(true)
             }
         }
-        .onChange(of: forceExpanded) { newValue in
+        // 修复iOS 17中onChange废弃问题
+        .onChange(of: forceExpanded) { _, newValue in
             // 当状态变化时，触发动画序列
             if newValue {
                 animateSequence()
@@ -603,47 +611,66 @@ struct DessertVoucherCardSimple: View {
     
     // 加载美食图片
     private func loadImages() {
+        // 使用状态标志防止重复加载
+        if hasLoadedImages {
+            return
+        }
+        
+        // 添加instanceId到日志，方便追踪
+        DRDebug("[DessertVoucherCard-\(instanceId.prefix(6))] 开始加载图片")
+        
+        // 检查是否已加载图片，避免重复加载
+        if voucherImageURL != nil && iconImage != nil {
+            hasLoadedImages = true
+            return
+        }
+
         // 首先检查是否有关联的美食券与固定图片
         if let voucher = associatedVoucher, let imageId = voucher.imageId {
             // 从后端通过image_id参数获取固定的图片
             let dessertId = record.dessert.id
-            voucherImageURL = APIService.shared.getDessertImageURLWithImageID(dessertId: dessertId, type: "voucher", imageId: imageId)
+            let newURL = APIService.shared.getDessertImageURLWithImageID(dessertId: dessertId, type: "voucher", imageId: imageId)
             
-            DRDebug("[DessertVoucherCard] 使用美食券固定图片: image_id=\(imageId), URL=\(voucherImageURL?.absoluteString ?? "nil")")
-        } else {
+            // 如果URL有变化或为nil，则更新
+            if voucherImageURL != newURL {
+                voucherImageURL = newURL
+            }
+        } else if voucherImageURL == nil {
             // 回退：如果没有关联的美食券或imageId，使用老方法
             let dessertId = record.dessert.id
             voucherImageURL = APIService.shared.getDessertImageURL(dessertId: dessertId, type: "voucher")
-            
-            DRWarning("[DessertVoucherCard] 使用随机美食券图片，可能导致显示不一致: \(voucherImageURL?.absoluteString ?? "nil")")
         }
         
-        // 从后端获取icon类型图片URL
-        let dessertId = record.dessert.id
-        let iconURL = APIService.shared.getDessertImageURL(dessertId: dessertId, type: "icon")
-        if let url = iconURL {
-            // 记录尝试加载的icon URL
-            DRInfo("[DessertVoucherCard] 尝试加载icon图片: \(url.absoluteString)")
-            
-            // 使用改进的ImageCacheService直接获取图片
-            ImageCacheService.shared.downloadAndCacheImage(url: url.absoluteString) { image in
-                if let image = image {
-                    DispatchQueue.main.async {
-                        self.iconImage = image
-                        DRInfo("[DessertVoucherCard] 成功加载icon图片")
+        // 只有在图标为空时才加载图标
+        if iconImage == nil {
+            // 从后端获取icon类型图片URL
+            let dessertId = record.dessert.id
+            let iconURL = APIService.shared.getDessertImageURL(dessertId: dessertId, type: "icon")
+            if let url = iconURL {
+                // 使用改进的ImageCacheService直接获取图片
+                ImageCacheService.shared.downloadAndCacheImage(url: url.absoluteString) { [self] image in
+                    if let image = image {
+                        DispatchQueue.main.async {
+                            self.iconImage = image
+                            
+                            // 设置加载完成标志
+                            self.hasLoadedImages = true
+                        }
+                    } else {
+                        // 即使加载失败也设置标志，防止反复重试
+                        DispatchQueue.main.async {
+                            self.hasLoadedImages = true
+                        }
                     }
-                } else {
-                    DRError("[DessertVoucherCard] 加载美食图标失败: \(url)")
-                    // 加载失败时不要设置图标，将使用默认值
                 }
+            } else {
+                // 获取URL失败也设置标志
+                hasLoadedImages = true
             }
         } else {
-            DRWarning("[DessertVoucherCard] 获取icon URL失败，dessertId: \(dessertId)")
+            // 图标已存在，直接设置完成标志
+            hasLoadedImages = true
         }
-        
-        // 记录日志
-        let iconURLString = APIService.shared.getDessertImageURL(dessertId: dessertId, type: "icon")?.absoluteString ?? "nil"
-        DRDebug("[DessertVoucherCard] 加载美食图片: voucher=\(voucherImageURL?.absoluteString ?? "nil"), icon=\(iconURLString)")
     }
     
     // MARK: - 卡片主体部分
@@ -655,27 +682,28 @@ struct DessertVoucherCardSimple: View {
                 Path { path in
                     // 上边的圆角边框路径
                     let rect = CGRect(x: 0, y: 0, width: geometry.size.width, height: geometry.size.height)
-                    let cornerSize = CGSize(width: 20, height: 20)
+                    // 圆角大小
+                    let cornerRadius: CGFloat = 20
                     
                     // 从左上角开始，顺时针绘制
-                    path.move(to: CGPoint(x: 0, y: 20)) // 左上圆角起始点
+                    path.move(to: CGPoint(x: 0, y: cornerRadius)) // 左上圆角起始点
                     
                     // 添加左上圆角
                     path.addArc(
-                        center: CGPoint(x: 20, y: 20),
-                        radius: 20,
+                        center: CGPoint(x: cornerRadius, y: cornerRadius),
+                        radius: cornerRadius,
                         startAngle: .degrees(180),
                         endAngle: .degrees(270),
                         clockwise: false
                     )
                     
                     // 上边
-                    path.addLine(to: CGPoint(x: geometry.size.width - 20, y: 0))
+                    path.addLine(to: CGPoint(x: geometry.size.width - cornerRadius, y: 0))
                     
                     // 添加右上圆角
                     path.addArc(
-                        center: CGPoint(x: geometry.size.width - 20, y: 20),
-                        radius: 20,
+                        center: CGPoint(x: geometry.size.width - cornerRadius, y: cornerRadius),
+                        radius: cornerRadius,
                         startAngle: .degrees(270),
                         endAngle: .degrees(0),
                         clockwise: false
@@ -688,7 +716,7 @@ struct DessertVoucherCardSimple: View {
                     path.addLine(to: CGPoint(x: 0, y: geometry.size.height))
                     
                     // 左边
-                    path.addLine(to: CGPoint(x: 0, y: 20))
+                    path.addLine(to: CGPoint(x: 0, y: cornerRadius))
                 }
                 .stroke(Color.gray.opacity(0.2), lineWidth: 1) // 边框颜色调整为浅灰色
                 
@@ -900,15 +928,15 @@ struct DessertVoucherCardSimple: View {
         
         if let expireDate = voucherExpireDate {
             return dateFormatter.string(from: expireDate)
-        } else {
-            // 默认30天过期期限
-            let calendar = Calendar.current
-            if let expiryDate = calendar.date(byAdding: .day, value: 30, to: record.date) {
-                return dateFormatter.string(from: expiryDate)
-            } else {
-                return "未知"
-            }
         }
+        
+        // 默认30天过期期限
+        let calendar = Calendar.current
+        if let expiryDate = calendar.date(byAdding: .day, value: 30, to: record.date) {
+            return dateFormatter.string(from: expiryDate)
+        }
+        
+        return "未知"
     }
     
     // MARK: - 卡片底部部分

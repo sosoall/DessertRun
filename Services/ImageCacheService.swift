@@ -13,6 +13,10 @@ class ImageCacheService {
     // 操作队列
     private let downloadQueue = DispatchQueue(label: "com.dessertrun.imagecache", qos: .utility, attributes: .concurrent)
     
+    // 添加下载中的URL标记
+    private var downloadingURLs = [String: [((UIImage?) -> Void)]]()
+    private let downloadLock = NSLock() // 添加锁，确保线程安全
+    
     private init() {
         // 设置内存缓存限制
         memoryCache.countLimit = 100 // 最多缓存100张图片
@@ -44,51 +48,97 @@ class ImageCacheService {
         
         let cacheKey = getCacheKey(from: url)
         
-        // 1. 检查内存缓存
+        // 1. 检查内存缓存 - 增加日志减少，只返回结果
         if let cachedImage = memoryCache.object(forKey: cacheKey as NSString) {
-            DRDebug("[ImageCacheService] 从内存缓存中获取图片: \(url)")
             completion(cachedImage)
             return
         }
         
-        // 2. 检查磁盘缓存
-        let diskCachePath = getCachePath(for: cacheKey)
-        if fileManager.fileExists(atPath: diskCachePath.path) {
-            downloadQueue.async {
-                if let diskCachedImage = UIImage(contentsOfFile: diskCachePath.path) {
-                    DRDebug("[ImageCacheService] 从磁盘缓存中获取图片: \(url)")
-                    // 保存到内存缓存
-                    self.memoryCache.setObject(diskCachedImage, forKey: cacheKey as NSString)
-                    
-                    DispatchQueue.main.async {
-                        completion(diskCachedImage)
-                    }
-                } else {
-                    DRWarning("[ImageCacheService] 磁盘缓存的图片无法加载: \(url)")
-                    self.downloadImageFromNetwork(url: url, cacheKey: cacheKey, completion: completion)
-                }
-            }
+        // 2. 使用更严格的下载锁，避免重复请求
+        downloadLock.lock()
+        if var callbacks = downloadingURLs[url] {
+            // 该URL已在下载中，添加当前回调到队列
+            callbacks.append(completion)
+            downloadingURLs[url] = callbacks
+            downloadLock.unlock()
             return
         }
         
-        // 3. 从网络下载
-        downloadImageFromNetwork(url: url, cacheKey: cacheKey, completion: completion)
+        // 将回调添加到下载队列，标记为正在下载
+        downloadingURLs[url] = [completion]
+        downloadLock.unlock()
+        
+        // 3. 检查磁盘缓存 - 优先使用后台线程检查
+        let diskCachePath = getCachePath(for: cacheKey)
+        
+        downloadQueue.async {
+            // 在后台线程再次检查内存缓存（可能在此期间被其他线程加载）
+            if let cachedImage = self.memoryCache.object(forKey: cacheKey as NSString) {
+                self.downloadLock.lock()
+                let callbacks = self.downloadingURLs[url] ?? []
+                self.downloadingURLs.removeValue(forKey: url)
+                self.downloadLock.unlock()
+                
+                DispatchQueue.main.async {
+                    for callback in callbacks {
+                        callback(cachedImage)
+                    }
+                }
+                return
+            }
+            
+            // 检查磁盘缓存
+            if self.fileManager.fileExists(atPath: diskCachePath.path),
+               let diskCachedImage = UIImage(contentsOfFile: diskCachePath.path) {
+                
+                // 保存到内存缓存
+                self.memoryCache.setObject(diskCachedImage, forKey: cacheKey as NSString)
+                
+                // 通知所有回调
+                self.downloadLock.lock()
+                let callbacks = self.downloadingURLs[url] ?? []
+                self.downloadingURLs.removeValue(forKey: url)
+                self.downloadLock.unlock()
+                
+                DispatchQueue.main.async {
+                    for callback in callbacks {
+                        callback(diskCachedImage)
+                    }
+                }
+                return
+            }
+            
+            // 磁盘缓存未命中，从网络下载
+            self.downloadImageFromNetwork(url: url, cacheKey: cacheKey) { image in
+                // 下载完成后通知所有等待的回调
+                self.downloadLock.lock()
+                let callbacks = self.downloadingURLs[url] ?? []
+                self.downloadingURLs.removeValue(forKey: url)
+                self.downloadLock.unlock()
+                
+                DispatchQueue.main.async {
+                    for callback in callbacks {
+                        callback(image)
+                    }
+                }
+            }
+        }
     }
     
     /// 从网络下载图片
     private func downloadImageFromNetwork(url: String, cacheKey: String, completion: @escaping (UIImage?) -> Void) {
         guard let imageUrl = URL(string: url) else {
-            DRError("[ImageCacheService] 无效的URL格式: \(url)")
+            DRError("[ImageCacheService] 无效的URL格式")
             completion(nil)
             return
         }
         
-        DRInfo("[ImageCacheService] 开始从网络下载图片: \(url)")
+        DRInfo("[ImageCacheService] 开始从网络下载图片")
         
         // 检查是否是SVG格式的图片（通过URL后缀或类型参数）
         let isSVG = url.lowercased().contains(".svg") || url.lowercased().contains("type=icon") && !url.lowercased().contains(".png")
         if isSVG {
-            DRInfo("[ImageCacheService] 检测到SVG图片: \(url)")
+            DRInfo("[ImageCacheService] 检测到SVG图片")
         }
         
         // 创建URL请求
@@ -103,22 +153,23 @@ class ImageCacheService {
         // 创建URLSession
         let session = URLSession(configuration: config)
         
-        let task = session.dataTask(with: request) { data, response, error in
+        let task = session.dataTask(with: request) { [weak self] data, response, error in
+            guard let self = self else {
+                completion(nil)
+                return
+            }
+            
             // 检查是否有错误
             if let error = error {
                 DRError("[ImageCacheService] 图片下载失败: \(url), 错误: \(error.localizedDescription)")
-                DispatchQueue.main.async {
-                    completion(nil)
-                }
+                completion(nil)
                 return
             }
             
             // 检查是否有数据
             guard let data = data else {
                 DRError("[ImageCacheService] 图片下载失败: \(url), 错误: 没有数据")
-                DispatchQueue.main.async {
-                    completion(nil)
-                }
+                completion(nil)
                 return
             }
             
@@ -130,15 +181,13 @@ class ImageCacheService {
                 
                 // 日志记录响应信息，帮助调试
                 if let mimeType = mimeType {
-                    DRInfo("[ImageCacheService] 收到图片响应: \(url), 状态码: \(statusCode), MIME类型: \(mimeType), 数据大小: \(data.count)字节")
+                    DRInfo("[ImageCacheService] 收到图片响应: 状态码: \(statusCode), MIME类型: \(mimeType), 数据大小: \(data.count)字节")
                 }
                 
                 // 处理不同的响应状态码
                 if statusCode < 200 || statusCode >= 300 {
-                    DRError("[ImageCacheService] 服务器错误: \(url), 状态码: \(statusCode)")
-                    DispatchQueue.main.async {
-                        completion(nil)
-                    }
+                    DRError("[ImageCacheService] 服务器错误: 状态码: \(statusCode)")
+                    completion(nil)
                     return
                 }
             }
@@ -152,7 +201,7 @@ class ImageCacheService {
             // 尝试从数据创建图像
             if isSVGResponse {
                 // 处理SVG图片
-                DRInfo("[ImageCacheService] 处理SVG图片数据: \(url), 大小: \(data.count)字节")
+                DRInfo("[ImageCacheService] 处理SVG图片数据: 大小: \(data.count)字节")
                 
                 // 使用WebKit渲染SVG
                 self.renderSVG(svgData: data, url: url) { renderedImage in
@@ -160,10 +209,10 @@ class ImageCacheService {
                         // 缓存图像
                         self.saveImageToCache(finalImage, forKey: cacheKey)
                         
-                        DRInfo("[ImageCacheService] 成功渲染和缓存SVG图片: \(url)")
+                        DRInfo("[ImageCacheService] 成功渲染和缓存SVG图片")
                         completion(finalImage)
                     } else {
-                        DRError("[ImageCacheService] SVG渲染失败: \(url)")
+                        DRError("[ImageCacheService] SVG渲染失败")
                         // 创建备用图标
                         let fallbackImage = self.createFallbackImage()
                         completion(fallbackImage)
@@ -175,15 +224,11 @@ class ImageCacheService {
                     // 缓存图像
                     self.saveImageToCache(standardImage, forKey: cacheKey)
                     
-                    DRInfo("[ImageCacheService] 成功下载和缓存\(isPNG ? "PNG" : "标准")图片: \(url)")
-                    DispatchQueue.main.async {
-                        completion(standardImage)
-                    }
+                    DRInfo("[ImageCacheService] 成功下载和缓存\(isPNG ? "PNG" : "标准")图片")
+                    completion(standardImage)
                 } else {
-                    DRError("[ImageCacheService] 无法创建\(isPNG ? "PNG" : "标准")图像: \(url), 数据大小: \(data.count)字节")
-                    DispatchQueue.main.async {
-                        completion(nil)
-                    }
+                    DRError("[ImageCacheService] 无法创建\(isPNG ? "PNG" : "标准")图像: 数据大小: \(data.count)字节")
+                    completion(nil)
                 }
             }
         }
@@ -203,6 +248,7 @@ class ImageCacheService {
             
             // 创建SVG内容
             if let svgString = String(data: svgData, encoding: .utf8) {
+                // 只显示SVG内容的前100个字符作为日志
                 DRInfo("[ImageCacheService] SVG内容: \(svgString.prefix(100))...")
                 
                 // 构建HTML页面，确保SVG缩放适应容器
@@ -233,15 +279,15 @@ class ImageCacheService {
                     UIGraphicsEndImageContext()
                     
                     if let finalImage = image {
-                        DRInfo("[ImageCacheService] SVG渲染成功: \(url)")
+                        DRInfo("[ImageCacheService] SVG渲染成功")
                         completion(finalImage)
                     } else {
-                        DRError("[ImageCacheService] SVG渲染失败，无法截取图像: \(url)")
+                        DRError("[ImageCacheService] SVG渲染失败，无法截取图像")
                         completion(nil)
                     }
                 }
             } else {
-                DRError("[ImageCacheService] 无法将SVG数据转换为字符串: \(url)")
+                DRError("[ImageCacheService] 无法将SVG数据转换为字符串")
                 completion(nil)
             }
         }
@@ -375,7 +421,7 @@ class ImageCacheService {
         return cacheURL.appendingPathComponent(key)
     }
     
-    /// 从URL获取缓存键
+    /// 获取从URL获取缓存键
     private func getCacheKey(from url: String) -> String {
         // 将URL哈希为一个文件名安全的字符串
         let characters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
@@ -397,5 +443,72 @@ class ImageCacheService {
         }
         
         return result
+    }
+    
+    /// 批量预缓存图片 - 可以在应用启动时或进入特定页面前调用
+    func prefetchImages(urls: [String], progress: ((Int, Int) -> Void)? = nil, completion: (() -> Void)? = nil) {
+        guard !urls.isEmpty else {
+            completion?()
+            return
+        }
+        
+        let totalCount = urls.count
+        var loadedCount = 0
+        let group = DispatchGroup()
+        
+        DRInfo("[ImageCacheService] 开始批量预缓存 \(totalCount) 张图片")
+        
+        for url in urls {
+            group.enter()
+            
+            // 检查是否已缓存
+            let cacheKey = getCacheKey(from: url)
+            if memoryCache.object(forKey: cacheKey as NSString) != nil {
+                // 内存中已有，直接标记完成
+                loadedCount += 1
+                progress?(loadedCount, totalCount)
+                group.leave()
+                continue
+            }
+            
+            downloadAndCacheImage(url: url) { _ in
+                loadedCount += 1
+                progress?(loadedCount, totalCount)
+                group.leave()
+            }
+        }
+        
+        group.notify(queue: .main) {
+            DRInfo("[ImageCacheService] 批量预缓存完成: \(loadedCount)/\(totalCount)")
+            completion?()
+        }
+    }
+    
+    // 新增批量图片预加载方法
+    func batchPreloadImages(urls: [String], completion: @escaping ([String: UIImage]) -> Void) {
+        // 创建结果字典和同步组
+        var resultImages = [String: UIImage]()
+        let resultLock = NSLock()
+        let group = DispatchGroup()
+        
+        // 遍历所有URL进行加载
+        for url in urls {
+            group.enter()
+            
+            downloadAndCacheImage(url: url) { image in
+                defer { group.leave() }
+                
+                if let image = image {
+                    resultLock.lock()
+                    resultImages[url] = image
+                    resultLock.unlock()
+                }
+            }
+        }
+        
+        // 所有图片加载完成后调用回调
+        group.notify(queue: .main) {
+            completion(resultImages)
+        }
     }
 } 

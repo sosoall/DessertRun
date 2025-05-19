@@ -234,8 +234,14 @@ class FoodCheckInViewModel: ObservableObject {
                                 // 单次发送通知，避免UI闪烁
                                 self.sendTopDessertsUpdatedNotification()
                                 
-                                // 预加载图片
-                                self.preloadRankingImages(items: items)
+                                // 简化预加载逻辑，只发出通知
+                                DispatchQueue.main.async {
+                                    NotificationCenter.default.post(
+                                        name: NSNotification.Name("AllRankingImagesLoaded"),
+                                        object: nil,
+                                        userInfo: ["viewModel": self]
+                                    )
+                                }
                             }
                         }
                     } else {
@@ -261,63 +267,6 @@ class FoodCheckInViewModel: ObservableObject {
             userInfo: ["viewModel": self, "items": self.topDesserts]
         )
         DRDebug("[FoodCheckInViewModel] 已发送排行榜更新通知，实例: \(Unmanaged.passUnretained(self).toOpaque())")
-    }
-    
-    /// 预加载排行榜图片
-    private func preloadRankingImages(items: [StatTopDessertItem]) {
-        // 先打印信息验证数据
-        DRDebug("[FoodCheckInViewModel] 准备预加载\(items.count)个排行榜图片，ViewModel实例: \(Unmanaged.passUnretained(self).toOpaque())")
-        
-        // 遍历所有排行榜项，提前下载并缓存图片
-        for item in items {
-            DRDebug("[FoodCheckInViewModel] 开始预加载排行榜图片: \(item.name), URL: \(item.imageName)")
-            
-            // 使用ImageCacheService加载图片
-            ImageCacheService.shared.downloadAndCacheImage(url: item.imageName) { [weak self] image in
-                guard let self = self else { return }
-                
-                if image != nil {
-                    DRDebug("[FoodCheckInViewModel] 成功预加载排行榜图片: \(item.name)")
-                    
-                    // 发送通知告知图片已加载，携带ViewModel实例引用
-                    DispatchQueue.main.async {
-                        NotificationCenter.default.post(
-                            name: NSNotification.Name("RankingImageLoaded"),
-                            object: item.id,
-                            userInfo: ["viewModel": self]
-                        )
-                        
-                        // 打印当前ViewModel状态
-                        DRDebug("[FoodCheckInViewModel] 图片加载完成后ViewModel状态: \(self.topDesserts.count)项, 实例: \(Unmanaged.passUnretained(self).toOpaque())")
-                    }
-                } else {
-                    DRError("[FoodCheckInViewModel] 预加载排行榜图片失败: \(item.name)")
-                    
-                    // 尝试加载备用URL
-                    let backupURL = "\(Config.API.baseURL)/api/v1/desserts/\(item.dessertId)/images/regular"
-                    DRDebug("[FoodCheckInViewModel] 尝试使用备用URL加载图片: \(backupURL)")
-                    
-                    ImageCacheService.shared.downloadAndCacheImage(url: backupURL) { [weak self] backupImage in
-                        guard let self = self else { return }
-                        
-                        if backupImage != nil {
-                            DRDebug("[FoodCheckInViewModel] 使用备用URL成功加载图片: \(item.name)")
-                            
-                            // 发送通知告知图片已加载
-                            DispatchQueue.main.async {
-                                NotificationCenter.default.post(
-                                    name: NSNotification.Name("RankingImageLoaded"),
-                                    object: item.id,
-                                    userInfo: ["viewModel": self]
-                                )
-                            }
-                        } else {
-                            DRError("[FoodCheckInViewModel] 备用URL加载图片也失败: \(item.name)")
-                        }
-                    }
-                }
-            }
-        }
     }
     
     /// 获取按时间倒序排列的所有记录
@@ -423,7 +372,17 @@ class FoodCheckInViewModel: ObservableObject {
         currentPage = 1
         hasMoreRecords = false
         
-        DRDebug("[FoodCheckInViewModel] 开始加载美食记录，页码: \(currentPage)，每页数量: \(pageSize)")
+        // 分离加载逻辑，单独调用各个部分
+        // 1. 加载美食记录
+        loadWorkoutRecordsIndependently()
+        
+        // 2. 单独加载排行榜，不触发美食券加载
+        loadTopDessertsIndependently(limit: 5) 
+    }
+    
+    /// 单独加载运动记录
+    func loadWorkoutRecordsIndependently() {
+        DRDebug("[FoodCheckInViewModel] 独立加载美食记录，页码: \(currentPage)，每页数量: \(pageSize)")
         
         APIService.shared.getUserWorkoutRecordsWithTotal(page: currentPage, limit: pageSize)
             .receive(on: DispatchQueue.main)
@@ -448,17 +407,160 @@ class FoodCheckInViewModel: ObservableObject {
                         DRInfo("[FoodCheckInViewModel] 成功加载\(records.count)条美食记录，总数: \(total)")
                         
                         // 根据总记录数和当前加载的记录数判断是否还有更多记录
-                        // 只有当已加载的记录数小于总记录数时，才设置hasMoreRecords为true
                         let recordsLoaded = records.count
                         self.hasMoreRecords = recordsLoaded < total
                         
                         DRDebug("[FoodCheckInViewModel] 当前加载: \(recordsLoaded), 总记录数: \(total), 是否有更多: \(self.hasMoreRecords)")
+                    }
+                }
+            )
+            .store(in: &cancellables)
+    }
+    
+    /// 单独加载排行榜
+    func loadTopDessertsIndependently(limit: Int = 5) {
+        // 防止重复加载
+        if isLoadingTopDesserts {
+            DRDebug("[FoodCheckInViewModel] 正在加载美食排行榜，忽略重复请求")
+            return
+        }
+        
+        isLoadingTopDesserts = true
+        DRDebug("[FoodCheckInViewModel] 开始单独加载排行榜数据")
+        
+        // 强制清空旧数据，确保发布更新
+        if !topDesserts.isEmpty {
+            DRDebug("[FoodCheckInViewModel] 加载前清空旧数据，原有 \(topDesserts.count) 条")
+            DispatchQueue.main.async {
+                self.topDesserts = []
+            }
+        }
+        
+        APIService.shared.getUserTopDesserts(limit: limit)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { [weak self] completion in
+                    DispatchQueue.main.async {
+                        self?.isLoadingTopDesserts = false
+                        if case .failure(let error) = completion {
+                            DRError("[FoodCheckInViewModel] 加载美食排行榜失败: \(error.errorMessage)")
+                            
+                            // 判断是否为令牌过期错误
+                            if case .tokenExpired = error {
+                                self?.errorMessage = "登录已过期，请重新登录"
+                            } else {
+                                self?.errorMessage = "加载排行榜失败：\(error.errorMessage)"
+                                self?.hasNoTopDessertData = true
+                            }
+                        }
+                    }
+                },
+                receiveValue: { [weak self] response in
+                    guard let self = self else { return }
+                    
+                    DRDebug("[FoodCheckInViewModel] 收到排行榜API响应")
+                    
+                    if response.code == 0 || response.code == 200 {
+                        let items = response.data.items.map { item in
+                            StatTopDessertItem(
+                                id: item.dessertId.uuidString,
+                                name: item.dessertName,
+                                imageName: item.imageURL,
+                                calories: item.calories,
+                                count: item.checkinCount,
+                                totalCalories: item.totalCalories,
+                                dessertId: item.dessertId.uuidString
+                            )
+                        }
                         
-                        // 加载完美食记录后，加载美食券
-                        self.loadDessertVouchers()
+                        // 确保在主线程更新UI绑定的数据
+                        DispatchQueue.main.async { [self] in
+                            // 重置加载状态
+                            self.isLoadingTopDesserts = false
+                            
+                            // 检查是否有数据
+                            if items.isEmpty {
+                                DRInfo("[FoodCheckInViewModel] 排行榜无数据")
+                                self.hasNoTopDessertData = true
+                                self.errorMessage = "暂无排行榜数据"
+                            } else {
+                                // 直接设置数据
+                                self.topDesserts = items
+                                self.hasNoTopDessertData = false
+                                self.errorMessage = nil
+                                
+                                DRInfo("[FoodCheckInViewModel] 成功加载\(items.count)个排行榜项")
+                                
+                                // 单次发送通知，避免UI闪烁
+                                self.sendTopDessertsUpdatedNotification()
+                                
+                                // 简化预加载逻辑，只发出通知
+                                DispatchQueue.main.async {
+                                    NotificationCenter.default.post(
+                                        name: NSNotification.Name("AllRankingImagesLoaded"),
+                                        object: nil,
+                                        userInfo: ["viewModel": self]
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        DispatchQueue.main.async {
+                            // 重置加载状态
+                            self.isLoadingTopDesserts = false
+                            self.hasNoTopDessertData = true
+                            
+                            DRError("[FoodCheckInViewModel] 加载美食排行榜失败: \(response.message)")
+                            self.errorMessage = "加载排行榜失败：\(response.message)"
+                        }
+                    }
+                }
+            )
+            .store(in: &cancellables)
+    }
+    
+    /// 独立加载美食券
+    func loadVouchersIndependently(status: String? = nil) {
+        // 添加加载状态标记，防止重复请求
+        if isLoadingVouchers {
+            DRDebug("[FoodCheckInViewModel] 正在加载美食券，忽略重复请求")
+            return
+        }
+        
+        isLoadingVouchers = true
+        DRDebug("[FoodCheckInViewModel] 开始单独加载美食券数据")
+        
+        // 使用与API定义一致的参数
+        APIService.shared.getUserVouchers(status: status, page: 1, limit: 20)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { [weak self] completion in
+                    self?.isLoadingVouchers = false
+                    if case .failure(let error) = completion {
+                        DRError("[FoodCheckInViewModel] 加载美食券失败: \(error.errorMessage)")
+                        self?.errorMessage = error.errorMessage
+                    }
+                },
+                receiveValue: { [weak self] vouchers in
+                    guard let self = self else { return }
+                    self.isLoadingVouchers = false
+                    DRDebug("[FoodCheckInViewModel] 成功接收美食券数据，数量: \(vouchers.count)")
+                    
+                    // 更新应用状态中的美食券列表
+                    DispatchQueue.main.async {
+                        // 避免不必要的状态更新，只在数据真正变化时更新
+                        let hasChanges = self.hasVoucherChanges(newVouchers: vouchers)
                         
-                        // 加载美食排行榜
-                        self.loadTopDesserts(limit: 5)
+                        if hasChanges {
+                            DRDebug("[FoodCheckInViewModel] 检测到美食券数据变化，更新状态")
+                            self.appState.dessertVouchers = vouchers
+                            DRInfo("[FoodCheckInViewModel] 成功加载\(vouchers.count)张美食券")
+                            
+                            // 强制刷新视图
+                            NotificationCenter.default.post(name: NSNotification.Name("VouchersUpdated"), object: nil)
+                        } else {
+                            DRDebug("[FoodCheckInViewModel] 美食券数据未变化，跳过更新")
+                        }
                     }
                 }
             )

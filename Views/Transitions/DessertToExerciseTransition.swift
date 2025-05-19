@@ -295,7 +295,8 @@ struct DessertToExerciseTransition: View {
                         DRError("创建运动记录失败: \(error.errorMessage)")
                         
                         // 增加更详细的错误信息
-                        if let apiError = error as? APIServiceError {
+                        if let apiError = error
+                            as? APIServiceError {
                             DRError("API错误详情: \(apiError)")
                             
                             if case .networkError(let networkError) = apiError {

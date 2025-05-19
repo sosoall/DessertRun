@@ -11,6 +11,10 @@ struct FoodCheckInView: View {
     @State private var showExpandedCard: Bool = false  // 是否显示展开视图
     @State private var hasAppeared: Bool = false  // 添加状态标志，追踪视图是否已出现
     @State private var forceRefresh: Bool = false  // 强制刷新标记
+    @State private var hasLoadedVouchers: Bool = false  // 添加标记，追踪美食券是否已加载
+    
+    // 添加静态变量，用于全局追踪是否已经完成初始加载
+    private static var hasInitialDataLoaded: Bool = false
     
     var body: some View {
         ZStack {
@@ -40,45 +44,48 @@ struct FoodCheckInView: View {
             }
         }
         .onAppear {
-            // 使用hasAppeared标志防止多次调用
-            if !hasAppeared {
-                DRDebug("[FoodCheckInView] 首次显示，准备加载数据")
-                
+            // 监听新的批量图片加载完成通知
+            NotificationCenter.default.addObserver(forName: NSNotification.Name("AllRankingImagesLoaded"), object: nil, queue: .main) { _ in
+                // 批量图片加载完成，可以触发UI更新
+                withAnimation {
+                    forceRefresh.toggle()
+                }
+            }
+            
+            // 分别加载不同数据，避免相互影响
+            // 1. 如果美食记录为空，加载美食记录
+            if appState.workoutRecords.isEmpty {
+                viewModel.loadWorkoutRecordsIndependently()
+            }
+            
+            // 2. 单独加载排行榜数据
+            viewModel.loadTopDessertsIndependently(limit: 5)
+            
+            // 3. 如果美食券为空，加载美食券数据
+            if appState.dessertVouchers.isEmpty {
+                viewModel.loadVouchersIndependently()
+            }
+            
+            // 首次加载检查全局标记，而不是仅基于hasAppeared
+            if !Self.hasInitialDataLoaded {
                 // 立即设置标志，防止重复加载
                 hasAppeared = true
+                Self.hasInitialDataLoaded = true
                 
                 // 延迟加载，确保视图已完全呈现
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    DRDebug("[FoodCheckInView] 开始加载数据")
                     viewModel.loadData() // 这会同时加载打卡记录、美食券和排行榜数据
                     
-                    // 强制刷新UI，确保使用正确的ViewModel实例
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                        DRDebug("[FoodCheckInView] 延迟刷新，ViewModel数据数量: \(self.viewModel.topDesserts.count), 美食券数量: \(self.appState.dessertVouchers.count)")
+                    // 设置美食券已加载标记
+                    self.hasLoadedVouchers = true
+                    
+                    // 只需一次刷新UI，不需要多次延迟刷新
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                         self.forceRefresh.toggle()
-                    }
-                    
-                    // 再次尝试获取美食券数据并刷新
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                        // 直接从服务调用获取美食券
-                        self.viewModel.loadDessertVouchers()
-                        
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                            self.forceRefresh.toggle()
-                            DRDebug("[FoodCheckInView] 二次延迟刷新，美食券数量: \(self.appState.dessertVouchers.count)")
-                        }
-                    }
-                    
-                    // 打印一下所有ViewModel的状态
-                    for i in 0...3 {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + Double(i)) {
-                            DRDebug("[FoodCheckInView] ViewModel状态检查 \(i)秒后: 数据量\(self.viewModel.topDesserts.count), 美食券数量: \(self.appState.dessertVouchers.count)")
-                        }
                     }
                     
                     // 仅当刚完成打卡时才显示动画
                     if appState.justCompletedWorkout, let latestRecord = viewModel.getSortedAllRecords().first {
-                        DRDebug("[FoodCheckInView] 检测到新记录，准备显示动画")
                         // 将新记录ID存入状态变量
                         newRecordId = "\(latestRecord.id)"
                         
@@ -92,20 +99,32 @@ struct FoodCheckInView: View {
                             showNewRecordAnimation = false
                             newRecordId = nil
                             appState.justCompletedWorkout = false
-                            DRDebug("[FoodCheckInView] 重置动画状态完成")
                         }
                     }
                 }
             } else {
-                DRDebug("[FoodCheckInView] 视图已显示过，执行刷新，美食券数量: \(appState.dessertVouchers.count)")
+                // 如果不是首次加载，检查是否有新数据需要展示
                 
-                // 无论如何都重新加载美食券数据
-                viewModel.loadDessertVouchers()
-                
-                // 短暂延迟后强制刷新UI
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    self.forceRefresh.toggle()
+                // 如果用户刚完成打卡，只需要处理动画
+                if appState.justCompletedWorkout, let latestRecord = viewModel.getSortedAllRecords().first {
+                    // 将新记录ID存入状态变量
+                    newRecordId = "\(latestRecord.id)"
+                    
+                    withAnimation(.easeInOut(duration: 0.5)) {
+                        showNewRecordAnimation = true
+                    }
+                    
+                    // 3秒后重置状态，但不需要消失动画
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                        // 没有动画效果，只重置状态
+                        showNewRecordAnimation = false
+                        newRecordId = nil
+                        appState.justCompletedWorkout = false
+                    }
                 }
+                
+                // 轻量级刷新UI以反映任何新变化
+                self.forceRefresh.toggle()
             }
             
             // 添加美食券点击通知的观察者
@@ -128,7 +147,6 @@ struct FoodCheckInView: View {
                 object: nil,
                 queue: .main
             ) { _ in
-                DRDebug("[FoodCheckInView] 收到美食券数据更新通知，当前美食券数量: \(self.appState.dessertVouchers.count)")
                 // 强制刷新视图
                 DispatchQueue.main.async {
                     self.forceRefresh.toggle()
@@ -146,11 +164,8 @@ struct FoodCheckInView: View {
                     let notificationViewModelAddress = Unmanaged.passUnretained(notificationViewModel).toOpaque()
                     let selfViewModelAddress = Unmanaged.passUnretained(self.viewModel).toOpaque()
                     
-                    DRDebug("[FoodCheckInView] 收到排行榜数据更新通知，通知的ViewModel: \(notificationViewModelAddress)，当前ViewModel: \(selfViewModelAddress)")
-                    
                     // 两个实例不同时，需要强制更新数据
                     if notificationViewModelAddress != selfViewModelAddress {
-                        DRWarning("[FoodCheckInView] 检测到不同的ViewModel实例，强制同步数据")
                         if let items = notification.userInfo?["items"] as? [StatTopDessertItem], !items.isEmpty {
                             DispatchQueue.main.async {
                                 // 直接从通知获取数据并更新
@@ -163,7 +178,6 @@ struct FoodCheckInView: View {
                 
                 // 无论如何只刷新一次UI
                 self.forceRefresh.toggle()
-                DRDebug("[FoodCheckInView] 强制刷新状态已切换: \(self.forceRefresh)")
             }
             
             // 修改RankingImageLoaded通知观察者，移除[weak self]
@@ -171,15 +185,8 @@ struct FoodCheckInView: View {
                 forName: NSNotification.Name("RankingImageLoaded"),
                 object: nil,
                 queue: .main
-            ) { notification in
+            ) { _ in
                 // 收到图片加载完成的通知，强制刷新UI
-                if let itemId = notification.object as? String {
-                    DRDebug("[FoodCheckInView] 收到排行榜图片加载完成通知，项目ID: \(itemId)，强制刷新UI")
-                } else {
-                    DRDebug("[FoodCheckInView] 收到排行榜图片加载完成通知，强制刷新UI")
-                }
-                
-                // 直接刷新UI，无需多次刷新
                 self.forceRefresh.toggle()
             }
         }
@@ -211,8 +218,6 @@ struct FoodCheckInView: View {
                 name: NSNotification.Name("RankingImageLoaded"),
                 object: nil
             )
-            
-            DRDebug("[FoodCheckInView] 视图消失，移除观察者")
         }
     }
     
@@ -342,12 +347,6 @@ struct FoodCheckInView: View {
         VStack(alignment: .leading, spacing: 16) {
             // 标题和筛选区域
             VStack(spacing: 12) {
-                HStack {
-                    Text("全部打卡记录")
-                        .font(.system(size: 18, weight: .semibold)) // Title字体样式
-                    
-                    Spacer()
-                }
                 
                 // 筛选选项
                 filterOptions
@@ -366,22 +365,26 @@ struct FoodCheckInView: View {
                 ForEach(RecordFilter.allCases, id: \.self) { filter in
                     Button(action: {
                         withAnimation {
-                            selectedFilter = filter
-                            
-                            // 根据选择的筛选条件加载相应的美食券
-                            switch filter {
-                            case .all:
-                                // 加载全部美食券
-                                viewModel.loadDessertVouchers()
-                            case .active:
-                                // 加载有效的美食券
-                                viewModel.loadDessertVouchers(status: "active")
-                            case .used:
-                                // 加载已使用的美食券
-                                viewModel.loadDessertVouchers(status: "used")
-                            case .expired:
-                                // 加载已过期的美食券
-                                viewModel.loadDessertVouchers(status: "expired")
+                            // 只有在筛选条件变化时才重新加载数据
+                            if selectedFilter != filter {
+                                selectedFilter = filter
+                                
+                                // 使用本地筛选代替重新请求API
+                                // 只有在真正需要通过API获取不同状态记录时才调用
+                                if !hasLoadedVouchers || appState.dessertVouchers.isEmpty {
+                                    // 仅在尚未加载或数据为空时调用API
+                                    switch filter {
+                                    case .all:
+                                        viewModel.loadDessertVouchers()
+                                    case .active:
+                                        viewModel.loadDessertVouchers(status: "active")
+                                    case .used:
+                                        viewModel.loadDessertVouchers(status: "used")
+                                    case .expired:
+                                        viewModel.loadDessertVouchers(status: "expired")
+                                    }
+                                    hasLoadedVouchers = true
+                                }
                             }
                         }
                     }) {
@@ -403,29 +406,16 @@ struct FoodCheckInView: View {
     private var filteredRecords: [String: [WorkoutRecord]] {
         let sortedRecords = viewModel.getSortedAllRecords()
         var groupedRecords = [String: [WorkoutRecord]]()
-        // 创建时间戳到日期字符串的映射，用于正确排序
-        var timestampToString = [TimeInterval: String]()
-        // 创建日期字符串到时间戳的映射，用于后续排序
-        var stringToTimestamp = [String: TimeInterval]()
         
-        // 添加调试日志，查看美食券数据
+        // 仅在数量为0时打印警告信息，避免重复请求
         let vouchersCount = appState.dessertVouchers.count
-        DRDebug("[FoodCheckInView] 过滤记录: 美食券数量=\(vouchersCount), 打卡记录数量=\(sortedRecords.count)")
-        
-        // 打印几个美食券样本，确认日期
-        if !appState.dessertVouchers.isEmpty {
-            for (index, voucher) in appState.dessertVouchers.prefix(3).enumerated() {
-                let dateFormatter = DateFormatter()
-                dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-                let createdDateStr = dateFormatter.string(from: voucher.createdAt)
-                let timestamp = voucher.createdAt.timeIntervalSince1970
-                DRDebug("[FoodCheckInView] 美食券样本[\(index)]: id=\(voucher.id), 创建日期=\(createdDateStr), 时间戳=\(timestamp), workoutRecordId=\(voucher.workoutRecordId ?? "nil")")
-            }
-        } else {
-            DRDebug("[FoodCheckInView] 警告: 没有美食券数据!")
+        if vouchersCount == 0 {
+            DRWarning("[FoodCheckInView] 警告: 没有美食券数据!")
             // 尝试重新加载美食券数据
             DispatchQueue.main.async {
-                self.viewModel.loadDessertVouchers()
+                if !self.viewModel.isLoadingVouchers {
+                    self.viewModel.loadDessertVouchers()
+                }
             }
         }
         
@@ -435,106 +425,46 @@ struct FoodCheckInView: View {
         case .all:
             // 使用全部记录，不需要筛选
             filteredList = sortedRecords
-        case .active:
-            // 使用API返回的"active"状态美食券对应的记录
+        case .active, .used, .expired:
+            // 使用API返回的对应状态美食券的记录
+            let status = selectedFilter == .active ? "active" : (selectedFilter == .used ? "used" : "expired")
+            // 使用更可靠的方式查找对应record
             filteredList = sortedRecords.filter { record in
                 // 查找对应的美食券
-                let voucher = appState.dessertVouchers.first(where: { $0.workoutRecordId == record.id })
-                // 只保留状态为active的记录
-                return voucher?.status == "active"
-            }
-        case .used:
-            // 使用API返回的"used"状态美食券对应的记录
-            filteredList = sortedRecords.filter { record in
-                // 查找对应的美食券
-                let voucher = appState.dessertVouchers.first(where: { $0.workoutRecordId == record.id })
-                // 只保留状态为used的记录
-                return voucher?.status == "used"
-            }
-        case .expired:
-            // 使用API返回的"expired"状态美食券对应的记录
-            filteredList = sortedRecords.filter { record in
-                // 查找对应的美食券
-                let voucher = appState.dessertVouchers.first(where: { $0.workoutRecordId == record.id })
-                // 只保留状态为expired的记录
-                return voucher?.status == "expired"
+                return appState.dessertVouchers.contains(where: { 
+                    $0.workoutRecordId == record.id && $0.status == status 
+                })
             }
         }
+        
+        // 创建一个record ID到美食券的映射
+        let recordIdToVoucher = Dictionary(grouping: appState.dessertVouchers, by: { $0.workoutRecordId ?? "" })
         
         // 按日期分组记录
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy年 M月 d日"
         
-        // FIXME: 修复了美食券列表按日期分组显示问题 - 2025/5/15
-        // 原问题: 美食券列表中日期显示为固定的2025年5月14日，而不是实际的创建日期
-        // 解决方案: 使用美食券的createdAt字段作为分组依据，而不是workoutRecord的date字段
-        // 
-        // FIXME: 修复了美食券日期排序问题 - 2025/5/16
-        // 原问题: 美食券列表按照字符串而非时间戳排序，导致时间顺序错误(5.9显示在5.14前面)
-        // 解决方案: 使用时间戳进行排序，确保最新日期显示在最前
-        var recordsProcessed = 0
+        // 只处理有对应美食券的记录
         for record in filteredList {
+            // 获取record ID
+            let recordId = record.id
+            
             // 查找对应的美食券
-            if let voucher = appState.dessertVouchers.first(where: { $0.workoutRecordId == record.id }) {
-                // 使用美食券的创建日期而不是记录日期
+            if let vouchers = recordIdToVoucher[recordId], !vouchers.isEmpty, let voucher = vouchers.first {
+                // 使用美食券的创建日期
                 let voucherDate = voucher.createdAt
                 // 获取时间戳
                 let timestamp = voucherDate.timeIntervalSince1970
                 
-                // 添加日期调试记录
-                let debugDateFormatter = DateFormatter()
-                debugDateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-                let debugDateStr = debugDateFormatter.string(from: voucherDate)
-                if recordsProcessed < 5 {
-                    DRDebug("[FoodCheckInView] 美食券[\(voucher.id)]原始创建日期: \(debugDateStr), 时间戳: \(timestamp)")
-                }
-                
                 // 使用年月日格式化为展示日期
                 let dateString = dateFormatter.string(from: voucherDate)
-                
-                if recordsProcessed < 5 {
-                    // 记录前几条数据的日期信息，用于调试
-                    DRDebug("[FoodCheckInView] 记录[\(recordsProcessed)]: 美食券[\(voucher.id)] 格式化后日期=\(dateString), 时间戳=\(timestamp)")
-                }
                 
                 if groupedRecords[dateString] == nil {
                     groupedRecords[dateString] = [record]
                 } else {
                     groupedRecords[dateString]?.append(record)
                 }
-            } else {
-                // 如果没有找到对应的美食券，则直接跳过该记录
-                // 我们只显示有美食券的打卡记录
-                if recordsProcessed < 5 {
-                    DRDebug("[FoodCheckInView] 记录[\(recordsProcessed)]: 未找到美食券，跳过 id=\(record.id)")
-                }
-                continue
             }
-            recordsProcessed += 1
-        }
-        
-        // 记录分组后的结果 - 使用字符串排序只是用于调试显示
-        let groupDates = groupedRecords.keys.sorted(by: >)
-        DRDebug("[FoodCheckInView] 记录分组结果: 共\(groupDates.count)个日期组，日期: \(groupDates)")
-        
-        // 打印各个日期组的时间戳排序信息（用于调试）
-        if !groupedRecords.isEmpty {
-            var dateToTimestamp = [String: TimeInterval]()
-            
-            // 收集每个日期组的第一条记录时间戳
-            for dateString in groupedRecords.keys {
-                if let records = groupedRecords[dateString], 
-                   let firstRecord = records.first, 
-                   let voucher = appState.dessertVouchers.first(where: { $0.workoutRecordId == firstRecord.id }) {
-                    let timestamp = voucher.createdAt.timeIntervalSince1970
-                    dateToTimestamp[dateString] = timestamp
-                    DRDebug("[FoodCheckInView] 日期组时间戳: 日期=\(dateString), 时间戳=\(timestamp)")
-                }
-            }
-            
-            // 按时间戳排序的日期
-            let sortedByTimestamp = dateToTimestamp.sorted { $0.value > $1.value }.map { $0.key }
-            DRDebug("[FoodCheckInView] 按时间戳排序的日期组顺序: \(sortedByTimestamp)")
         }
         
         return groupedRecords
@@ -570,7 +500,7 @@ struct FoodCheckInView: View {
             if appState.workoutRecords.isEmpty {
                 emptyRecordsView
             } else {
-                // 获取筛选后的分组记录
+                // 获取筛选后的分组记录 - 存储到临时变量以避免多次计算
                 let groupedRecords = filteredRecords
                 
                 if groupedRecords.isEmpty {
