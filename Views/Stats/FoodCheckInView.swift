@@ -12,6 +12,7 @@ struct FoodCheckInView: View {
     @State private var hasAppeared: Bool = false  // 添加状态标志，追踪视图是否已出现
     @State private var forceRefresh: Bool = false  // 强制刷新标记
     @State private var hasLoadedVouchers: Bool = false  // 添加标记，追踪美食券是否已加载
+    @State private var preloadedCardInfo: [String: Any]? = nil
     
     // 添加静态变量，用于全局追踪是否已经完成初始加载
     private static var hasInitialDataLoaded: Bool = false
@@ -38,17 +39,18 @@ struct FoodCheckInView: View {
             
             // 展开的卡片详情视图
             if showExpandedCard, let record = selectedRecord {
-                ExpandedCardView(record: record, isShowing: $showExpandedCard)
+                ExpandedCardView(record: record, isShowing: $showExpandedCard, preloadedImageInfo: preloadedCardInfo)
                     .transition(.opacity)
                     .zIndex(1)
             }
         }
         .onAppear {
-            // 监听新的批量图片加载完成通知
-            NotificationCenter.default.addObserver(forName: NSNotification.Name("AllRankingImagesLoaded"), object: nil, queue: .main) { _ in
-                // 批量图片加载完成，可以触发UI更新
-                withAnimation {
-                    forceRefresh.toggle()
+            // 监听新的排行榜图片加载完成通知
+            NotificationCenter.default.addObserver(forName: NSNotification.Name("RankingImagesLoaded"), object: nil, queue: .main) { _ in
+                // 仅刷新排行榜部分，不影响美食券列表
+                DispatchQueue.main.async {
+                    // 使用轻量级方式刷新，仅标记排行榜部分需要更新
+                    self.forceRefresh.toggle()
                 }
             }
             
@@ -59,7 +61,9 @@ struct FoodCheckInView: View {
             }
             
             // 2. 单独加载排行榜数据
-            viewModel.loadTopDessertsIndependently(limit: 5)
+            if viewModel.topDesserts.isEmpty && !viewModel.isLoadingTopDesserts {
+                viewModel.loadTopDessertsIndependently(limit: 5)
+            }
             
             // 3. 如果美食券为空，加载美食券数据
             if appState.dessertVouchers.isEmpty {
@@ -74,18 +78,34 @@ struct FoodCheckInView: View {
                 
                 // 延迟加载，确保视图已完全呈现
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    viewModel.loadData() // 这会同时加载打卡记录、美食券和排行榜数据
+                    // 使用分离的加载函数代替单一的loadData()
+                    if appState.workoutRecords.isEmpty {
+                        viewModel.loadWorkoutRecordsIndependently()
+                    }
+                    
+                    if appState.dessertVouchers.isEmpty {
+                        viewModel.loadVouchersIndependently()
+                    }
+                    
+                    if viewModel.topDesserts.isEmpty {
+                        viewModel.loadTopDessertsIndependently(limit: 5)
+                    }
                     
                     // 设置美食券已加载标记
                     self.hasLoadedVouchers = true
-                    
-                    // 只需一次刷新UI，不需要多次延迟刷新
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        self.forceRefresh.toggle()
+                }
+            } else {
+                // 如果不是首次加载，检查是否有新数据需要展示
+                
+                // 如果用户刚完成打卡，处理新记录动画
+                if appState.justCompletedWorkout {
+                    // 加载最新的美食券数据，确保新打卡记录能够显示
+                    DispatchQueue.main.async {
+                        DRDebug("[FoodCheckInView] 检测到新完成的打卡记录，主动刷新所有数据")
+                        viewModel.refreshDataAfterNewRecord()
                     }
                     
-                    // 仅当刚完成打卡时才显示动画
-                    if appState.justCompletedWorkout, let latestRecord = viewModel.getSortedAllRecords().first {
+                    if let latestRecord = viewModel.getSortedAllRecords().first {
                         // 将新记录ID存入状态变量
                         newRecordId = "\(latestRecord.id)"
                         
@@ -100,31 +120,11 @@ struct FoodCheckInView: View {
                             newRecordId = nil
                             appState.justCompletedWorkout = false
                         }
+                        
+                        // 强制刷新列表，确保新记录显示
+                        self.forceRefresh.toggle()
                     }
                 }
-            } else {
-                // 如果不是首次加载，检查是否有新数据需要展示
-                
-                // 如果用户刚完成打卡，只需要处理动画
-                if appState.justCompletedWorkout, let latestRecord = viewModel.getSortedAllRecords().first {
-                    // 将新记录ID存入状态变量
-                    newRecordId = "\(latestRecord.id)"
-                    
-                    withAnimation(.easeInOut(duration: 0.5)) {
-                        showNewRecordAnimation = true
-                    }
-                    
-                    // 3秒后重置状态，但不需要消失动画
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                        // 没有动画效果，只重置状态
-                        showNewRecordAnimation = false
-                        newRecordId = nil
-                        appState.justCompletedWorkout = false
-                    }
-                }
-                
-                // 轻量级刷新UI以反映任何新变化
-                self.forceRefresh.toggle()
             }
             
             // 添加美食券点击通知的观察者
@@ -134,9 +134,36 @@ struct FoodCheckInView: View {
                 queue: .main
             ) { notification in
                 if let record = notification.object as? WorkoutRecord {
+                    // 处理卡片传递的额外信息
+                    let userInfo = notification.userInfo
+                    let hasPreloadedImages = userInfo?["preloadedImages"] as? Bool ?? false
+                    
+                    if hasPreloadedImages {
+                        DRDebug("[FoodCheckInView] 使用卡片已预加载的图片信息，避免重复加载")
+                    }
+                    
                     withAnimation(.easeInOut(duration: 0.3)) {
                         selectedRecord = record
                         showExpandedCard = true
+                    }
+                    
+                    // 在ShowExpandedCard通知处理中保存预加载信息
+                    // 将[AnyHashable:Any]?转换为[String:Any]?
+                    if let anyHashableUserInfo = userInfo {
+                        // 创建一个新的[String:Any]字典
+                        var stringUserInfo = [String: Any]()
+                        
+                        // 遍历原始字典，将所有键转换为String
+                        for (key, value) in anyHashableUserInfo {
+                            if let stringKey = key as? String {
+                                stringUserInfo[stringKey] = value
+                            }
+                        }
+                        
+                        // 赋值转换后的字典
+                        preloadedCardInfo = stringUserInfo
+                    } else {
+                        preloadedCardInfo = nil
                     }
                 }
             }
@@ -153,7 +180,7 @@ struct FoodCheckInView: View {
                 }
             }
             
-            // 修改TopDessertsUpdated通知观察者，移除[weak self]
+            // 修改TopDessertsUpdated通知观察者，仅刷新排行榜部分
             NotificationCenter.default.addObserver(
                 forName: NSNotification.Name("TopDessertsUpdated"),
                 object: nil,
@@ -170,24 +197,11 @@ struct FoodCheckInView: View {
                             DispatchQueue.main.async {
                                 // 直接从通知获取数据并更新
                                 self.viewModel.topDesserts = items
-                                self.forceRefresh.toggle()
+                                // 不触发全局刷新，仅刷新排行榜部分
                             }
                         }
                     }
                 }
-                
-                // 无论如何只刷新一次UI
-                self.forceRefresh.toggle()
-            }
-            
-            // 修改RankingImageLoaded通知观察者，移除[weak self]
-            NotificationCenter.default.addObserver(
-                forName: NSNotification.Name("RankingImageLoaded"),
-                object: nil,
-                queue: .main
-            ) { _ in
-                // 收到图片加载完成的通知，强制刷新UI
-                self.forceRefresh.toggle()
             }
         }
         .onDisappear {
@@ -209,13 +223,6 @@ struct FoodCheckInView: View {
             NotificationCenter.default.removeObserver(
                 self,
                 name: NSNotification.Name("TopDessertsUpdated"),
-                object: nil
-            )
-            
-            // 移除排行榜图片加载完成的观察者
-            NotificationCenter.default.removeObserver(
-                self,
-                name: NSNotification.Name("RankingImageLoaded"),
                 object: nil
             )
         }
@@ -243,15 +250,9 @@ struct FoodCheckInView: View {
                     
                     // 刷新按钮
                     Button(action: {
-                        // 刷新排行榜数据
+                        // 刷新排行榜数据 - 仅刷新排行榜，不影响美食券列表
                         viewModel.loadTopDesserts(limit: 5)
                         DRDebug("[FoodCheckInView] 用户手动刷新排行榜")
-                        
-                        // 强制刷新UI
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            forceRefresh.toggle()
-                            DRDebug("[FoodCheckInView] 刷新排行榜后强制刷新UI: \(viewModel.topDesserts.count)项")
-                        }
                     }) {
                         Image(systemName: "arrow.clockwise")
                             .font(.system(size: 14))
@@ -328,6 +329,8 @@ struct FoodCheckInView: View {
                                         .font(.system(size: 12)) // Caption字体样式
                                         .foregroundColor(.black)
                                 }
+                                // 添加唯一ID，避免整个列表刷新
+                                .id("top-dessert-\(dessert.id)")
                             }
                         }
                         .padding(.vertical, 10) // 更紧凑
@@ -338,7 +341,8 @@ struct FoodCheckInView: View {
             .background(Color.white)
             .cornerRadius(16)
             .shadow(color: Color.black.opacity(0.05), radius: 3, x: 0, y: 2)
-            .id("topDesserts-\(forceRefresh)")
+            // 使用特定的ID使排行榜独立刷新，而不是整个视图
+            .id("topDesserts-\(viewModel.topDesserts.count)-\(viewModel.isLoadingTopDesserts ? "loading" : "loaded")")
         }
     }
     
@@ -409,12 +413,12 @@ struct FoodCheckInView: View {
         
         // 仅在数量为0时打印警告信息，避免重复请求
         let vouchersCount = appState.dessertVouchers.count
-        if vouchersCount == 0 {
+        if vouchersCount == 0 && !appState.justCompletedWorkout {
             DRWarning("[FoodCheckInView] 警告: 没有美食券数据!")
             // 尝试重新加载美食券数据
             DispatchQueue.main.async {
                 if !self.viewModel.isLoadingVouchers {
-                    self.viewModel.loadDessertVouchers()
+                    self.viewModel.loadVouchersIndependently()
                 }
             }
         }
@@ -444,25 +448,79 @@ struct FoodCheckInView: View {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy年 M月 d日"
         
-        // 只处理有对应美食券的记录
+        // 创建一个集合来追踪已添加的记录ID，避免重复添加
+        var addedRecordIds = Set<String>()
+        
+        // 优先处理新添加的记录，确保它显示在最前面
+        if appState.justCompletedWorkout && newRecordId != nil {
+            let recordIdString = newRecordId!
+            
+            // 查找对应的记录
+            if let newRecord = sortedRecords.first(where: { "\($0.id)" == recordIdString }) {
+                // 查找对应的美食券，必须使用美食券的创建时间
+                if let voucher = appState.dessertVouchers.first(where: { $0.workoutRecordId == newRecord.id }) {
+                    // 使用美食券的创建日期作为分组依据
+                    let voucherDate = voucher.createdAt
+                    let dateString = dateFormatter.string(from: voucherDate)
+                    
+                    if groupedRecords[dateString] == nil {
+                        groupedRecords[dateString] = [newRecord]
+                    } else {
+                        groupedRecords[dateString]?.append(newRecord)
+                    }
+                    
+                    // 标记该ID已添加，避免重复添加
+                    addedRecordIds.insert(newRecord.id)
+                    
+                    DRDebug("[FoodCheckInView] 优先添加新记录到列表(使用美食券日期): id=\(newRecord.id), 日期=\(dateString)")
+                } else {
+                    // 如果没有美食券，那么就不能显示
+                    DRWarning("[FoodCheckInView] 警告: 新记录无对应美食券，无法显示: id=\(newRecord.id)")
+                }
+            }
+        }
+        
+        // 处理所有记录
         for record in filteredList {
             // 获取record ID
             let recordId = record.id
             
+            // 避免重复添加同一记录
+            if addedRecordIds.contains(recordId) {
+                continue
+            }
+            
+            // 先标记该记录ID已添加，确保不会重复添加
+            addedRecordIds.insert(recordId)
+            
             // 查找对应的美食券
             if let vouchers = recordIdToVoucher[recordId], !vouchers.isEmpty, let voucher = vouchers.first {
-                // 使用美食券的创建日期
+                // 使用美食券的创建日期作为分组依据
                 let voucherDate = voucher.createdAt
-                // 获取时间戳
-                let timestamp = voucherDate.timeIntervalSince1970
-                
-                // 使用年月日格式化为展示日期
                 let dateString = dateFormatter.string(from: voucherDate)
                 
                 if groupedRecords[dateString] == nil {
                     groupedRecords[dateString] = [record]
                 } else {
                     groupedRecords[dateString]?.append(record)
+                }
+            } else if appState.justCompletedWorkout && newRecordId == "\(recordId)" {
+                // 特殊处理新添加的记录，只有找到对应美食券才能显示
+                if let voucher = appState.dessertVouchers.first(where: { $0.workoutRecordId == recordId }) {
+                    // 使用美食券的创建日期作为分组依据
+                    let voucherDate = voucher.createdAt
+                    let dateString = dateFormatter.string(from: voucherDate)
+                    
+                    if groupedRecords[dateString] == nil {
+                        groupedRecords[dateString] = [record]
+                    } else {
+                        groupedRecords[dateString]?.append(record)
+                    }
+                    
+                    DRDebug("[FoodCheckInView] 添加新记录到列表(使用美食券日期): id=\(recordId), 日期=\(dateString)")
+                } else {
+                    // 如果没有美食券，不能显示
+                    DRWarning("[FoodCheckInView] 警告: 新记录无对应美食券，无法显示: id=\(recordId)")
                 }
             }
         }
@@ -504,19 +562,44 @@ struct FoodCheckInView: View {
                 let groupedRecords = filteredRecords
                 
                 if groupedRecords.isEmpty {
-                    // 无筛选结果
-                    VStack {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 32))
-                            .foregroundColor(.gray.opacity(0.5))
-                            .padding()
-                        
-                        Text("未找到符合条件的记录")
-                            .font(.system(size: 16))
-                            .foregroundColor(.gray)
+                    // 检查是否是因为刚完成打卡，美食券数据还未更新
+                    if appState.justCompletedWorkout {
+                        // 显示加载中提示
+                        VStack {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle())
+                                .scaleEffect(1.2)
+                                .padding()
+                            
+                            Text("加载新打卡记录...")
+                                .font(.system(size: 16))
+                                .foregroundColor(.gray)
+                                .padding(.top, 8)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 32)
+                        .onAppear {
+                            // 自动重新加载美食券数据
+                            if !viewModel.isLoadingVouchers {
+                                DRDebug("[FoodCheckInView] 检测到新完成的打卡但无显示记录，主动加载美食券数据")
+                                viewModel.loadVouchersIndependently()
+                            }
+                        }
+                    } else {
+                        // 无筛选结果
+                        VStack {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 32))
+                                .foregroundColor(.gray.opacity(0.5))
+                                .padding()
+                            
+                            Text("未找到符合条件的记录")
+                                .font(.system(size: 16))
+                                .foregroundColor(.gray)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 32)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 32)
                 } else {
                     // 获取日期到时间戳的映射表
                     let dateToTimestamp = getDateStringToTimestampMapping()
@@ -542,6 +625,13 @@ struct FoodCheckInView: View {
                             
                             // 当天的记录，按时间戳倒序排列
                             let sortedRecords = groupedRecords[dateString]!.sorted { record1, record2 in
+                                // 如果有新打卡记录，它应该显示在最前面
+                                if newRecordId == "\(record1.id)" && appState.justCompletedWorkout {
+                                    return true
+                                } else if newRecordId == "\(record2.id)" && appState.justCompletedWorkout {
+                                    return false
+                                }
+                                
                                 // 获取关联的美食券时间戳
                                 let voucher1 = appState.dessertVouchers.first(where: { $0.workoutRecordId == record1.id })
                                 let voucher2 = appState.dessertVouchers.first(where: { $0.workoutRecordId == record2.id })
@@ -553,6 +643,7 @@ struct FoodCheckInView: View {
                                 return timestamp1 > timestamp2
                             }
                             
+                            // 使用ID作为唯一标识，避免重复渲染
                             ForEach(sortedRecords, id: \.id) { record in
                                 // 检查是否是新记录
                                 let isNewRecord = newRecordId == "\(record.id)" && dateString == sortedDates.first
@@ -571,6 +662,8 @@ struct FoodCheckInView: View {
                                     }
                                 }
                                 .padding(.bottom, 8)  // 减少卡片底部边距
+                                // 使用记录ID作为视图的唯一标识符，避免重复渲染
+                                .id("voucher-card-\(record.id)")
                                 .onAppear {
                                     // 记录显示时打印调试信息
                                     if let voucher = appState.dessertVouchers.first(where: { $0.workoutRecordId == record.id }) {
@@ -645,6 +738,7 @@ struct ExpandedCardView: View {
     let record: WorkoutRecord
     @Binding var isShowing: Bool
     @State private var isShared: Bool = false
+    let preloadedImageInfo: [String: Any]?
     
     var body: some View {
         ZStack {
@@ -684,8 +778,15 @@ struct ExpandedCardView: View {
                 .zIndex(1) // 确保关闭按钮在最上层
                 
                 // 美食券卡片（展开状态）- 尺寸更大
+                // 传递预加载的图片信息，避免重复加载
                 DessertVoucherCardSimple(record: record, forceExpanded: true)
                     .frame(width: UIScreen.main.bounds.width - 40)  // 确保卡片宽度合适
+                    .onAppear {
+                        // 如果有预加载的图片信息，记录日志
+                        if let preloaded = preloadedImageInfo?["preloadedImages"] as? Bool, preloaded {
+                            DRDebug("[ExpandedCardView] 使用了预加载的图片信息，减少重复加载")
+                        }
+                    }
                 
                 // 底部分享按钮 - 更新样式与Figma一致
                 Button(action: {
@@ -805,4 +906,5 @@ struct CachedImage: View {
         }
     }
 } 
+
 

@@ -1098,7 +1098,7 @@ class APIService {
     }
     
     /// 获取用户的美食券列表
-    func getUserVouchers(status: String? = nil, page: Int = 1, limit: Int = 20) -> AnyPublisher<[DessertVoucher], APIServiceError> {
+    func getUserVouchers(status: String? = nil, page: Int = 1, limit: Int = 20) -> AnyPublisher<[DessertVoucher], APIError> {
         var endpoint = ApiEndpoints.Vouchers.list + "?page=\(page)&limit=\(limit)"
         if let status = status {
             endpoint += "&status=\(status)"
@@ -1140,7 +1140,7 @@ class APIService {
         // 使用JSON直接解析，避免嵌套的APIResponse结构
         let urlString = Config.API.baseURL + endpoint
         guard let url = URL(string: urlString) else {
-            return Fail(error: APIServiceError.unknown).eraseToAnyPublisher()
+            return Fail(error: APIError.networkError("无法创建URL")).eraseToAnyPublisher()
         }
         
         var request = URLRequest(url: url)
@@ -1178,7 +1178,7 @@ class APIService {
                     // 尝试解析原始JSON以检查时间戳格式 - 移除不必要的日志
                     if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                        let dataDict = json["data"] as? [String: Any],
-                       let items = dataDict["items"] as? [[String: Any]] {
+                       let _ = dataDict["items"] as? [[String: Any]] {
                         
                         // 移除不必要的时间戳调试日志
                         /* if let firstItem = items.first {
@@ -1273,10 +1273,7 @@ class APIService {
                     return nil
                 }
                 
-                // 移除不必要的日期字符串调试日志
-                // if let firstItem = response.data.items.first {
-                //     DRDebug("[APIService] 美食券第一项日期字符串: created_at=\(firstItem.created_at), expire_at=\(firstItem.expire_at ?? "nil")")
-                // }
+
                 
                 // 将DTO转换为领域模型，从data.items获取
                 return response.data.items.compactMap { dto in
@@ -1310,10 +1307,7 @@ class APIService {
                         updateDate = parsedDate
                     }
                     
-                    // 记录解析后的创建日期，用于调试
-                    let dateDebugFormatter = DateFormatter()
-                    dateDebugFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-                    DRDebug("[APIService] 美食券[\(dto.id)]解析后的日期: 创建=\(dateDebugFormatter.string(from: createdAt)), 过期=\(expireDate != nil ? dateDebugFormatter.string(from: expireDate!) : "nil")")
+            
                     
                     // 创建DessertVoucher对象
                     return DessertVoucher(
@@ -1333,22 +1327,196 @@ class APIService {
                     )
                 }
             }
-            .mapError { error -> APIServiceError in
+            .mapError { error -> APIError in
                 if let decodingError = error as? DecodingError {
                     DRError("[APIService] 美食券解析错误: \(decodingError)")
-                    return .decodeError(decodingError.localizedDescription)
+                    return APIError.decodingError
                 } else if let networkError = error as? NetworkError {
                     DRError("[APIService] 网络错误: \(networkError)")
-                    
-                    // 针对网络错误进行特殊处理
-                    if case .unauthorized = networkError {
-                        return self.handleError(networkError)
-                    } else {
-                        return .networkError(APINetworkError(error: networkError))
-                    }
+                    return APIError.networkError(networkError.localizedDescription)
                 } else {
                     DRError("[APIService] 获取美食券失败: \(error)")
-                    return .networkError(APINetworkError(error: NetworkError.requestFailed(error)))
+                    return APIError.unknown
+                }
+            }
+            .eraseToAnyPublisher()
+    }
+    
+    /// 批量获取用户美食券及相关图片
+    /// - Parameters:
+    ///   - status: 美食券状态筛选: active, used, expired (可选)
+    ///   - page: 页码，默认1
+    ///   - limit: 每页数量，默认20
+    /// - Returns: 包含美食券和所有相关图片URL的响应
+    func getUserVouchersWithImages(status: String? = nil, page: Int = 1, limit: Int = 20) -> AnyPublisher<BatchVoucherResponse, APIError> {
+        var parameters: [String: Any] = ["page": page, "limit": limit]
+        if let status = status {
+            parameters["status"] = status
+        }
+        
+        DRInfo("[APIService] 批量获取美食券及相关图片: 状态=\(status ?? "all"), 页码=\(page), 每页数量=\(limit)")
+        
+        return networkManager.request(
+            endpoint: "/api/v1/vouchers/batch",
+            method: .get,
+            parameters: parameters,
+            requiresAuth: true
+        )
+        .tryMap { (response: ApiResponse<BatchVoucherResponse>) -> BatchVoucherResponse in
+            let batchResponse = response.data
+            
+            // 安全地访问可选值的属性
+            let voucherCount = batchResponse?.vouchers.count ?? 0
+            let imagesCount = batchResponse?.images.count ?? 0
+            let iconsCount = batchResponse?.dessertIcons.count ?? 0 
+            let recordImagesCount = batchResponse?.recordImages.count ?? 0
+            let totalImageCount = imagesCount + iconsCount + recordImagesCount
+            
+            DRDebug("[APIService] 成功获取批量美食券数据: \(voucherCount)张美食券，\(totalImageCount)张图片")
+            
+            // 如果响应为空，返回空的BatchVoucherResponse而不是抛出错误
+            if batchResponse == nil {
+                DRInfo("[APIService] 批量美食券返回为空，返回空对象")
+                return BatchVoucherResponse(
+                    total: 0,
+                    page: 1,
+                    limit: 20,
+                    vouchers: [],
+                    images: [:],
+                    dessertIcons: [:],
+                    recordImages: [:]
+                )
+            }
+            
+            return batchResponse!
+        }
+        .mapError { error -> APIError in
+            DRError("[APIService] 批量获取美食券失败: \(error)")
+            return APIError.networkError(error.localizedDescription)
+        }
+        .eraseToAnyPublisher()
+    }
+    
+    /// 获取美食券详情
+    func getVoucherDetail(id: String) -> AnyPublisher<DessertVoucher, APIError> {
+        let endpoint = ApiEndpoints.Vouchers.detail + id
+        
+        DRDebug("[APIService] 请求美食券详情: \(endpoint)")
+        
+        // 使用URL构建请求
+        let urlString = Config.API.baseURL + endpoint
+        guard let url = URL(string: urlString) else {
+            return Fail(error: APIError.networkError("无法创建URL")).eraseToAnyPublisher()
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = Config.API.timeout
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        // 添加认证令牌
+        if let token = UserDefaults.standard.string(forKey: Config.UserData.tokenKey) {
+            request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        
+        // 单个美食券响应的包装结构
+        struct VoucherDetailResponse: Decodable {
+            let code: Int
+            let message: String
+            let data: VoucherDTO
+            
+            struct VoucherDTO: Decodable {
+                let id: String
+                let user_id: String
+                let dessert_id: String
+                let dessert_name: String
+                let calories_value: Double
+                let equivalent_dessert_count: Double
+                let workout_record_id: String?
+                let status: String
+                let created_at: String
+                let updated_at: String?
+                let expire_at: String?
+                let image_id: String?
+                let image_url: String?
+            }
+        }
+        
+        return URLSession.shared.dataTaskPublisher(for: request)
+            .tryMap { data, response -> Data in
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    throw NetworkError.invalidResponse
+                }
+                
+                DRDebug("[APIService] 美食券详情API响应: 状态码=\(httpResponse.statusCode), 数据大小=\(data.count)字节")
+                
+                guard (200..<300).contains(httpResponse.statusCode) else {
+                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let message = json["message"] as? String {
+                        throw NetworkError.serverError(httpResponse.statusCode, message)
+                    } else {
+                        throw NetworkError.serverError(httpResponse.statusCode, "服务器错误")
+                    }
+                }
+                
+                return data
+            }
+            .decode(type: VoucherDetailResponse.self, decoder: JSONDecoder())
+            .tryMap { response -> DessertVoucher in
+                // 验证响应状态码
+                guard response.code == 0 || response.code == 200 else {
+                    throw NetworkError.businessError(response.code, response.message)
+                }
+                
+                // 解析日期
+                let dateFormatter = ISO8601DateFormatter()
+                dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                
+                // 解析创建日期
+                guard let createdAt = dateFormatter.date(from: response.data.created_at) else {
+                    throw NetworkError.decodingFailed(DecodingError.dataCorrupted(
+                        DecodingError.Context(codingPath: [], debugDescription: "无法解析创建日期")
+                    ))
+                }
+                
+                // 解析可选日期
+                var updatedAt: Date? = nil
+                if let updatedAtStr = response.data.updated_at, !updatedAtStr.isEmpty {
+                    updatedAt = dateFormatter.date(from: updatedAtStr)
+                }
+                
+                var expireAt: Date? = nil
+                if let expireAtStr = response.data.expire_at, !expireAtStr.isEmpty {
+                    expireAt = dateFormatter.date(from: expireAtStr)
+                }
+                
+                // 创建并返回美食券对象
+                return DessertVoucher(
+                    id: response.data.id,
+                    userId: response.data.user_id,
+                    dessertId: response.data.dessert_id,
+                    dessertName: response.data.dessert_name,
+                    equivalentDessertCount: response.data.equivalent_dessert_count,
+                    caloriesValue: response.data.calories_value,
+                    workoutRecordId: response.data.workout_record_id,
+                    status: response.data.status,
+                    createdAt: createdAt,
+                    updatedAt: updatedAt,
+                    expireAt: expireAt,
+                    imageId: response.data.image_id,
+                    imageURL: response.data.image_url
+                )
+            }
+            .mapError { error -> APIError in
+                if let networkError = error as? NetworkError {
+                    DRError("[APIService] 获取美食券详情网络错误: \(networkError)")
+                    return APIError.networkError(networkError.localizedDescription)
+                } else if let decodingError = error as? DecodingError {
+                    DRError("[APIService] 美食券详情解析错误: \(decodingError)")
+                    return APIError.decodingError
+                } else {
+                    DRError("[APIService] 获取美食券详情失败: \(error)")
+                    return APIError.unknown
                 }
             }
             .eraseToAnyPublisher()

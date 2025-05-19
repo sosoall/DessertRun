@@ -8,6 +8,9 @@ class ImageCacheService {
     
     // 内存缓存
     private let memoryCache = NSCache<NSString, UIImage>()
+    // URL缓存字典 [ID: (URL, 过期时间)]
+    private var urlCache = [String: (url: String, expiresAt: Date)]()
+    private let urlCacheLock = NSLock() // URL缓存锁
     // 文件管理器
     private let fileManager = FileManager.default
     // 操作队列
@@ -16,6 +19,9 @@ class ImageCacheService {
     // 添加下载中的URL标记
     private var downloadingURLs = [String: [((UIImage?) -> Void)]]()
     private let downloadLock = NSLock() // 添加锁，确保线程安全
+    
+    // 默认URL缓存过期时间（30分钟）
+    private let defaultUrlCacheExpiration: TimeInterval = 30 * 60
     
     private init() {
         // 设置内存缓存限制
@@ -28,11 +34,95 @@ class ImageCacheService {
         // 添加内存警告通知
         NotificationCenter.default.addObserver(self, selector: #selector(clearMemoryCache), name: UIApplication.didReceiveMemoryWarningNotification, object: nil)
         
+        // 启动URL缓存清理定时器
+        startUrlCacheCleanupTimer()
+        
         DRInfo("[ImageCacheService] 初始化完成")
     }
     
     deinit {
         NotificationCenter.default.removeObserver(self)
+    }
+    
+    /// 启动URL缓存清理定时器
+    private func startUrlCacheCleanupTimer() {
+        // 每10分钟清理一次过期的URL缓存
+        Timer.scheduledTimer(withTimeInterval: 600, repeats: true) { [weak self] _ in
+            self?.cleanupExpiredUrlCache()
+        }
+    }
+    
+    /// 清理过期的URL缓存
+    private func cleanupExpiredUrlCache() {
+        urlCacheLock.lock()
+        defer { urlCacheLock.unlock() }
+        
+        let now = Date()
+        let expiredKeys = urlCache.filter { $0.value.expiresAt < now }.map { $0.key }
+        
+        for key in expiredKeys {
+            urlCache.removeValue(forKey: key)
+        }
+        
+        if !expiredKeys.isEmpty {
+            DRDebug("[ImageCacheService] 清理了\(expiredKeys.count)个过期URL缓存")
+        }
+    }
+    
+    /// 缓存图片URL
+    /// - Parameters:
+    ///   - url: 图片URL
+    ///   - id: 图片ID
+    ///   - expirationInterval: 过期时间间隔（秒），默认30分钟
+    func cacheImageURL(_ url: String, forId id: String, expirationInterval: TimeInterval? = nil) {
+        guard !url.isEmpty && !id.isEmpty else { return }
+        
+        let expiration = expirationInterval ?? defaultUrlCacheExpiration
+        let expiresAt = Date().addingTimeInterval(expiration)
+        
+        urlCacheLock.lock()
+        urlCache[id] = (url: url, expiresAt: expiresAt)
+        urlCacheLock.unlock()
+        
+        DRDebug("[ImageCacheService] 缓存URL: \(url) 对应ID: \(id), 过期时间: \(expiresAt)")
+    }
+    
+    /// 获取缓存的图片URL
+    /// - Parameter id: 图片ID
+    /// - Returns: 缓存的URL，如果不存在或已过期则返回nil
+    func getCachedImageURL(forId id: String) -> String? {
+        urlCacheLock.lock()
+        defer { urlCacheLock.unlock() }
+        
+        guard let cached = urlCache[id] else { return nil }
+        
+        // 检查是否过期
+        let now = Date()
+        if cached.expiresAt < now {
+            // 已过期，移除缓存
+            urlCache.removeValue(forKey: id)
+            return nil
+        }
+        
+        return cached.url
+    }
+    
+    /// 检查是否有缓存的图片（通过URL或ID）
+    func hasCachedImage(forId id: String) -> Bool {
+        // 先检查URL缓存
+        if let cachedUrl = getCachedImageURL(forId: id) {
+            // 再检查图片缓存
+            let cacheKey = getCacheKey(from: cachedUrl)
+            return memoryCache.object(forKey: cacheKey as NSString) != nil
+        }
+        return false
+    }
+    
+    /// 通过ID获取缓存的图片
+    func getCachedImage(forId id: String) -> UIImage? {
+        guard let url = getCachedImageURL(forId: id) else { return nil }
+        let cacheKey = getCacheKey(from: url)
+        return memoryCache.object(forKey: cacheKey as NSString)
     }
     
     /// 下载并缓存图片
