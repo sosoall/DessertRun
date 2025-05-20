@@ -27,18 +27,22 @@ class ExerciseRecordViewModel: ObservableObject {
     @Published var filteredWorkoutRecords: [WorkoutRecord] = []
     @Published var yearlyFilteredWorkoutRecords: [WorkoutRecord] = []
     
+    // 日常统计数据存储
+    @Published var dailyStatsMap: [DateComponents: APIWorkoutStatsResponse.DailyStatData] = [:]
+    @Published var yearlyStatsMap: [DateComponents: Bool] = [:]
+    
     // API数据统计
     @Published var monthlyWorkoutCount: Int = 0
     @Published var monthlyTotalDuration: Double = 0
     @Published var monthlyTotalCalories: Double = 0
     @Published var monthlyTotalDistance: Double = 0
-    @Published var monthlyExerciseTypes: [String: WorkoutStatsResponse.ExerciseTypeStats] = [:]
+    @Published var monthlyExerciseTypes: [String: APIWorkoutStatsResponse.ExerciseTypeStats] = [:]
     
     @Published var yearlyWorkoutCount: Int = 0
     @Published var yearlyTotalDuration: Double = 0
     @Published var yearlyTotalCalories: Double = 0
     @Published var yearlyTotalDistance: Double = 0
-    @Published var yearlyExerciseTypes: [String: WorkoutStatsResponse.ExerciseTypeStats] = [:]
+    @Published var yearlyExerciseTypes: [String: APIWorkoutStatsResponse.ExerciseTypeStats] = [:]
     
     // 其他辅助状态
     @Published var calorieDeficit: Int = 0
@@ -541,35 +545,75 @@ class ExerciseRecordViewModel: ObservableObject {
     }
     
     /// 更新月度统计数据
-    private func updateMonthlyStatsFromAPI(stats: WorkoutStatsResponse.WorkoutStatsData) {
+    private func updateMonthlyStatsFromAPI(stats: APIWorkoutStatsResponse.WorkoutStatsData) {
         // 更新月度统计数据属性
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             
-            self.monthlyWorkoutCount = stats.totalWorkouts
+            self.monthlyWorkoutCount = stats.workoutDays
             self.monthlyTotalDuration = stats.totalDuration
             self.monthlyTotalCalories = stats.totalCalories
             self.monthlyTotalDistance = stats.totalDistance
             self.monthlyExerciseTypes = stats.exerciseTypes
             
-            DRDebug("[ExerciseRecordViewModel] 已更新月度统计 - 时长:\(self.monthlyTotalDuration)分钟, 卡路里:\(self.monthlyTotalCalories), 次数:\(self.monthlyWorkoutCount), 距离:\(self.monthlyTotalDistance)米")
+            // 处理每日统计数据
+            self.processDailyStats(stats.dailyStats)
+            
+            DRDebug("[ExerciseRecordViewModel] 已更新月度统计 - 时长:\(self.monthlyTotalDuration)分钟, 卡路里:\(self.monthlyTotalCalories), 天数:\(self.monthlyWorkoutCount), 距离:\(self.monthlyTotalDistance)米")
         }
     }
     
     /// 更新年度统计数据
-    private func updateYearlyStatsFromAPI(stats: WorkoutStatsResponse.WorkoutStatsData) {
+    private func updateYearlyStatsFromAPI(stats: APIWorkoutStatsResponse.WorkoutStatsData) {
         // 更新年度统计数据属性
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             
-            self.yearlyWorkoutCount = stats.totalWorkouts
+            self.yearlyWorkoutCount = stats.workoutDays
             self.yearlyTotalDuration = stats.totalDuration
             self.yearlyTotalCalories = stats.totalCalories
             self.yearlyTotalDistance = stats.totalDistance
             self.yearlyExerciseTypes = stats.exerciseTypes
             
-            DRDebug("[ExerciseRecordViewModel] 已更新年度统计 - 时长:\(self.yearlyTotalDuration)分钟, 卡路里:\(self.yearlyTotalCalories), 次数:\(self.yearlyWorkoutCount), 距离:\(self.yearlyTotalDistance)米")
+            // 处理每日统计数据（年度视图）
+            self.processYearlyDailyStats(stats.dailyStats)
+            
+            DRDebug("[ExerciseRecordViewModel] 已更新年度统计 - 时长:\(self.yearlyTotalDuration)分钟, 卡路里:\(self.yearlyTotalCalories), 天数:\(self.yearlyWorkoutCount), 距离:\(self.yearlyTotalDistance)米")
         }
+    }
+    
+    /// 处理每日统计数据（月视图用）
+    private func processDailyStats(_ dailyStats: [APIWorkoutStatsResponse.DailyStatData]) {
+        // 按日期存储每日统计数据，用于月视图
+        var dailyStatsMap = [DateComponents: APIWorkoutStatsResponse.DailyStatData]()
+        let calendar = Calendar.current
+        
+        for stat in dailyStats {
+            if let date = stat.date.toDate() {
+                let dateComponents = calendar.dateComponents([.year, .month, .day], from: date)
+                dailyStatsMap[dateComponents] = stat
+            }
+        }
+        
+        // 保存到实例变量，供视图使用
+        self.dailyStatsMap = dailyStatsMap
+    }
+    
+    /// 处理每日统计数据（年视图用）
+    private func processYearlyDailyStats(_ dailyStats: [APIWorkoutStatsResponse.DailyStatData]) {
+        // 按日期存储每日统计数据，用于年视图
+        var yearlyStatsMap = [DateComponents: Bool]()
+        let calendar = Calendar.current
+        
+        for stat in dailyStats {
+            if let date = stat.date.toDate(), stat.hasWorkout {
+                let dateComponents = calendar.dateComponents([.year, .month, .day], from: date)
+                yearlyStatsMap[dateComponents] = true
+            }
+        }
+        
+        // 保存到实例变量，供年视图使用
+        self.yearlyStatsMap = yearlyStatsMap
     }
     
     /// 加载更多记录
@@ -645,5 +689,14 @@ class ExerciseRecordViewModel: ObservableObject {
     // 格式化总距离（公里）
     func formatTotalDistance(meters: Double) -> String {
         return String(format: "%.1f", meters / 1000.0)
+    }
+}
+
+// MARK: - String扩展，用于日期转换
+extension String {
+    func toDate(format: String = "yyyy-MM-dd") -> Date? {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = format
+        return dateFormatter.date(from: self)
     }
 } 

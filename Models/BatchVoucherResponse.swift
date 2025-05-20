@@ -2,31 +2,43 @@ import Foundation
 
 /// 批量美食券响应
 struct BatchVoucherResponse: Codable {
-    /// 总数
-    let total: Int
+    /// 响应代码
+    let code: Int
     
-    /// 页码
-    let page: Int
+    /// 响应消息
+    let message: String
     
-    /// 每页数量
-    let limit: Int
+    /// 响应数据
+    let data: Data
     
-    /// 美食券列表
-    let vouchers: [VoucherWithImages]
-    
-    /// 美食券图片URL映射 (image_id -> url)
-    let images: [String: String]
-    
-    /// 甜品图标URL映射 (dessert_id -> url)
-    let dessertIcons: [String: String]
-    
-    /// 记录图片URL映射 (record_id -> url)
-    let recordImages: [String: String]
-    
-    enum CodingKeys: String, CodingKey {
-        case total, page, limit, vouchers, images
-        case dessertIcons = "dessert_icons"
-        case recordImages = "record_images"
+    /// 响应数据结构
+    struct Data: Codable {
+        /// 总数
+        let total: Int
+        
+        /// 页码
+        let page: Int
+        
+        /// 每页数量
+        let limit: Int
+        
+        /// 美食券列表
+        let vouchers: [VoucherWithImages]
+        
+        /// 美食券图片URL映射 (image_id -> url)
+        let images: [String: String]
+        
+        /// 甜品图标URL映射 (dessert_id -> url)
+        let dessertIcons: [String: String]
+        
+        /// 记录图片URL映射 (record_id -> url)
+        let recordImages: [String: String]
+        
+        enum CodingKeys: String, CodingKey {
+            case total, page, limit, vouchers, images
+            case dessertIcons = "dessert_icons"
+            case recordImages = "record_images"
+        }
     }
 }
 
@@ -68,6 +80,12 @@ struct VoucherWithImages: Codable, Identifiable {
     /// 过期时间
     let expireAt: String?
     
+    /// 运动类型
+    let exerciseType: String?
+    
+    /// 运动名称
+    let exerciseName: String?
+    
     enum CodingKeys: String, CodingKey {
         case id
         case userID = "user_id"
@@ -81,6 +99,8 @@ struct VoucherWithImages: Codable, Identifiable {
         case redeemedAt = "redeemed_at"
         case createdAt = "created_at"
         case expireAt = "expire_at"
+        case exerciseType = "exercise_type"
+        case exerciseName = "exercise_name"
     }
     
     /// 将VoucherWithImages转换为DessertVoucher
@@ -167,7 +187,24 @@ struct VoucherWithImages: Codable, Identifiable {
             updatedAt: nil,
             expireAt: expireAtDate,
             imageId: imageID,
-            imageURL: imageURL
+            imageURL: imageURL,
+            exerciseType: exerciseType,
+            exerciseName: exerciseName
         )
     }
+}
+
+/// 带有转换后的DessertVoucher对象的批量美食券响应
+struct BatchVoucherResponseWithDessertVoucher: Codable {
+    /// 总数
+    let total: Int
+    
+    /// 页码
+    let page: Int
+    
+    /// 每页数量
+    let limit: Int
+    
+    /// 美食券列表（已转换为领域模型）
+    let vouchers: [DessertVoucher]
 } 

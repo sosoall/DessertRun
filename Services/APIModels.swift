@@ -7,6 +7,90 @@ import SwiftUI
 //    已移至DessertRun/Models/DessertAPIModels.swift文件中
 // 这里只保留特定于API的辅助模型
 
+// MARK: - 用户相关模型
+
+/// API用户模型
+public struct APIUser: Decodable, Identifiable {
+    public let id: String
+    public let phone: String
+    public let nickname: String?
+    public let avatar: String?
+    public let gender: String?  // 从服务器接收时仍为String类型("男"/"女")
+    public let birthYear: Int?  // 添加出生年份字段
+    public let createdAt: String?
+    public let updatedAt: String?
+    public let isNewUser: Bool?
+    public let isProfileCompleted: Bool?
+    
+    // 定义CodingKeys来处理字段名称映射
+    enum CodingKeys: String, CodingKey {
+        case id
+        case phone = "phone_number"
+        case nickname
+        case avatar
+        case gender
+        case birthYear = "birth_year"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+        case isNewUser = "is_new_user"
+        case isProfileCompleted = "is_profile_completed"
+    }
+    
+    // 添加直接初始化方法，方便创建实例
+    public init(id: String, phone: String, nickname: String?, avatar: String?, gender: String?,
+         birthYear: Int?, createdAt: String?, updatedAt: String?, isNewUser: Bool?, isProfileCompleted: Bool?) {
+        self.id = id
+        self.phone = phone
+        self.nickname = nickname
+        self.avatar = avatar
+        self.gender = gender
+        self.birthYear = birthYear
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.isNewUser = isNewUser
+        self.isProfileCompleted = isProfileCompleted
+    }
+    
+    // 自定义解码初始化方法
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        id = try container.decode(String.self, forKey: .id)
+        phone = try container.decode(String.self, forKey: .phone)
+        nickname = try container.decodeIfPresent(String.self, forKey: .nickname)
+        avatar = try container.decodeIfPresent(String.self, forKey: .avatar)
+        gender = try container.decodeIfPresent(String.self, forKey: .gender)
+        birthYear = try container.decodeIfPresent(Int.self, forKey: .birthYear)
+        createdAt = try container.decodeIfPresent(String.self, forKey: .createdAt)
+        updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt)
+        isNewUser = try container.decodeIfPresent(Bool.self, forKey: .isNewUser)
+        isProfileCompleted = try container.decodeIfPresent(Bool.self, forKey: .isProfileCompleted)
+    }
+    
+    /// 将APIUser转换为本地User模型
+    func toLocalUser() -> User {
+        // 根据性别字符串转换为枚举
+        let userGender: User.Gender?
+        if let gender = gender {
+            userGender = User.Gender.fromApiString(gender)
+        } else {
+            userGender = nil
+        }
+        
+        let user = User(
+            phoneNumber: phone,
+            nickname: nickname,
+            avatar: avatar,
+            gender: userGender,
+            birthYear: birthYear,
+            isProfileCompleted: isProfileCompleted ?? false,
+            isNewUser: isNewUser ?? true,
+            apiUserId: id
+        )
+        return user
+    }
+}
+
 // MARK: - 运动相关模型
 
 /// API返回的运动类型
@@ -162,4 +246,66 @@ struct APIDessertDetail: Codable {
         case imageName = "image_name"
         case relatedItems = "related_items"
     }
+}
+
+// 将WorkoutStatsResponse重命名为APIWorkoutStatsResponse
+struct APIWorkoutStatsResponse: Codable {
+    let code: Int
+    let message: String
+    let data: WorkoutStatsData
+    
+    struct WorkoutStatsData: Codable {
+        let totalWorkouts: Int
+        let totalCalories: Double
+        let totalDuration: Double
+        let totalDistance: Double
+        let workoutDays: Int
+        let dailyStats: [DailyStatData]
+        let exerciseTypes: [String: ExerciseTypeStats]
+    }
+    
+    struct DailyStatData: Codable {
+        let date: String
+        let hasWorkout: Bool
+        let totalDessertCount: Double?
+        let caloriesBurned: Double?
+        let mostPopularDessert: MostPopularDessert?
+        
+        struct MostPopularDessert: Codable {
+            let dessertId: String
+            let dessertName: String
+        }
+    }
+    
+    struct ExerciseTypeStats: Codable {
+        let type: String
+        let name: String
+        let count: Int
+        let totalCalories: Double
+        let totalDuration: Double
+    }
+}
+
+/// 认证响应数据
+public struct AuthResponseData: Decodable {
+    public let token: String
+    public let userID: String
+    public let isNewUser: Bool
+    
+    enum CodingKeys: String, CodingKey {
+        case token
+        case userID = "user_id"
+        case isNewUser = "is_new_user"
+    }
+    
+    public var uuid: UUID? {
+        return UUID(uuidString: userID)
+    }
+}
+
+/// 认证响应包装器（用于直接解析完整的API响应）
+public struct AuthResponseWrapper: Decodable {
+    public let code: Int
+    public let message: String
+    public let data: AuthResponseData
 } 

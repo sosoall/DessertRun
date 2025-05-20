@@ -85,7 +85,7 @@ struct WorkoutCompleteView: View {
                 // 美食券 - 设置为强制展开状态
                 ZStack {
                     if showVoucher {
-                        DessertVoucherCardSimple(record: record, forceExpanded: true)
+                        DessertVoucherCardSimple(voucher: dessertVoucher ?? DessertVoucher.empty, forceExpanded: true)
                             .environmentObject(appState)
                             .scaleEffect(voucherScale)
                             .opacity(voucherOpacity)

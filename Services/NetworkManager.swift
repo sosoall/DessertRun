@@ -1,53 +1,11 @@
 import Foundation
 import Combine
 
+// 导入我们的APIErrors定义
+// 导入API错误类型
+
 /// 空数据响应类型，用于没有返回数据的API
 public struct EmptyResponseData: Decodable {}
-
-/// 网络错误类型
-public enum NetworkError: Error {
-    case invalidURL
-    case requestFailed(Error)
-    case invalidResponse
-    case serverError(Int, String)
-    case decodingFailed(Error)
-    case unauthorized(String)
-    case notFound(String)
-    case badRequest(String)
-    case noInternet
-    case emptyData
-    case customError(String)
-    case businessError(Int, String)
-    
-    public var errorMessage: String {
-        switch self {
-        case .invalidURL:
-            return "无效的URL"
-        case .requestFailed(let error):
-            return "请求失败: \(error.localizedDescription)"
-        case .invalidResponse:
-            return "无效的服务器响应"
-        case .serverError(_, let message):
-            return message
-        case .decodingFailed(let error):
-            return "数据解析失败: \(error.localizedDescription)"
-        case .unauthorized(let message):
-            return message
-        case .notFound(let message):
-            return message
-        case .badRequest(let message):
-            return message
-        case .noInternet:
-            return "网络连接不可用，请检查您的网络设置"
-        case .emptyData:
-            return "服务器返回了空数据"
-        case .customError(let message):
-            return message
-        case .businessError(_, let message):
-            return message
-        }
-    }
-}
 
 /// API响应结构
 public struct APIResponse<T: Decodable>: Decodable {
@@ -227,6 +185,19 @@ public class NetworkManager {
                     throw NetworkError.invalidResponse
                 }
                 
+                // 打印详细的HTTP状态和响应大小信息
+                DRDebug("[NetworkManager] 收到HTTP响应: \(endpoint), 状态码=\(httpResponse.statusCode), 数据大小=\(data.count)字节")
+                
+                // 打印原始JSON响应数据（最多前1000个字符，避免日志过长）
+                if data.count > 0 {
+                    if let jsonString = String(data: data, encoding: .utf8) {
+                        let truncatedJson = jsonString.count > 1000 ? String(jsonString.prefix(1000)) + "..." : jsonString
+                        DRDebug("[NetworkManager] 原始响应JSON: \(truncatedJson)")
+                    } else {
+                        DRDebug("[NetworkManager] 响应数据无法转为JSON字符串")
+                    }
+                }
+                
                 // 处理HTTP状态码
                 switch httpResponse.statusCode {
                 case 200..<300:
@@ -358,12 +329,14 @@ public class NetworkManager {
                             switch decodingError {
                             case .keyNotFound(let key, let context):
                                 DRError("[NetworkManager] 找不到键: \(key.stringValue), 路径: \(context.codingPath.map { $0.stringValue })")
+                                // 尝试输出当前已解析的上下文内容
+                                DRError("[NetworkManager] 解析上下文: \(context.debugDescription)")
                             case .valueNotFound(let type, let context):
                                 DRError("[NetworkManager] 找不到\(type)类型的值, 路径: \(context.codingPath.map { $0.stringValue })")
                             case .typeMismatch(let type, let context):
                                 DRError("[NetworkManager] 类型不匹配: 期望\(type), 路径: \(context.codingPath.map { $0.stringValue })")
                             case .dataCorrupted(let context):
-                                DRError("[NetworkManager] 数据损坏: \(context)")
+                                DRError("[NetworkManager] 数据损坏: \(context.debugDescription), 路径: \(context.codingPath.map { $0.stringValue })")
                             @unknown default:
                                 DRError("[NetworkManager] 未知解码错误: \(decodingError)")
                             }
@@ -531,6 +504,19 @@ public class NetworkManager {
                     throw NetworkError.invalidResponse
                 }
                 
+                // 打印详细的HTTP状态和响应大小信息
+                DRDebug("[NetworkManager] 收到HTTP响应: \(endpoint), 状态码=\(httpResponse.statusCode), 数据大小=\(data.count)字节")
+                
+                // 打印原始JSON响应数据（最多前1000个字符，避免日志过长）
+                if data.count > 0 {
+                    if let jsonString = String(data: data, encoding: .utf8) {
+                        let truncatedJson = jsonString.count > 1000 ? String(jsonString.prefix(1000)) + "..." : jsonString
+                        DRDebug("[NetworkManager] 原始响应JSON: \(truncatedJson)")
+                    } else {
+                        DRDebug("[NetworkManager] 响应数据无法转为JSON字符串")
+                    }
+                }
+                
                 // 处理HTTP状态码
                 switch httpResponse.statusCode {
                 case 200..<300:
@@ -582,26 +568,26 @@ public class NetworkManager {
             }
             .decode(type: R.self, decoder: JSONDecoder())
             .mapError { error -> NetworkError in
-                if let networkError = error as? NetworkError {
-                    return networkError
-                } else if let decodingError = error as? DecodingError {
+                if let decodingError = error as? DecodingError {
                     DRError("[NetworkManager] 解析自定义响应失败: \(decodingError.localizedDescription)")
                     
                     // 提供更详细的解码错误信息
                     switch decodingError {
                     case .keyNotFound(let key, let context):
                         DRError("[NetworkManager] 找不到键: \(key.stringValue), 路径: \(context.codingPath.map { $0.stringValue })")
-                    case .valueNotFound(let type, let context):
-                        DRError("[NetworkManager] 找不到\(type)类型的值, 路径: \(context.codingPath.map { $0.stringValue })")
+                        // 尝试输出当前已解析的上下文内容
+                        DRError("[NetworkManager] 解析上下文: \(context.debugDescription)")
                     case .typeMismatch(let type, let context):
                         DRError("[NetworkManager] 类型不匹配: 期望\(type), 路径: \(context.codingPath.map { $0.stringValue })")
+                    case .valueNotFound(let type, let context):
+                        DRError("[NetworkManager] 值不存在: 期望\(type), 路径: \(context.codingPath.map { $0.stringValue })")
                     case .dataCorrupted(let context):
-                        DRError("[NetworkManager] 数据损坏: \(context)")
+                        DRError("[NetworkManager] 数据损坏: \(context.debugDescription), 路径: \(context.codingPath.map { $0.stringValue })")
                     @unknown default:
                         DRError("[NetworkManager] 未知解码错误: \(decodingError)")
                     }
                     
-                    return NetworkError.decodingFailed(error)
+                    return NetworkError.decodingFailed(decodingError)
                 } else {
                     return NetworkError.requestFailed(error)
                 }
@@ -639,6 +625,8 @@ public class NetworkManager {
                     switch decodingError {
                     case .keyNotFound(let key, let context):
                         DRError("找不到键: \(key.stringValue), 路径: \(context.codingPath.map { $0.stringValue })")
+                        // 尝试输出当前已解析的上下文内容
+                        DRError("[NetworkManager] 解析上下文: \(context.debugDescription)")
                     case .valueNotFound(let type, let context):
                         DRError("找不到\(type)类型的值, 路径: \(context.codingPath.map { $0.stringValue })")
                     case .typeMismatch(let type, let context):

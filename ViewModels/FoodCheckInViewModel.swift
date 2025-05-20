@@ -399,20 +399,20 @@ class FoodCheckInViewModel: ObservableObject {
     /// 加载首页数据
     func loadData() {
         // 检查是否正在加载
-        if isLoadingMore {
+        if isLoadingVouchers {
             DRDebug("[FoodCheckInViewModel] 正在加载中，忽略重复请求")
             return
         }
         
         // 重置分页信息
-        currentPage = 1
-        hasMoreRecords = false
+        currentVoucherPage = 1
+        hasMoreVouchers = false
         
-        // 分离加载逻辑，单独调用各个部分
-        // 1. 加载美食记录
-        loadWorkoutRecordsIndependently()
+        // 简化加载逻辑：只加载美食券数据和排行榜
+        // 1. 加载美食券数据，它现在包含足够的展示信息
+        loadVouchersIndependently(forceRefresh: true)
         
-        // 2. 单独加载排行榜，不触发美食券加载
+        // 2. 单独加载排行榜，不触发其他加载
         loadTopDessertsIndependently(limit: 5) 
     }
     
@@ -617,45 +617,37 @@ class FoodCheckInViewModel: ObservableObject {
                         DRError("[FoodCheckInViewModel] 加载美食券失败: \(error.errorMessage)")
                     }
                 },
-                receiveValue: { [weak self] voucherResponse in
+                receiveValue: { [weak self] response in
                     guard let self = self else { return }
                     
                     // 记录总数和更新分页状态
-                    self.totalVouchersCount = voucherResponse.total
+                    self.totalVouchersCount = response.total
                     
                     // 当前已加载的美食券数量
                     let currentLoaded = (self.currentVoucherPage == 1) ? 
                         0 : AppState.shared.dessertVouchers.count
                     
                     // 修正判断逻辑：确保加载更多按钮显示
-                    let currentPageTotal = currentLoaded + voucherResponse.vouchers.count
-                    self.hasMoreVouchers = currentPageTotal < voucherResponse.total
+                    let currentPageTotal = currentLoaded + response.vouchers.count
+                    self.hasMoreVouchers = currentPageTotal < response.total
                     
                     // 更新没有更多记录的确认标记
                     self.noMoreVouchersConfirmed = !self.hasMoreVouchers
                     
-                    DRInfo("[FoodCheckInViewModel] 美食券分页信息: 当前总数=\(currentPageTotal), API返回总数=\(voucherResponse.total), 当前页=\(voucherResponse.page), 是否有更多=\(self.hasMoreVouchers), 确认无更多=\(self.noMoreVouchersConfirmed)")
-                    
-                    // 处理获取到的美食券数据
-                    let newVouchers = voucherResponse.vouchers.map { voucherDTO in
-                        return voucherDTO.toDessertVoucher(imageURLs: voucherResponse.images, iconURLs: voucherResponse.dessertIcons)
-                    }
+                    DRInfo("[FoodCheckInViewModel] 美食券分页信息: 当前总数=\(currentPageTotal), API返回总数=\(response.total), 当前页=\(response.page), 是否有更多=\(self.hasMoreVouchers), 确认无更多=\(self.noMoreVouchersConfirmed)")
                     
                     // 区分第一页和加载更多的情况
                     if self.currentVoucherPage == 1 {
                         // 第一页，直接替换数据
-                        AppState.shared.dessertVouchers = newVouchers
+                        AppState.shared.dessertVouchers = response.vouchers
                     } else {
                         // 加载更多，追加数据，避免重复
                         let existingIds = Set(AppState.shared.dessertVouchers.map { $0.id })
-                        let uniqueNewVouchers = newVouchers.filter { !existingIds.contains($0.id) }
+                        let uniqueNewVouchers = response.vouchers.filter { !existingIds.contains($0.id) }
                         
                         if !uniqueNewVouchers.isEmpty {
                             AppState.shared.dessertVouchers.append(contentsOf: uniqueNewVouchers)
                             DRDebug("[FoodCheckInViewModel] 添加了\(uniqueNewVouchers.count)个新的美食券")
-                            
-                            // 关键修改：在加载美食券后，检查是否需要加载对应的运动记录
-                            self.loadMissingWorkoutRecords(forVouchers: uniqueNewVouchers)
                         } else {
                             DRDebug("[FoodCheckInViewModel] 没有新的美食券需要添加")
                         }
@@ -682,61 +674,7 @@ class FoodCheckInViewModel: ObservableObject {
                             object: nil
                         )
                         
-                        DRInfo("[FoodCheckInViewModel] 美食券数据加载成功: \(voucherResponse.vouchers.count)个, 当前页: \(self.currentVoucherPage), 总加载: \(AppState.shared.dessertVouchers.count)个")
-                    }
-                }
-            )
-            .store(in: &cancellables)
-    }
-    
-    /// 加载美食券对应的缺失运动记录
-    private func loadMissingWorkoutRecords(forVouchers vouchers: [DessertVoucher]) {
-        // 获取所有需要加载的workoutRecordIds
-        let recordIds = vouchers.compactMap { $0.workoutRecordId }
-        if recordIds.isEmpty {
-            DRDebug("[FoodCheckInViewModel] 没有需要加载的记录ID")
-            return
-        }
-        
-        // 检查哪些记录ID尚未加载
-        let existingRecordIds = Set(appState.workoutRecords.map { $0.id })
-        let missingRecordIds = recordIds.filter { !existingRecordIds.contains($0) }
-        
-        if missingRecordIds.isEmpty {
-            DRDebug("[FoodCheckInViewModel] 所有运动记录已加载，无需额外加载")
-            return
-        }
-        
-        DRInfo("[FoodCheckInViewModel] 检测到\(missingRecordIds.count)个缺失的运动记录，正在批量加载...")
-        
-        // 将ID数组转换为逗号分隔的字符串
-        let idsString = missingRecordIds.joined(separator: ",")
-        
-        // 使用批量获取API
-        APIService.shared.getWorkoutRecordsByIds(recordIds: idsString)
-            .receive(on: DispatchQueue.main)
-            .sink(
-                receiveCompletion: { completion in
-                    if case .failure(let error) = completion {
-                        DRError("[FoodCheckInViewModel] 批量加载缺失的运动记录失败: \(error.errorMessage)")
-                    }
-                },
-                receiveValue: { records in
-                    // 将新加载的记录添加到现有记录中
-                    let existingIds = Set(AppState.shared.workoutRecords.map { $0.id })
-                    let newRecords = records.filter { !existingIds.contains($0.id) }
-                    
-                    if !newRecords.isEmpty {
-                        AppState.shared.workoutRecords.append(contentsOf: newRecords)
-                        DRInfo("[FoodCheckInViewModel] 成功批量加载\(newRecords.count)个缺失的运动记录")
-                        
-                        // 发送通知，告知视图需要更新
-                        NotificationCenter.default.post(
-                            name: NSNotification.Name("WorkoutRecordsUpdated"),
-                            object: nil
-                        )
-                    } else {
-                        DRDebug("[FoodCheckInViewModel] 没有新的运动记录需要添加")
+                        DRInfo("[FoodCheckInViewModel] 美食券数据加载成功: \(response.vouchers.count)个, 当前页: \(self.currentVoucherPage), 总加载: \(AppState.shared.dessertVouchers.count)个")
                     }
                 }
             )
@@ -821,24 +759,19 @@ class FoodCheckInViewModel: ObservableObject {
             
             // 先短暂延迟，让服务器有时间处理新记录
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                // 1. 首先刷新美食券数据 - 这是显示新记录的关键
+                // 1. 首先刷新美食券数据，现在包含了足够的信息，无需再单独加载运动记录
                 DRInfo("[FoodCheckInViewModel] 正在强制刷新美食券数据...")
-                self.loadVouchersIndependently()
+                self.loadVouchersIndependently(forceRefresh: true)
                 
-                // 2. 然后刷新打卡记录数据
+                // 2. 刷新排行榜数据
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    self.loadWorkoutRecordsIndependently()
+                    self.loadTopDessertsIndependently(limit: 5)
                     
-                    // 3. 最后刷新排行榜数据
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        self.loadTopDessertsIndependently(limit: 5)
-                        
-                        // 额外发送通知，确保视图更新
-                        NotificationCenter.default.post(name: NSNotification.Name("VouchersUpdated"), object: nil)
-                        
-                        // 重置缓存跳过标志
-                        APIService.shared.setSkipCache(false)
-                    }
+                    // 额外发送通知，确保视图更新
+                    NotificationCenter.default.post(name: NSNotification.Name("VouchersUpdated"), object: nil)
+                    
+                    // 重置缓存跳过标志
+                    APIService.shared.setSkipCache(false)
                 }
             }
         }
@@ -881,5 +814,46 @@ struct TopDessertResponse: Codable {
         case code
         case message
         case data
+    }
+}
+
+// 扩展FoodCheckInViewModel，添加加载单个运动记录的方法
+extension FoodCheckInViewModel {
+    /// 加载单个运动记录详情
+    func loadSingleWorkoutRecord(recordId: String, completion: @escaping (WorkoutRecord?) -> Void) {
+        DRInfo("[FoodCheckInViewModel] 加载单个运动记录详情: id=\(recordId)")
+        
+        // 检查缓存中是否已有该记录
+        if let cachedRecord = AppState.shared.workoutRecords.first(where: { $0.id == recordId }) {
+            DRDebug("[FoodCheckInViewModel] 使用缓存的运动记录数据: id=\(recordId)")
+            completion(cachedRecord)
+            return
+        }
+        
+        // 从API加载单个运动记录
+        APIService.shared.getWorkoutRecord(recordId: recordId)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { completionResult in
+                    if case .failure(let error) = completionResult {
+                        DRError("[FoodCheckInViewModel] 加载运动记录失败: id=\(recordId), 错误=\(error.localizedDescription)")
+                        completion(nil)
+                    }
+                },
+                receiveValue: { record in
+                    DRInfo("[FoodCheckInViewModel] 成功加载运动记录: id=\(recordId)")
+                    
+                    // 将记录添加到缓存中
+                    DispatchQueue.main.async {
+                        // 避免重复添加
+                        if !AppState.shared.workoutRecords.contains(where: { $0.id == record.id }) {
+                            AppState.shared.workoutRecords.append(record)
+                        }
+                    }
+                    
+                    completion(record)
+                }
+            )
+            .store(in: &self.cancellables)
     }
 } 

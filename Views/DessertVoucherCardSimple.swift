@@ -2,8 +2,14 @@ import SwiftUI
 
 /// 美食券卡片视图（简化版本）
 struct DessertVoucherCardSimple: View {
-    /// 打卡记录
-    let record: WorkoutRecord
+    /// 美食券
+    let voucher: DessertVoucher
+    
+    /// 运动记录（可选，仅在展开详情时加载）
+    @State private var workoutRecord: WorkoutRecord?
+    
+    /// 是否正在加载运动记录
+    @State private var isLoadingRecord: Bool = false
     
     /// 是否正在核销
     @State private var isRedeeming: Bool = false
@@ -55,24 +61,11 @@ struct DessertVoucherCardSimple: View {
     /// 添加环境对象，用于获取美食券信息
     @EnvironmentObject var appState: AppState
     
+    /// ViewModel引用，用于加载运动记录
+    @ObservedObject private var viewModel = FoodCheckInViewModel.shared
+    
     /// 添加状态变量存储图标图片
     @State private var iconImage: UIImage? = nil
-    
-    // 获取与当前记录关联的美食券
-    private var associatedVoucher: DessertVoucher? {
-        return appState.dessertVouchers.first(where: { $0.workoutRecordId == record.id })
-    }
-    
-    // 获取美食券创建日期
-    private var voucherCreatedDate: Date? {
-        return associatedVoucher?.createdAt
-    }
-    
-    // 获取美食券过期日期
-    private var voucherExpireDate: Date? {
-        // 直接使用美食券的expireAt字段
-        return associatedVoucher?.expireAt
-    }
     
     var body: some View {
         GeometryReader { geometry in // 使用GeometryReader获取整体宽度
@@ -319,7 +312,7 @@ struct DessertVoucherCardSimple: View {
                                 }
                                 
                                 // 使用美食券的剩余天数
-                                let daysRemaining = associatedVoucher?.remainingDays ?? calculateRemainingDays()
+                                let daysRemaining = voucher.remainingDays
                                 // 剩余天数
                                 Text("剩余\(daysRemaining)天")
                                     .font(.system(size: 12))
@@ -418,12 +411,15 @@ struct DessertVoucherCardSimple: View {
         // 确保整个卡片没有任何外部padding
         .padding(0)
         .frame(height: forceExpanded ? (220 + 68) : (75 + 40)) // 明确设置总高度为两部分高度之和
-        .id("card-\(record.id)-\(instanceId)") // 添加唯一ID避免状态混淆
+        .id("card-\(voucher.id)-\(instanceId)") // 添加唯一ID避免状态混淆
         .onAppear {
             // 获取美食券相关图片
             loadImages()
             
             if forceExpanded {
+                // 加载详细的运动记录（仅在展开状态加载）
+                loadWorkoutRecordIfNeeded()
+                
                 // 当显示为展开状态时，按顺序启动动画
                 animateSequence()
             } else {
@@ -435,6 +431,9 @@ struct DessertVoucherCardSimple: View {
         .onChange(of: forceExpanded) { _, newValue in
             // 当状态变化时，触发动画序列
             if newValue {
+                // 确保加载运动详情记录
+                loadWorkoutRecordIfNeeded()
+                
                 animateSequence()
             } else {
                 // 收起时反向动画
@@ -447,7 +446,8 @@ struct DessertVoucherCardSimple: View {
                 // 创建包含已加载图片信息的userInfo字典
                 var userInfo: [String: Any] = [
                     "preloadedImages": hasLoadedImages,  // 传递已加载状态
-                    "instanceId": instanceId             // 传递实例ID
+                    "instanceId": instanceId,            // 传递实例ID
+                    "voucherId": voucher.id              // 传递美食券ID
                 ]
                 
                 // 如果有图片URL，也传递
@@ -463,7 +463,7 @@ struct DessertVoucherCardSimple: View {
                 // 通知父视图显示弹窗，并传递额外信息
                 NotificationCenter.default.post(
                     name: NSNotification.Name("ShowExpandedCard"),
-                    object: record,
+                    object: voucher,
                     userInfo: userInfo
                 )
             }
@@ -485,6 +485,36 @@ struct DessertVoucherCardSimple: View {
             }
         } message: {
             Text(redeemError ?? "未知错误")
+        }
+    }
+    
+    // MARK: - 加载运动记录
+    private func loadWorkoutRecordIfNeeded() {
+        // 已有记录，不需要重新加载
+        if workoutRecord != nil || isLoadingRecord {
+            return
+        }
+        
+        // 美食券没有关联的运动记录ID，无法加载
+        guard let recordId = voucher.workoutRecordId else {
+            DRWarning("[DessertVoucherCard] 美食券无关联运动记录ID: \(voucher.id)")
+            return
+        }
+        
+        isLoadingRecord = true
+        DRInfo("[DessertVoucherCard] 开始加载运动记录详情: id=\(recordId)")
+        
+        viewModel.loadSingleWorkoutRecord(recordId: recordId) { record in
+            DispatchQueue.main.async {
+                self.workoutRecord = record
+                self.isLoadingRecord = false
+                
+                if record == nil {
+                    DRError("[DessertVoucherCard] 加载运动记录失败: id=\(recordId)")
+                } else {
+                    DRInfo("[DessertVoucherCard] 成功加载运动记录: id=\(recordId)")
+                }
+            }
         }
     }
     
@@ -644,78 +674,41 @@ struct DessertVoucherCardSimple: View {
             return
         }
 
-        // 首先检查是否有关联的美食券
-        if let voucher = associatedVoucher {
-            // 1. 加载美食券图片
-            if voucherImageURL == nil {
-                if let imageId = voucher.imageId {
-                    // 首先尝试从URL缓存获取
-                    if let cachedURL = ImageCacheService.shared.getCachedImageURL(forId: imageId) {
-                        voucherImageURL = URL(string: cachedURL)
-                        DRDebug("[DessertVoucherCard-\(instanceId.prefix(6))] 使用缓存的美食券图片URL: \(cachedURL)")
-                        
-                        // 标记图片部分加载完成
-                        if iconImage != nil {
-                            hasLoadedImages = true
-                        }
-                    } else {
-                        // 缓存未命中，使用标准API获取
-                        let dessertId = record.dessert.id
-                        let newURL = APIService.shared.getDessertImageURLWithImageID(dessertId: dessertId, type: "voucher", imageId: imageId)
-                        voucherImageURL = newURL
-                        
-                        // 标记图片部分加载完成
-                        if iconImage != nil {
-                            hasLoadedImages = true
-                        }
+        // 1. 加载美食券图片
+        if voucherImageURL == nil {
+            if let imageId = voucher.imageId {
+                // 首先尝试从URL缓存获取
+                if let cachedURL = ImageCacheService.shared.getCachedImageURL(forId: imageId) {
+                    voucherImageURL = URL(string: cachedURL)
+                    DRDebug("[DessertVoucherCard-\(instanceId.prefix(6))] 使用缓存的美食券图片URL: \(cachedURL)")
+                    
+                    // 标记图片部分加载完成
+                    if iconImage != nil {
+                        hasLoadedImages = true
+                    }
+                } else if let url = voucher.imageURL, !url.isEmpty {
+                    // 直接使用美食券的图片URL
+                    voucherImageURL = URL(string: url)
+                    DRDebug("[DessertVoucherCard-\(instanceId.prefix(6))] 使用美食券图片URL: \(url)")
+                    
+                    // 标记图片部分加载完成
+                    if iconImage != nil {
+                        hasLoadedImages = true
                     }
                 } else {
-                    // 无图片ID时使用标准API
-                    let dessertId = record.dessert.id
-                    voucherImageURL = APIService.shared.getDessertImageURL(dessertId: dessertId, type: "voucher")
+                    // 缓存未命中，使用标准API获取
+                    let dessertId = voucher.dessertId
+                    let newURL = APIService.shared.getDessertImageURLWithImageID(dessertId: dessertId, type: "voucher", imageId: imageId)
+                    voucherImageURL = newURL
                     
                     // 标记图片部分加载完成
                     if iconImage != nil {
                         hasLoadedImages = true
                     }
                 }
-            }
-            
-            // 2. 加载图标
-            if iconImage == nil {
-                let dessertId = record.dessert.id
-                
-                // 优先尝试从URL缓存获取图标
-                if let cachedIconURL = ImageCacheService.shared.getCachedImageURL(forId: "icon_\(dessertId)") {
-                    DRDebug("[DessertVoucherCard-\(instanceId.prefix(6))] 使用缓存的图标URL: \(cachedIconURL)")
-                    
-                    // 使用改进的ImageCacheService直接获取图片
-                    ImageCacheService.shared.downloadAndCacheImage(url: cachedIconURL) { [self] image in
-                        if let image = image {
-                            DispatchQueue.main.async {
-                                self.iconImage = image
-                                self.hasLoadedImages = true
-                                DRDebug("[DessertVoucherCard-\(instanceId.prefix(6))] 图标加载完成")
-                            }
-                        } else {
-                            loadIconFallback(dessertId: dessertId)
-                        }
-                    }
-                } else {
-                    loadIconFallback(dessertId: dessertId)
-                }
             } else {
-                // 图标已存在，直接设置完成标志
-                if voucherImageURL != nil {
-                    hasLoadedImages = true
-                    DRDebug("[DessertVoucherCard-\(instanceId.prefix(6))] 图标已存在，图片URL已设置，标记为已加载")
-                }
-            }
-        } else {
-            // 找不到关联美食券时使用简单加载方式
-            let dessertId = record.dessert.id
-            
-            if voucherImageURL == nil {
+                // 无图片ID时使用标准API
+                let dessertId = voucher.dessertId
                 voucherImageURL = APIService.shared.getDessertImageURL(dessertId: dessertId, type: "voucher")
                 
                 // 标记图片部分加载完成
@@ -723,12 +716,36 @@ struct DessertVoucherCardSimple: View {
                     hasLoadedImages = true
                 }
             }
+        }
+        
+        // 2. 加载图标
+        if iconImage == nil {
+            let dessertId = voucher.dessertId
             
-            if iconImage == nil {
+            // 优先尝试从URL缓存获取图标
+            if let cachedIconURL = ImageCacheService.shared.getCachedImageURL(forId: "icon_\(dessertId)") {
+                DRDebug("[DessertVoucherCard-\(instanceId.prefix(6))] 使用缓存的图标URL: \(cachedIconURL)")
+                
+                // 使用改进的ImageCacheService直接获取图片
+                ImageCacheService.shared.downloadAndCacheImage(url: cachedIconURL) { [self] image in
+                    if let image = image {
+                        DispatchQueue.main.async {
+                            self.iconImage = image
+                            self.hasLoadedImages = true
+                            DRDebug("[DessertVoucherCard-\(instanceId.prefix(6))] 图标加载完成")
+                        }
+                    } else {
+                        loadIconFallback(dessertId: dessertId)
+                    }
+                }
+            } else {
                 loadIconFallback(dessertId: dessertId)
-            } else if voucherImageURL != nil {
+            }
+        } else {
+            // 图标已存在，直接设置完成标志
+            if voucherImageURL != nil {
                 hasLoadedImages = true
-                DRDebug("[DessertVoucherCard-\(instanceId.prefix(6))] 未找到关联美食券，但图片和图标已加载")
+                DRDebug("[DessertVoucherCard-\(instanceId.prefix(6))] 图标已存在，图片URL已设置，标记为已加载")
             }
         }
     }
@@ -835,7 +852,7 @@ struct DessertVoucherCardSimple: View {
                                         .opacity(animateExtraContent ? 1 : 0) // 第二阶段：额外文字内容
                                     
                                     // 美食数量和名称整合显示
-                                    Text("\(String(format: "%.1f", record.equivalentDessertCount))个\(record.dessert.name)")
+                                    Text("\(String(format: "%.1f", voucher.equivalentDessertCount))个\(voucher.dessertName)")
                                         .font(.system(size: 24, weight: .semibold))
                                         .foregroundColor(Color.black)
                                         .lineLimit(3) // 最多3行
@@ -844,15 +861,17 @@ struct DessertVoucherCardSimple: View {
                                         .frame(width: geometry.size.width * 0.35 - 20) // 设置固定宽度
                                         .opacity(animateBaseContent ? 1 : 0) // 第一阶段：基础文字内容
                                     
-                                    // 移动workout_tag到左侧并修改颜色
-                                    Text(record.displayWorkoutTag)
-                                        .font(.system(size: 14, weight: .semibold))
-                                        .foregroundColor(Color(hex: "#FF318D")) // 使用与核销按钮相同的粉色
-                                        .fixedSize(horizontal: false, vertical: true)
-                                        .multilineTextAlignment(.leading)
-                                        .padding(.top, 6)
-                                        .opacity(animateExtraContent ? 1 : 0) // 第二阶段：额外文字内容
-                                        .frame(width: geometry.size.width * 0.35 - 20) // 设置与上面相同的宽度
+                                    // 如果已加载运动记录，显示workout_tag
+                                    if let record = workoutRecord {
+                                        Text(record.displayWorkoutTag)
+                                            .font(.system(size: 14, weight: .semibold))
+                                            .foregroundColor(Color(hex: "#FF318D")) // 使用与核销按钮相同的粉色
+                                            .fixedSize(horizontal: false, vertical: true)
+                                            .multilineTextAlignment(.leading)
+                                            .padding(.top, 6)
+                                            .opacity(animateExtraContent ? 1 : 0) // 第二阶段：额外文字内容
+                                            .frame(width: geometry.size.width * 0.35 - 20) // 设置与上面相同的宽度
+                                    }
                                 }
                                 .padding(.leading, forceExpanded ? 30 : 30) // 减少左侧内边距，从50/45减少到30
                                 .offset(y: isAnimating ? -8 : -8) // 展开时向上对齐
@@ -866,7 +885,7 @@ struct DessertVoucherCardSimple: View {
                                 // 左侧美食及消耗美食数量的文本信息
                                 VStack(alignment: .leading, spacing: 3) {
                                     // 整合美食数量和名称显示
-                                    Text("\(String(format: "%.1f", record.equivalentDessertCount))个\(record.dessert.name)")
+                                    Text("\(String(format: "%.1f", voucher.equivalentDessertCount))个\(voucher.dessertName)")
                                         .font(.system(size: 16, weight: .semibold))
                                         .foregroundColor(Color.black)
                                         .lineLimit(2) // 限制最多2行
@@ -900,7 +919,7 @@ struct DessertVoucherCardSimple: View {
                                 .frame(height: 24) // 统一标题高度
                                 .opacity(animateExtraContent ? 1 : 0) // 第二阶段：额外文字内容
                                 
-                            Text(record.exerciseType.name)
+                            Text(voucher.exerciseName ?? "未知运动")
                                 .font(.system(size: 24, weight: .semibold)) 
                                 .lineLimit(2) // 限制最多2行
                                 .fixedSize(horizontal: false, vertical: true) // 确保文字完整显示
@@ -910,61 +929,99 @@ struct DessertVoucherCardSimple: View {
                             
                             // 展开时显示运动详情
                             VStack(alignment: .leading, spacing: 8) {
-                                // 只展示有效数据（不为0的数据）
-                                
-                                // 运动时长 - 如果有效则显示
-                                if let duration = record.duration, duration > 0 {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: "clock")
-                                            .font(.system(size: 14))
-                                            .foregroundColor(Color(hex: "#FF7B15"))
+                                if isLoadingRecord {
+                                    // 正在加载时显示加载状态
+                                    HStack {
+                                        ProgressView()
+                                            .scaleEffect(0.8)
                                         
-                                        // 后端返回的是分钟数，而不是秒数
-                                        Text(formatDuration(minutes: Int(duration)))
+                                        Text("加载详情...")
                                             .font(.system(size: 14))
-                                            .fixedSize(horizontal: false, vertical: true)
+                                            .foregroundColor(.gray)
+                                            .padding(.leading, 4)
                                     }
-                                    .opacity(animateExtraContent ? 1 : 0) // 第二阶段：额外文字内容
-                                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
-                                }
-                                
-                                // 运动距离 - 如果有效则显示
-                                if let distance = record.distance, distance > 0 {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: "figure.walk")
-                                            .font(.system(size: 14))
-                                            .foregroundColor(Color(hex: "#FF7B15"))
-                                        
-                                        // 后端返回的单位已经是公里
-                                        Text(String(format: "%.1f公里", distance))
-                                            .font(.system(size: 14))
-                                            .fixedSize(horizontal: false, vertical: true)
-                                    }
-                                    .opacity(animateExtraContent ? 1 : 0) // 第二阶段：额外文字内容
-                                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
-                                }
-                                
-                                // 消耗热量 - 所有类型都显示
-                                HStack(spacing: 6) {
-                                    Image(systemName: "flame.fill")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.red)
+                                    .opacity(animateExtraContent ? 1 : 0)
+                                } else if let record = workoutRecord {
+                                    // 已加载运动记录，显示详情
                                     
-                                    Text("\(Int(record.caloriesBurned))卡路里")
-                                        .font(.system(size: 14))
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                                .opacity(animateExtraContent ? 1 : 0) // 第二阶段：额外文字内容
-                                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
-                                
-                                // 日期放在这里与其他信息对齐 - 去掉icon
-                                Text(formattedDateTime(record.date))
-                                    .font(.system(size: 12))
-                                    .foregroundColor(Color(hex: "#919191"))
-                                    .fixedSize(horizontal: false, vertical: true)
+                                    // 运动时长 - 如果有效则显示
+                                    if let duration = record.duration, duration > 0 {
+                                        HStack(spacing: 6) {
+                                            Image(systemName: "clock")
+                                                .font(.system(size: 14))
+                                                .foregroundColor(Color(hex: "#FF7B15"))
+                                            
+                                            // 后端返回的是分钟数，而不是秒数
+                                            Text(formatDuration(minutes: Int(duration)))
+                                                .font(.system(size: 14))
+                                                .fixedSize(horizontal: false, vertical: true)
+                                        }
+                                        .opacity(animateExtraContent ? 1 : 0) // 第二阶段：额外文字内容
+                                        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                                    }
+                                    
+                                    // 运动距离 - 如果有效则显示
+                                    if let distance = record.distance, distance > 0 {
+                                        HStack(spacing: 6) {
+                                            Image(systemName: "figure.walk")
+                                                .font(.system(size: 14))
+                                                .foregroundColor(Color(hex: "#FF7B15"))
+                                            
+                                            // 后端返回的单位已经是公里
+                                            Text(String(format: "%.1f公里", distance))
+                                                .font(.system(size: 14))
+                                                .fixedSize(horizontal: false, vertical: true)
+                                        }
+                                        .opacity(animateExtraContent ? 1 : 0) // 第二阶段：额外文字内容
+                                        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                                    }
+                                    
+                                    // 消耗热量 - 所有类型都显示
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "flame.fill")
+                                            .font(.system(size: 14))
+                                            .foregroundColor(.red)
+                                        
+                                        Text("\(Int(record.caloriesBurned))卡路里")
+                                            .font(.system(size: 14))
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
                                     .opacity(animateExtraContent ? 1 : 0) // 第二阶段：额外文字内容
-                                    .padding(.top, 2)
-                                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading) // 修改为可扩展最大宽度
+                                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                                    
+                                    // 日期放在这里与其他信息对齐 - 去掉icon
+                                    Text(formattedDateTime(record.date))
+                                        .font(.system(size: 12))
+                                        .foregroundColor(Color(hex: "#919191"))
+                                        .fixedSize(horizontal: false, vertical: true)
+                                        .opacity(animateExtraContent ? 1 : 0) // 第二阶段：额外文字内容
+                                        .padding(.top, 2)
+                                        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading) // 修改为可扩展最大宽度
+                                } else {
+                                    // 运动记录加载失败，显示基本信息
+                                    
+                                    // 消耗热量 - 显示美食券中的热量值
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "flame.fill")
+                                            .font(.system(size: 14))
+                                            .foregroundColor(.red)
+                                        
+                                        Text("\(Int(voucher.caloriesValue))卡路里")
+                                            .font(.system(size: 14))
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                    .opacity(animateExtraContent ? 1 : 0) // 第二阶段：额外文字内容
+                                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                                    
+                                    // 日期使用美食券的创建日期
+                                    Text(formattedDateTime(voucher.createdAt))
+                                        .font(.system(size: 12))
+                                        .foregroundColor(Color(hex: "#919191"))
+                                        .fixedSize(horizontal: false, vertical: true)
+                                        .opacity(animateExtraContent ? 1 : 0) // 第二阶段：额外文字内容
+                                        .padding(.top, 2)
+                                        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading) // 修改为可扩展最大宽度
+                                }
                             }
                             .padding(.top, 6)
                             
@@ -972,7 +1029,7 @@ struct DessertVoucherCardSimple: View {
                         } else {
                             // 收起状态使用居中对齐
                             Spacer() // 添加顶部Spacer确保内容居中
-                            Text(record.exerciseType.name)
+                            Text(voucher.exerciseName ?? "未知运动")
                                 .font(.system(size: 16, weight: .semibold))
                                 .lineLimit(2) // 限制最多2行
                                 .fixedSize(horizontal: false, vertical: true) // 确保文字完整显示
@@ -1023,13 +1080,13 @@ struct DessertVoucherCardSimple: View {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy年MM月dd日"
         
-        if let expireDate = voucherExpireDate {
+        if let expireDate = voucher.expireAt {
             return dateFormatter.string(from: expireDate)
         }
         
         // 默认30天过期期限
         let calendar = Calendar.current
-        if let expiryDate = calendar.date(byAdding: .day, value: 30, to: record.date) {
+        if let expiryDate = calendar.date(byAdding: .day, value: 30, to: voucher.createdAt) {
             return dateFormatter.string(from: expiryDate)
         }
         
@@ -1046,10 +1103,8 @@ struct DessertVoucherCardSimple: View {
                         .font(.system(size: 14, weight: .medium))
                 }
                 
-                // 使用美食券的剩余天数
-                let daysRemaining = associatedVoucher?.remainingDays ?? calculateRemainingDays()
                 // 剩余天数
-                Text("剩余\(daysRemaining)天")
+                Text("剩余\(voucher.remainingDays)天")
                     .font(.system(size: 12))
                     .foregroundColor(.gray)
             }
@@ -1102,38 +1157,8 @@ struct DessertVoucherCardSimple: View {
         )
     }
     
-    // 计算美食券剩余天数（使用美食券的过期日期）
-    private func calculateRemainingDays() -> Int {
-        let calendar = Calendar.current
-        
-        // 优先使用美食券的过期日期
-        if let expireDate = voucherExpireDate {
-            // 计算当前时间与过期时间的天数差
-            let days = calendar.dateComponents([.day], from: Date(), to: expireDate).day ?? 0
-            // 如果已过期，返回0
-            return max(0, days)
-        }
-        
-        // 如果没有关联的美食券信息，使用原来的逻辑（创建日期+30天）
-        let validityPeriodInDays = 30
-        guard let expiryDate = calendar.date(byAdding: .day, value: validityPeriodInDays, to: record.date) else {
-            return 0
-        }
-        
-        // 计算当前时间与过期时间的天数差
-        let days = calendar.dateComponents([.day], from: Date(), to: expiryDate).day ?? 0
-        
-        // 如果已过期，返回0
-        return max(0, days)
-    }
-    
     // MARK: - 核销操作
     private func redeemVoucher() {
-        guard let voucher = associatedVoucher else {
-            redeemError = "未找到对应的美食券"
-            return
-        }
-        
         isRedeeming = true
         
         // 调用VoucherService实现核销
@@ -1295,7 +1320,7 @@ struct DiagonalGradientMask: View {
 struct DessertVoucherCardSimple_Previews: PreviewProvider {
     static var previews: some View {
         // 移除样本数据，使用环境预览
-        DessertVoucherCardSimple(record: WorkoutRecord.createSample())
+        DessertVoucherCardSimple(voucher: DessertVoucher.createSample())
             .environmentObject(AppState.shared) // 使用单例而不是初始化新实例
             .frame(width: 350)
             .padding()

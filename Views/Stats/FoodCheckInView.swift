@@ -7,7 +7,7 @@ struct FoodCheckInView: View {
     @State private var showNewRecordAnimation: Bool = false
     @EnvironmentObject var appState: AppState
     @State private var selectedFilter: RecordFilter = .all
-    @State private var selectedRecord: WorkoutRecord? = nil  // 当前选中的记录
+    @State private var selectedVoucher: DessertVoucher? = nil  // 改为选中的美食券
     @State private var showExpandedCard: Bool = false  // 是否显示展开视图
     @State private var hasAppeared: Bool = false  // 添加状态标志，追踪视图是否已出现
     @State private var forceRefresh: Bool = false  // 强制刷新标记
@@ -41,8 +41,8 @@ struct FoodCheckInView: View {
             .allowsHitTesting(!showExpandedCard)  // 禁用弹出时的点击
             
             // 展开的卡片详情视图
-            if showExpandedCard, let record = selectedRecord {
-                ExpandedCardView(record: record, isShowing: $showExpandedCard, preloadedImageInfo: preloadedCardInfo)
+            if showExpandedCard, let voucher = selectedVoucher {
+                ExpandedCardView(voucher: voucher, isShowing: $showExpandedCard, preloadedImageInfo: preloadedCardInfo)
                     .transition(.opacity)
                     .zIndex(1)
             }
@@ -67,10 +67,10 @@ struct FoodCheckInView: View {
             // 如果不是，则按原来逻辑加载
             if !navigatedFromWorkoutComplete {
                 // 分别加载不同数据，避免相互影响
-                // 1. 如果美食记录为空，加载美食记录
-                if appState.workoutRecords.isEmpty {
-                    viewModel.loadWorkoutRecordsIndependently()
-                }
+                // 1. 不再加载美食记录，只依赖美食券数据
+                // if appState.workoutRecords.isEmpty {
+                //     viewModel.loadWorkoutRecordsIndependently()
+                // }
                 
                 // 2. 单独加载排行榜数据
                 if viewModel.topDesserts.isEmpty && !viewModel.isLoadingTopDesserts {
@@ -91,9 +91,10 @@ struct FoodCheckInView: View {
                     // 延迟加载，确保视图已完全呈现
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                         // 使用分离的加载函数代替单一的loadData()
-                        if appState.workoutRecords.isEmpty {
-                            viewModel.loadWorkoutRecordsIndependently()
-                        }
+                        // 不再加载美食记录，只依赖美食券数据
+                        // if appState.workoutRecords.isEmpty {
+                        //     viewModel.loadWorkoutRecordsIndependently()
+                        // }
                         
                         if appState.dessertVouchers.isEmpty {
                             viewModel.loadVouchersIndependently()
@@ -119,8 +120,8 @@ struct FoodCheckInView: View {
                     // 加载最新的美食券数据
                     viewModel.loadVouchersIndependently()
                     
-                    // 加载最新的运动记录数据
-                    viewModel.loadWorkoutRecordsIndependently()
+                    // 不再加载运动记录数据
+                    // viewModel.loadWorkoutRecordsIndependently()
                     
                     // 加载排行榜数据
                     viewModel.loadTopDessertsIndependently(limit: 5)
@@ -167,7 +168,7 @@ struct FoodCheckInView: View {
                 object: nil,
                 queue: .main
             ) { notification in
-                if let record = notification.object as? WorkoutRecord {
+                if let voucher = notification.object as? DessertVoucher {
                     // 处理卡片传递的额外信息
                     let userInfo = notification.userInfo
                     let hasPreloadedImages = userInfo?["preloadedImages"] as? Bool ?? false
@@ -177,7 +178,7 @@ struct FoodCheckInView: View {
                     }
                     
                     withAnimation(.easeInOut(duration: 0.3)) {
-                        selectedRecord = record
+                        selectedVoucher = voucher
                         showExpandedCard = true
                     }
                     
@@ -483,11 +484,16 @@ struct FoodCheckInView: View {
     }
     
     // 筛选记录
-    private var filteredRecords: [String: [WorkoutRecord]] {
-        let sortedRecords = viewModel.getSortedAllRecords()
-        var groupedRecords = [String: [WorkoutRecord]]()
+    private var filteredRecords: [String: [DessertVoucher]] {
+        // 直接使用美食券数据
+        let sortedVouchers = appState.dessertVouchers.sorted { v1, v2 in
+            // 按照创建时间倒序排列（新的在前）
+            return v1.createdAt.timeIntervalSince1970 > v2.createdAt.timeIntervalSince1970
+        }
         
-        // 仅在数量为0时打印警告信息，避免重复请求
+        var groupedVouchers = [String: [DessertVoucher]]()
+        
+        // 记录当前美食券数量
         let vouchersCount = appState.dessertVouchers.count
         if vouchersCount == 0 && !appState.justCompletedWorkout {
             DRWarning("[FoodCheckInView] 警告: 没有美食券数据!")
@@ -498,147 +504,103 @@ struct FoodCheckInView: View {
                 }
             }
         } else {
-            DRDebug("[FoodCheckInView] 处理记录过滤，当前美食券数量: \(vouchersCount)")
+            DRDebug("[FoodCheckInView] 处理美食券过滤，当前美食券数量: \(vouchersCount)")
         }
         
-        // 根据筛选条件获取记录
-        let filteredList: [WorkoutRecord]
+        // 根据筛选条件获取美食券
+        let filteredList: [DessertVoucher]
         switch selectedFilter {
         case .all:
-            // 使用全部记录，不需要筛选
-            filteredList = sortedRecords
+            // 使用全部美食券，不需要筛选
+            filteredList = sortedVouchers
         case .active, .used, .expired:
-            // 使用API返回的对应状态美食券的记录
+            // 使用对应状态的美食券
             let status = selectedFilter == .active ? "active" : (selectedFilter == .used ? "used" : "expired")
-            // 使用更可靠的方式查找对应record
-            filteredList = sortedRecords.filter { record in
-                // 查找对应的美食券
-                return appState.dessertVouchers.contains(where: { 
-                    $0.workoutRecordId == record.id && $0.status == status 
-                })
-            }
+            filteredList = sortedVouchers.filter { $0.status == status }
         }
         
-        // 创建一个record ID到美食券的映射
-        let recordIdToVoucher = Dictionary(grouping: appState.dessertVouchers, by: { $0.workoutRecordId ?? "" })
-        DRDebug("[FoodCheckInView] 构建记录映射，美食券总数: \(appState.dessertVouchers.count), 有效记录ID映射: \(recordIdToVoucher.count)")
-        
-        // 按日期分组记录
+        // 按日期分组美食券
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy年 M月 d日"
         
-        // 创建一个集合来追踪已添加的记录ID，避免重复添加
-        var addedRecordIds = Set<String>()
+        // 创建一个集合来追踪已添加的美食券ID，避免重复添加
+        var addedVoucherIds = Set<String>()
         
-        // 优先处理新添加的记录，确保它显示在最前面
+        // 优先处理新添加的记录对应的美食券
         if appState.justCompletedWorkout && newRecordId != nil {
             let recordIdString = newRecordId!
             
-            // 查找对应的记录
-            if let newRecord = sortedRecords.first(where: { "\($0.id)" == recordIdString }) {
-                // 查找对应的美食券，必须使用美食券的创建时间
-                if let voucher = appState.dessertVouchers.first(where: { $0.workoutRecordId == newRecord.id }) {
-                    // 使用美食券的创建日期作为分组依据
-                    let voucherDate = voucher.createdAt
-                    let dateString = dateFormatter.string(from: voucherDate)
-                    
-                    if groupedRecords[dateString] == nil {
-                        groupedRecords[dateString] = [newRecord]
-                    } else {
-                        groupedRecords[dateString]?.append(newRecord)
-                    }
-                    
-                    // 标记该ID已添加，避免重复添加
-                    addedRecordIds.insert(newRecord.id)
-                    
-                    DRDebug("[FoodCheckInView] 优先添加新记录到列表(使用美食券日期): id=\(newRecord.id), 日期=\(dateString)")
+            // 查找对应的美食券
+            if let newVoucher = sortedVouchers.first(where: { $0.workoutRecordId == recordIdString }) {
+                // 使用美食券的创建日期作为分组依据
+                let voucherDate = newVoucher.createdAt
+                let dateString = dateFormatter.string(from: voucherDate)
+                
+                if groupedVouchers[dateString] == nil {
+                    groupedVouchers[dateString] = [newVoucher]
                 } else {
-                    // 如果没有美食券，那么就不能显示
-                    DRWarning("[FoodCheckInView] 警告: 新记录无对应美食券，无法显示: id=\(newRecord.id)")
+                    groupedVouchers[dateString]?.append(newVoucher)
                 }
+                
+                // 标记该ID已添加，避免重复添加
+                addedVoucherIds.insert(newVoucher.id)
+                
+                DRDebug("[FoodCheckInView] 优先添加新美食券到列表: id=\(newVoucher.id), 日期=\(dateString)")
             }
         }
         
         // 记录一下处理前的状态，用于诊断
         let filteredCount = filteredList.count
-        let recordsCount = sortedRecords.count
-        DRDebug("[FoodCheckInView] 开始处理所有记录: 总记录数=\(recordsCount), 筛选后记录数=\(filteredCount), 美食券数=\(vouchersCount)")
+        DRDebug("[FoodCheckInView] 开始处理所有美食券: 筛选后美食券数=\(filteredCount)")
         
-        // 处理所有记录
-        for record in filteredList {
-            // 获取record ID
-            let recordId = record.id
+        // 处理所有美食券
+        for voucher in filteredList {
+            // 获取voucher ID
+            let voucherId = voucher.id
             
-            // 避免重复添加同一记录
-            if addedRecordIds.contains(recordId) {
+            // 避免重复添加同一美食券
+            if addedVoucherIds.contains(voucherId) {
                 continue
             }
             
-            // 先标记该记录ID已添加，确保不会重复添加
-            addedRecordIds.insert(recordId)
+            // 先标记该美食券ID已添加，确保不会重复添加
+            addedVoucherIds.insert(voucherId)
             
-            // 查找对应的美食券
-            if let vouchers = recordIdToVoucher[recordId], !vouchers.isEmpty, let voucher = vouchers.first {
-                // 使用美食券的创建日期作为分组依据
-                let voucherDate = voucher.createdAt
-                let dateString = dateFormatter.string(from: voucherDate)
-                
-                if groupedRecords[dateString] == nil {
-                    groupedRecords[dateString] = [record]
-                } else {
-                    groupedRecords[dateString]?.append(record)
-                }
-            } else if appState.justCompletedWorkout && newRecordId == "\(recordId)" {
-                // 特殊处理新添加的记录，只有找到对应美食券才能显示
-                if let voucher = appState.dessertVouchers.first(where: { $0.workoutRecordId == recordId }) {
-                    // 使用美食券的创建日期作为分组依据
-                    let voucherDate = voucher.createdAt
-                    let dateString = dateFormatter.string(from: voucherDate)
-                    
-                    if groupedRecords[dateString] == nil {
-                        groupedRecords[dateString] = [record]
-                    } else {
-                        groupedRecords[dateString]?.append(record)
-                    }
-                    
-                    DRDebug("[FoodCheckInView] 添加新记录到列表(使用美食券日期): id=\(recordId), 日期=\(dateString)")
-                } else {
-                    // 如果没有美食券，不能显示
-                    DRWarning("[FoodCheckInView] 警告: 新记录无对应美食券，无法显示: id=\(recordId)")
-                }
+            // 使用美食券的创建日期作为分组依据
+            let voucherDate = voucher.createdAt
+            let dateString = dateFormatter.string(from: voucherDate)
+            
+            if groupedVouchers[dateString] == nil {
+                groupedVouchers[dateString] = [voucher]
+            } else {
+                groupedVouchers[dateString]?.append(voucher)
             }
         }
         
-        // 计算实际处理的记录数，用于诊断
-        let totalGroupedCount = groupedRecords.values.map { $0.count }.reduce(0, +)
-        DRDebug("[FoodCheckInView] 分组后的记录总数: \(totalGroupedCount), 分组数: \(groupedRecords.count)")
+        // 计算实际处理的美食券数，用于诊断
+        let totalGroupedCount = groupedVouchers.values.map { $0.count }.reduce(0, +)
+        DRDebug("[FoodCheckInView] 分组后的美食券总数: \(totalGroupedCount), 分组数: \(groupedVouchers.count)")
         
-        if totalGroupedCount < vouchersCount {
-            DRWarning("[FoodCheckInView] 警告: 处理后的记录数(\(totalGroupedCount))少于美食券数(\(vouchersCount))")
-        }
-        
-        return groupedRecords
+        return groupedVouchers
     }
     
     // 获取日期字符串到时间戳的映射
     private func getDateStringToTimestampMapping() -> [String: TimeInterval] {
         var dateToTimestamp = [String: TimeInterval]()
         
-        // 遍历所有记录，收集每个日期组的时间戳
-        for record in viewModel.getSortedAllRecords() {
-            if let voucher = appState.dessertVouchers.first(where: { $0.workoutRecordId == record.id }) {
-                let dateFormatter = DateFormatter()
-                dateFormatter.dateFormat = "yyyy年 M月 d日"
-                let dateString = dateFormatter.string(from: voucher.createdAt)
-                let timestamp = voucher.createdAt.timeIntervalSince1970
-                
-                // 如果已经有这个日期，保留最大的时间戳（最新的记录）
-                if let existingTimestamp = dateToTimestamp[dateString], existingTimestamp > timestamp {
-                    continue
-                }
-                
-                dateToTimestamp[dateString] = timestamp
+        // 遍历所有美食券，收集每个日期组的时间戳
+        for voucher in appState.dessertVouchers {
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy年 M月 d日"
+            let dateString = dateFormatter.string(from: voucher.createdAt)
+            let timestamp = voucher.createdAt.timeIntervalSince1970
+            
+            // 如果已经有这个日期，保留最大的时间戳（最新的记录）
+            if let existingTimestamp = dateToTimestamp[dateString], existingTimestamp > timestamp {
+                continue
             }
+            
+            dateToTimestamp[dateString] = timestamp
         }
         
         return dateToTimestamp
@@ -647,7 +609,7 @@ struct FoodCheckInView: View {
     // 所有美食打卡记录
     private var allFoodRecords: some View {
         VStack(spacing: 20) {
-            if appState.workoutRecords.isEmpty {
+            if appState.dessertVouchers.isEmpty {
                 emptyRecordsView
             } else {
                 // 获取筛选后的分组记录 - 存储到临时变量以避免多次计算
@@ -716,53 +678,45 @@ struct FoodCheckInView: View {
                                 .padding(.bottom, 6)
                             
                             // 当天的记录，按时间戳倒序排列
-                            let sortedRecords = groupedRecords[dateString]!.sorted { record1, record2 in
-                                // 如果有新打卡记录，它应该显示在最前面
-                                if newRecordId == "\(record1.id)" && appState.justCompletedWorkout {
+                            let sortedVouchers = groupedRecords[dateString]!.sorted { voucher1, voucher2 in
+                                // 如果有新记录，它应该显示在最前面
+                                if appState.justCompletedWorkout && voucher1.workoutRecordId == newRecordId {
                                     return true
-                                } else if newRecordId == "\(record2.id)" && appState.justCompletedWorkout {
+                                } else if appState.justCompletedWorkout && voucher2.workoutRecordId == newRecordId {
                                     return false
                                 }
                                 
-                                // 获取关联的美食券时间戳
-                                let voucher1 = appState.dessertVouchers.first(where: { $0.workoutRecordId == record1.id })
-                                let voucher2 = appState.dessertVouchers.first(where: { $0.workoutRecordId == record2.id })
-                                
-                                // 获取时间戳进行比较，按时间戳倒序（新的在前）
-                                let timestamp1 = voucher1?.createdAt.timeIntervalSince1970 ?? 0
-                                let timestamp2 = voucher2?.createdAt.timeIntervalSince1970 ?? 0
-                                
-                                return timestamp1 > timestamp2
+                                // 按时间戳倒序（新的在前）
+                                return voucher1.createdAt.timeIntervalSince1970 > voucher2.createdAt.timeIntervalSince1970
                             }
                             
                             // 使用ID作为唯一标识，避免重复渲染
-                            ForEach(sortedRecords, id: \.id) { record in
+                            ForEach(sortedVouchers, id: \.id) { voucher in
                                 // 检查是否是新记录
-                                let isNewRecord = newRecordId == "\(record.id)" && dateString == sortedDates.first
+                                let isNewRecord = newRecordId == voucher.workoutRecordId && dateString == sortedDates.first
                                 
                                 VStack {
                                     if isNewRecord && showNewRecordAnimation {
                                         // 为新记录显示动画效果，只有从顶部出现的动画
-                                        DessertVoucherCardSimple(record: record)
+                                        DessertVoucherCardSimple(voucher: voucher)
                                             .environmentObject(appState)  // 显式传递AppState
                                             .padding(.horizontal, 8)  // 减少卡片内边距
                                             .transition(.move(edge: .top).combined(with: .opacity))
                                     } else {
-                                        DessertVoucherCardSimple(record: record)
+                                        DessertVoucherCardSimple(voucher: voucher)
                                             .environmentObject(appState)  // 显式传递AppState
                                             .padding(.horizontal, 8)  // 减少卡片内边距
+                                        }
                                     }
-                                }
-                                .padding(.bottom, 8)  // 减少卡片底部边距
-                                // 使用记录ID作为视图的唯一标识符，避免重复渲染
-                                .id("voucher-card-\(record.id)")
-                                .onAppear {
-                                    // 记录显示时打印调试信息
-                                    if let voucher = appState.dessertVouchers.first(where: { $0.workoutRecordId == record.id }) {
+                                    .padding(.bottom, 8)  // 减少卡片底部边距
+                                    // 使用美食券ID作为视图的唯一标识符，避免重复渲染
+                                    .id("voucher-card-\(voucher.id)")
+                                    .onAppear {
+                                        // 记录显示时打印调试信息
                                         let dateFormatter = DateFormatter()
                                         dateFormatter.dateFormat = "yyyy-MM-dd"
                                         let createdDateStr = dateFormatter.string(from: voucher.createdAt)
-                                        DRDebug("[FoodCheckInView] 渲染记录: id=\(record.id), 美食券日期=\(createdDateStr)")
+                                        DRDebug("[FoodCheckInView] 渲染美食券: id=\(voucher.id), 创建日期=\(createdDateStr)")
                                     }
                                 }
                             }
@@ -843,11 +797,11 @@ struct FoodCheckInView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 32)
     }
-}
+
 
 // MARK: - 展开的卡片详情视图
 struct ExpandedCardView: View {
-    let record: WorkoutRecord
+    let voucher: DessertVoucher
     @Binding var isShowing: Bool
     @State private var isShared: Bool = false
     let preloadedImageInfo: [String: Any]?
@@ -891,7 +845,7 @@ struct ExpandedCardView: View {
                 
                 // 美食券卡片（展开状态）- 尺寸更大
                 // 传递预加载的图片信息，避免重复加载
-                DessertVoucherCardSimple(record: record, forceExpanded: true)
+                DessertVoucherCardSimple(voucher: voucher, forceExpanded: true)
                     .frame(width: UIScreen.main.bounds.width - 40)  // 确保卡片宽度合适
                     .onAppear {
                         // 如果有预加载的图片信息，记录日志
@@ -944,7 +898,7 @@ struct ExpandedCardView: View {
                     .font(.system(size: 18, weight: .medium))  // Title字体样式
                     .padding()
                 
-                Text("分享\(record.dessert.name)的美食打卡记录")
+                Text("分享\(voucher.dessertName)的美食打卡记录")
                     .font(.system(size: 16))  // Body字体样式
                     .padding()
                 

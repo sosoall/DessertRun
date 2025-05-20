@@ -142,48 +142,30 @@ struct MonthCalendarView: View {
     
     // 单个日历单元格
     private func calendarCell(for date: Date) -> some View {
-        // 获取当天的运动记录并按时间排序
-        let records = viewModel.getRecordsForDate(date).sorted(by: { $0.date < $1.date })
-        let dayNumber = Calendar.current.component(.day, from: date)
+        let calendar = Calendar.current
+        let dateComponents = calendar.dateComponents([.year, .month, .day], from: date)
         
-        // 计算多条记录的总消耗热量和总目标热量
-        let totalBurnedCalories = records.reduce(0.0) { $0 + $1.caloriesBurned }
-        let totalTargetCalories = records.reduce(0.0) { $0 + (Double($1.dessert.calories) ?? 0) }
-        
-        // 确定单元格颜色
-        let cellColor: Color
-        if records.isEmpty {
-            // 没有运动记录
-            cellColor = grayColor
-        } else {
-            // 判断是否超过目标（使用汇总后的数据）
-            if totalBurnedCalories >= totalTargetCalories && totalTargetCalories > 0 {
-                cellColor = pinkColor // 超过目标
-            } else {
-                cellColor = yellowColor // 有运动但未超过目标
-            }
-        }
+        // 从新的数据源获取日期数据
+        let dailyStat = viewModel.dailyStatsMap[dateComponents]
+        let hasWorkout = dailyStat?.hasWorkout ?? false
         
         return ZStack {
             RoundedRectangle(cornerRadius: 5)
-                .fill(cellColor)
+                .fill(hasWorkout ? pinkColor : grayColor)
                 .aspectRatio(1, contentMode: .fit)
-                .overlay(
-                    EmptyView()
-                )
             
-            if records.isEmpty {
-                // 没有运动记录，居中显示日期数字，颜色为更浅的灰色
-                Text("\(dayNumber)")
+            if !hasWorkout {
+                // 没有运动记录时显示日期数字
+                Text("\(calendar.component(.day, from: date))")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(Color.gray.opacity(0.6))
-            } else {
-                // 有运动记录，居中显示甜品图标和总卡路里数值
+            } else if let stat = dailyStat, let dessertCount = stat.totalDessertCount {
+                // 有运动记录时显示美食数量和图标
                 VStack(spacing: 4) {
-                    // 使用时间最早的记录的甜品图标
-                    if let firstRecord = records.first {
+                    // 获取最多打卡的美食种类
+                    if let popularDessert = stat.mostPopularDessert {
                         // 从后端获取图标URL
-                        if let iconURL = APIService.shared.getDessertImageURL(dessertId: firstRecord.dessert.id, type: "icon") {
+                        if let iconURL = APIService.shared.getDessertImageURL(dessertId: popularDessert.dessertId, type: "icon") {
                             // 使用AsyncImage加载图标
                             AsyncImage(url: iconURL) { phase in
                                 switch phase {
@@ -218,8 +200,8 @@ struct MonthCalendarView: View {
                         }
                     }
                     
-                    // 显示总卡路里数字
-                    Text("\(Int(totalBurnedCalories))")
+                    // 显示美食倍数
+                    Text("\(String(format: "%.1f", dessertCount))x")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(.black)
                 }

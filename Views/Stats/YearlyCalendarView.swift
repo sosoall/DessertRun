@@ -62,21 +62,10 @@ struct YearlyCalendarView: View {
             
             // 颜色图例
             HStack(spacing: 16) {
-                // 运动量super图例
-                HStack(spacing: 6) {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(hex: "FE2D55"))
-                        .frame(width: 14, height: 14)
-                    
-                    Text("运动量super！")
-                        .font(.system(size: 14))
-                        .foregroundColor(Color(hex: "909090"))
-                }
-                
                 // 已运动图例
                 HStack(spacing: 6) {
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(hex: "FF9901"))
+                        .fill(Color(hex: "FE2D55"))
                         .frame(width: 14, height: 14)
                     
                     Text("已运动")
@@ -162,30 +151,11 @@ struct YearlyCalendarView: View {
         components.month = month
         components.day = day
         
-        guard let date = calendar.date(from: components) else {
-            return AnyView(Rectangle().fill(Color.clear))
-        }
+        // 检查该日期是否有运动记录
+        let hasWorkout = viewModel.yearlyStatsMap[components] ?? false
         
-        let dayRecords = viewModel.getRecordsForDate(date)
-        let hasWorkout = !dayRecords.isEmpty
-        
-        // 计算是否达成目标（消耗 >= 摄入）
-        var isGoalAchieved = false
-        if hasWorkout {
-            let totalBurned = dayRecords.reduce(0.0) { $0 + $1.caloriesBurned }
-            let totalTarget = dayRecords.reduce(0.0) { $0 + (Double($1.dessert.calories) ?? 0) }
-            isGoalAchieved = totalBurned >= totalTarget && totalTarget > 0
-        }
-        
-        // 颜色逻辑
-        let cellColor: Color
-        if !hasWorkout {
-            cellColor = Color(hex: "EEEEEE") // 灰色：无记录
-        } else if isGoalAchieved {
-            cellColor = Color(hex: "FE2D55") // 粉色：已达成目标
-        } else {
-            cellColor = Color(hex: "FF9901") // 黄色：有运动但未达成
-        }
+        // 颜色逻辑：有运动记录用粉色，无记录用灰色
+        let cellColor: Color = hasWorkout ? Color(hex: "FE2D55") : Color(hex: "EEEEEE")
         
         return AnyView(
             RoundedRectangle(cornerRadius: 2) // 使用圆角矩形，截图中看起来圆角较小

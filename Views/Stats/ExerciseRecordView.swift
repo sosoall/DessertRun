@@ -309,28 +309,17 @@ struct ExerciseRecordView: View {
             
             // 图例
             HStack(spacing: 16) {
-                // 运动量super图例
-                HStack(spacing: 6) {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(hex: "FE2D55"))
-                        .frame(width: 14, height: 14)
-                    
-                    Text("运动量super！")
-                        .font(.system(size: 14))
-                        .foregroundColor(Color(hex: "909090"))
-                }
-                
                 // 已运动图例
                 HStack(spacing: 6) {
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(hex: "FF9901"))
+                        .fill(Color(hex: "FE2D55"))
                         .frame(width: 14, height: 14)
                     
                     Text("已运动")
                         .font(.system(size: 14))
                         .foregroundColor(Color(hex: "909090"))
                 }
-                
+
                 // 运动目标图例
                 HStack(spacing: 6) {
                     Circle()
@@ -472,6 +461,9 @@ struct ExerciseRecordView: View {
             // 计算总目标热量
             let totalTarget = dayRecords.reduce(0.0) { $0 + (Double($1.dessert.calories) ?? 0) }
             
+            // 计算美食总数量
+            let totalDessertCount = dayRecords.reduce(0.0) { $0 + $1.equivalentDessertCount }
+            
             // 判断是否达成目标
             let isGoalAchieved = totalBurned >= totalTarget && totalTarget > 0
             
@@ -486,7 +478,8 @@ struct ExerciseRecordView: View {
                 hasWorkout: !dayRecords.isEmpty,
                 isGoalAchieved: isGoalAchieved,
                 targetCalories: totalTarget > 0 ? Int(totalTarget) : nil,
-                dessertId: firstDessertId
+                dessertId: firstDessertId,
+                dessertCount: totalDessertCount
             )
             
             weekData.append(dataPoint)
@@ -726,13 +719,16 @@ struct WeekDayData: Identifiable {
     let hasWorkout: Bool
     let isGoalAchieved: Bool
     let targetCalories: Int?
-    var dessertId: String? // 添加甜品ID
+    var dessertId: String? // 美食ID
+    var dessertCount: Double = 0 // 美食数量（默认为0）
 }
 
 // 周视图柱状图
 struct WeeklyCalorieChart: View {
     let dataPoints: [WeekDayData]
     private let maxHeight: CGFloat = 200
+    private let pinkColor = Color(hex: "FE2D55") // 已运动颜色
+    private let grayColor = Color(hex: "F8F8F8") // 无运动颜色
     
     var body: some View {
         // 柱状图主体
@@ -751,11 +747,11 @@ struct WeeklyCalorieChart: View {
                             .opacity(0)
                         
                         if point.hasWorkout {
-                            // 柱状
+                            // 柱子
                             VStack(spacing: 0) {
-                                // 柱子
+                                // 柱子（只要有运动就是粉色）
                                 RoundedRectangle(cornerRadius: 5)
-                                    .fill(point.isGoalAchieved ? Color(hex: "FE2D55") : Color(hex: "FF9901"))
+                                    .fill(pinkColor)
                                     .frame(height: calculateBarHeight(calories: point.caloriesBurned))
                                     .frame(width: 25)
                                 
@@ -799,7 +795,7 @@ struct WeeklyCalorieChart: View {
                         } else {
                             // 无运动记录时显示浅灰色柱子
                             RoundedRectangle(cornerRadius: 5)
-                                .fill(Color(hex: "F8F8F8"))
+                                .fill(grayColor)
                                 .frame(height: 25)
                                 .frame(width: 25)
                         }
@@ -820,7 +816,8 @@ struct WeeklyCalorieChart: View {
                     
                     // 卡路里显示（如果有运动记录）
                     if point.hasWorkout {
-                        Text("\(point.caloriesBurned)")
+                        // 显示美食倍数而不是卡路里
+                        Text("\(String(format: "%.1f", point.dessertCount))x")
                             .font(.system(size: 12))
                             .foregroundColor(.gray)
                     } else {

@@ -55,6 +55,12 @@ struct DessertVoucher: Identifiable, Codable, Equatable {
     /// 图片URL（API直接返回的URL）
     let imageURL: String?
     
+    /// 运动类型
+    let exerciseType: String?
+    
+    /// 运动名称
+    let exerciseName: String?
+    
     /// 获取格式化的卡路里价值
     var formattedCalories: String {
         return String(format: "%.0f卡路里", caloriesValue)
@@ -111,6 +117,52 @@ struct DessertVoucher: Identifiable, Codable, Equatable {
                lhs.createdAt == rhs.createdAt
     }
     
+    /// 空的美食券实例，用于初始化
+    static var empty: DessertVoucher {
+        return DessertVoucher(
+            id: UUID().uuidString,
+            userId: "",
+            dessertId: "",
+            dessertName: "未知美食",
+            equivalentDessertCount: 0,
+            caloriesValue: 0,
+            workoutRecordId: nil,
+            status: VoucherStatus.active.rawValue,
+            createdAt: Date(),
+            updatedAt: nil,
+            expireAt: nil,
+            imageId: nil,
+            imageURL: nil,
+            exerciseType: nil,
+            exerciseName: nil
+        )
+    }
+    
+    /// 创建示例券（用于预览）
+    static func createSample() -> DessertVoucher {
+        let now = Date()
+        let calendar = Calendar.current
+        let expireDate = calendar.date(byAdding: .day, value: 14, to: now)!
+        
+        return DessertVoucher(
+            id: UUID().uuidString,
+            userId: UUID().uuidString,
+            dessertId: UUID().uuidString,
+            dessertName: "巧克力蛋糕",
+            equivalentDessertCount: 1.5,
+            caloriesValue: 450,
+            workoutRecordId: UUID().uuidString,
+            status: VoucherStatus.active.rawValue,
+            createdAt: now,
+            updatedAt: nil,
+            expireAt: expireDate,
+            imageId: nil,
+            imageURL: "https://example.com/cake.jpg",
+            exerciseType: "running",
+            exerciseName: "跑步"
+        )
+    }
+    
     /// 定义CodingKeys枚举来处理字段名称映射
     enum CodingKeys: String, CodingKey {
         case id
@@ -126,5 +178,7 @@ struct DessertVoucher: Identifiable, Codable, Equatable {
         case expireAt = "expire_at"
         case imageId = "image_id"
         case imageURL = "image_url"
+        case exerciseType = "exercise_type"
+        case exerciseName = "exercise_name"
     }
 } 
