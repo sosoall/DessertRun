@@ -398,7 +398,11 @@ class AuthService: ObservableObject {
     func logout() {
         DRInfo("用户退出登录")
         
-        // 清除用户数据和登录状态
+        // 先清除AppState中的缓存数据
+        AppState.shared.workoutRecords = []
+        AppState.shared.dessertVouchers = []
+        
+        // 再清除用户数据和登录状态
         self.currentUser = nil
         self.isLoggedIn = false
         UserDefaults.standard.removeObject(forKey: StorageKeys.currentUser)
@@ -408,7 +412,7 @@ class AuthService: ObservableObject {
         UserDefaults.standard.removeObject(forKey: Config.UserData.tokenKey)
         UserDefaults.standard.removeObject(forKey: Config.UserData.userIdKey)
         
-        // 发送通知登录状态已更改
+        // 最后发送通知
         NotificationCenter.default.post(name: .authStatusChanged, object: nil)
     }
     
