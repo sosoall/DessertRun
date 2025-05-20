@@ -106,9 +106,6 @@ struct DessertToExerciseTransition: View {
         
         // 初始化时加载运动类型
         _isLoadingExerciseTypes = State(initialValue: true)
-        
-        // 添加禁用缓存的日志
-        DRInfo("DessertToExerciseTransition: 已禁用运动计算缓存，始终从API获取实时数据")
     }
     
     // 获取运动类型列表（兼容两种方式）
@@ -266,32 +263,8 @@ struct DessertToExerciseTransition: View {
             params["duration"] = Double(exerciseDuration)
         }
         
-        // 添加详细日志记录
-        DRDebug("提交运动记录 - 详细参数：")
-        for (key, value) in params {
-            DRDebug("参数[\(key)] = \(value), 类型: \(type(of: value))")
-        }
-        
-        DRDebug("甜品ID: \(dessert.id), 名称: \(dessert.name)")
-        DRDebug("运动类型: \(exerciseType.type), 名称: \(exerciseType.name)")
-        DRDebug("等效甜品数量: \(equivalentDessertCount), 类型: \(type(of: equivalentDessertCount))")
-        
-        if exerciseType.usesDistance {
-            let distance = exerciseDistance / 1000
-            DRDebug("运动距离: \(distance)公里, 类型: \(type(of: distance))")
-        } else {
-            DRDebug("运动时间: \(exerciseDuration)分钟, 类型: \(type(of: exerciseDuration))")
-        }
-        
-        // 将完整参数转为JSON字符串输出
-        do {
-            let jsonData = try JSONSerialization.data(withJSONObject: params, options: .prettyPrinted)
-            if let jsonString = String(data: jsonData, encoding: .utf8) {
-                DRDebug("完整的JSON参数: \n\(jsonString)")
-            }
-        } catch {
-            DRError("无法序列化参数到JSON: \(error.localizedDescription)")
-        }
+        // 记录基本信息日志
+        DRInfo("[打卡] 提交运动记录: \(dessert.name), 类型: \(exerciseType.name), 等效甜品数量: \(equivalentDessertCount)")
         
         // 显示加载中视图
         isLoading = true
@@ -307,13 +280,7 @@ struct DessertToExerciseTransition: View {
                         DRError("创建运动记录失败: \(error.errorMessage)")
                         
                         // 增加更详细的错误信息
-                        if let apiError = error as? APIServiceError {
-                            DRError("API错误详情: \(apiError)")
-                            
-                            if case .networkError(let networkError) = apiError {
-                                DRError("网络错误详情: \(networkError)")
-                            }
-                        }
+                        DRError("API错误详情: \(error)")
                     }
                 },
                 receiveValue: { response in
@@ -332,15 +299,10 @@ struct DessertToExerciseTransition: View {
                         // 关闭面板
                         animationState.dismissPanel()
                         
-                        // 修改流程：先完成美食图回到气泡的动画，然后再打开中间页
-                        // 不直接跳转到美食打卡页面，仅显示中间页
-                        // 美食打卡页的打开由WorkoutCompleteView的关闭按钮来处理
-                        
                         // 优化：等待0.5秒，让美食图片完成回到气泡的动画后再显示中间页
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                             // 通过协调器显示中间页，不再直接修改tabIndex
                             WorkoutFlowCoordinator.shared.handleWorkoutCompletion(record: record)
-                            DRInfo("打卡成功：美食图片动画完成后打开中间页")
                         }
                     } else {
                         // API返回为空，显示错误
@@ -913,7 +875,6 @@ struct DessertToExerciseTransition: View {
             
             // 获取当前登录用户的体重
             let weight = AuthService.shared.currentUser?.bodyData?.weight ?? 0.0
-            let weightInt = Int(weight)
             
             if exerciseType.usesDistance {
                 // 距离类型运动 - 直接使用API返回的usesDistance字段
@@ -1014,8 +975,6 @@ struct DessertToExerciseTransition: View {
             return
         }
         
-        DRInfo("请求计算运动时间: 类型=\(exerciseType.name), 卡路里=\(calories)")
-        
         APIService.shared.calculateExerciseTime(exerciseType: exerciseType.type, calories: calories)
             .receive(on: DispatchQueue.main)
             .sink(
@@ -1038,7 +997,6 @@ struct DessertToExerciseTransition: View {
                     let duration = response.duration
                     self.exerciseDuration = duration
                     self.calculatedDurations[exerciseType] = duration
-                    DRInfo("API实时计算运动时间: \(duration)分钟，体重: \(response.weight)kg")
                 }
             )
             .store(in: &CancellableStorage.shared.cancellables)
@@ -1050,8 +1008,6 @@ struct DessertToExerciseTransition: View {
             isLoading = false
             return
         }
-        
-        DRInfo("请求计算运动距离: 类型=\(exerciseType.name), 卡路里=\(calories)")
         
         APIService.shared.calculateExerciseDistance(exerciseType: exerciseType.type, calories: calories)
             .receive(on: DispatchQueue.main)
@@ -1075,7 +1031,6 @@ struct DessertToExerciseTransition: View {
                     let distance = response.distance * 1000 // 仅转换单位：公里→米
                     self.exerciseDistance = distance
                     self.calculatedDistances[exerciseType] = distance
-                    DRInfo("API实时计算运动距离: \(distance)米，体重: \(response.weight)kg")
                 }
             )
             .store(in: &CancellableStorage.shared.cancellables)

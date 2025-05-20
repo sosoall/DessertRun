@@ -419,8 +419,9 @@ class ExerciseRecordViewModel: ObservableObject {
         }
         
         // 周度消耗和摄入
-        let weeklyConsumedCalories = weekRecords.reduce(0) { $0 + (Double($1.dessert.calories) ?? 0) }
-        let weeklyBurnedCalories = weekRecords.reduce(0) { $0 + $1.caloriesBurned }
+        // 未使用的变量已注释掉
+        // let weeklyConsumedCalories = weekRecords.reduce(0) { $0 + (Double($1.dessert.calories) ?? 0) }
+        // let weeklyBurnedCalories = weekRecords.reduce(0) { $0 + $1.caloriesBurned }
         
         // 计算周度减脂天数
         weeklyDeficitDatesSet = Set(weekRecords.map { 
@@ -477,7 +478,7 @@ class ExerciseRecordViewModel: ObservableObject {
     /// 加载运动记录数据
     func loadData() {
         if isLoading {
-            DRDebug("[ExerciseRecordViewModel] 正在加载中，忽略重复请求")
+            // 已经在加载中，忽略重复请求
             return
         }
         
@@ -488,60 +489,23 @@ class ExerciseRecordViewModel: ObservableObject {
         currentPage = 1
         hasMoreRecords = false  // 默认设置为false，直到确认有更多数据
         
-        DRDebug("[ExerciseRecordViewModel] 开始加载运动记录，页码: \(currentPage)，每页数量: \(pageSize)")
-        
         // 获取当前选择的年份和月份
         let calendar = Calendar.current
         let currentYear = calendar.component(.year, from: Date())
         let currentMonth = calendar.component(.month, from: Date())
         
-        // 确保月份和年份使用当前日期（而不是可能存在历史状态的selectedMonth/selectedYear）
+        // 确保月份和年份使用当前日期
         selectedMonth = Date()
         selectedYear = Date()
         
-        DRDebug("[ExerciseRecordViewModel] 当前选择时间: \(currentYear)年\(currentMonth)月")
-        
-        // 首先加载统计数据，确保界面优先显示统计信息
+        // 仅加载统计数据，不加载详细记录
         self.loadMonthStats(year: currentYear, month: currentMonth)
         self.loadYearStats(year: currentYear)
         
-        // 然后加载详细记录
-        APIService.shared.getUserWorkoutRecordsWithTotal(page: currentPage, limit: pageSize)
-            .receive(on: DispatchQueue.main)
-            .sink(
-                receiveCompletion: { [weak self] completion in
-                    self?.isLoading = false
-                    
-                    if case .failure(let error) = completion {
-                        self?.errorMessage = error.errorMessage
-                        DRError("[ExerciseRecordViewModel] 加载数据失败: \(error.errorMessage)")
-                    }
-                },
-                receiveValue: { [weak self] result in
-                    guard let self = self else { return }
-                    self.isLoading = false
-                    
-                    let (records, total) = result
-                    
-                    // 更新总记录数
-                    self.totalRecordsCount = total
-                    
-                    // 更新应用状态中的记录列表
-                    DispatchQueue.main.async {
-                        self.appState.workoutRecords = records
-                        DRInfo("[ExerciseRecordViewModel] 成功加载\(records.count)条运动记录，总数: \(total)")
-                        
-                        // 根据总记录数和当前加载的记录数判断是否还有更多记录
-                        let recordsLoaded = records.count
-                        self.hasMoreRecords = recordsLoaded < total
-                        
-                        // 刷新本地筛选的记录
-                        self.filterRecordsByMonth()
-                        self.filterRecordsByYear()
-                    }
-                }
-            )
-            .store(in: &cancellables)
+        // 完成加载
+        DispatchQueue.main.async {
+            self.isLoading = false
+        }
     }
     
     /// 更新月度统计数据
@@ -559,12 +523,15 @@ class ExerciseRecordViewModel: ObservableObject {
             // 处理每日统计数据
             self.processDailyStats(stats.dailyStats)
             
-            DRDebug("[ExerciseRecordViewModel] 已更新月度统计 - 时长:\(self.monthlyTotalDuration)分钟, 卡路里:\(self.monthlyTotalCalories), 天数:\(self.monthlyWorkoutCount), 距离:\(self.monthlyTotalDistance)米")
+            DRInfo("[统计] 已更新月度统计 - 打卡天数:\(self.monthlyWorkoutCount)")
         }
     }
     
     /// 更新年度统计数据
     private func updateYearlyStatsFromAPI(stats: APIWorkoutStatsResponse.WorkoutStatsData) {
+        // 仅记录总打卡天数
+        DRInfo("[统计] API返回的年度统计: 打卡天数=\(stats.workoutDays)")
+        
         // 更新年度统计数据属性
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
@@ -577,8 +544,6 @@ class ExerciseRecordViewModel: ObservableObject {
             
             // 处理每日统计数据（年度视图）
             self.processYearlyDailyStats(stats.dailyStats)
-            
-            DRDebug("[ExerciseRecordViewModel] 已更新年度统计 - 时长:\(self.yearlyTotalDuration)分钟, 卡路里:\(self.yearlyTotalCalories), 天数:\(self.yearlyWorkoutCount), 距离:\(self.yearlyTotalDistance)米")
         }
     }
     
@@ -606,14 +571,22 @@ class ExerciseRecordViewModel: ObservableObject {
         let calendar = Calendar.current
         
         for stat in dailyStats {
-            if let date = stat.date.toDate(), stat.hasWorkout {
+            if let date = stat.date.toDate() {
                 let dateComponents = calendar.dateComponents([.year, .month, .day], from: date)
-                yearlyStatsMap[dateComponents] = true
+                
+                // 只在hasWorkout为true时才添加到yearlyStatsMap
+                if stat.hasWorkout {
+                    yearlyStatsMap[dateComponents] = true
+                }
             }
         }
         
         // 保存到实例变量，供年视图使用
         self.yearlyStatsMap = yearlyStatsMap
+        
+        // 记录有运动记录的日期数
+        let hasWorkoutCount = dailyStats.filter { $0.hasWorkout }.count
+        DRInfo("[统计] 年度有运动记录的日期数: \(hasWorkoutCount)")
     }
     
     /// 加载更多记录
@@ -623,9 +596,6 @@ class ExerciseRecordViewModel: ObservableObject {
         isLoadingMore = true
         
         let nextPage = currentPage + 1
-        
-        // 添加调试日志
-        DRDebug("[ExerciseRecordViewModel] 正在加载更多记录，页码: \(nextPage)，每页数量: \(pageSize)")
         
         APIService.shared.getUserWorkoutRecordsWithTotal(page: nextPage, limit: pageSize)
             .receive(on: DispatchQueue.main)
@@ -650,7 +620,6 @@ class ExerciseRecordViewModel: ObservableObject {
                     
                     if records.isEmpty {
                         self.hasMoreRecords = false
-                        DRDebug("[ExerciseRecordViewModel] 没有更多记录可加载")
                     } else {
                         // 更新当前页码
                         self.currentPage = nextPage
@@ -667,9 +636,7 @@ class ExerciseRecordViewModel: ObservableObject {
                             if uniqueNewRecords.count > 0 {
                                 self.appState.workoutRecords.append(contentsOf: uniqueNewRecords)
                                 
-                                DRInfo("[ExerciseRecordViewModel] 成功加载额外\(uniqueNewRecords.count)条运动记录，总数: \(total)")
-                            } else {
-                                DRDebug("[ExerciseRecordViewModel] 没有新的唯一记录可添加")
+                                DRInfo("[ExerciseRecordViewModel] 加载了\(uniqueNewRecords.count)条新记录")
                             }
                         }
                         
@@ -678,8 +645,6 @@ class ExerciseRecordViewModel: ObservableObject {
                         
                         // 根据总记录数判断是否还有更多
                         self.hasMoreRecords = loadedRecordsCount < total
-                        
-                        DRDebug("[ExerciseRecordViewModel] 已加载记录数: \(loadedRecordsCount), 总记录数: \(total), 是否有更多: \(self.hasMoreRecords)")
                     }
                 }
             )
@@ -695,6 +660,51 @@ class ExerciseRecordViewModel: ObservableObject {
 // MARK: - String扩展，用于日期转换
 extension String {
     func toDate(format: String = "yyyy-MM-dd") -> Date? {
+        // 首先尝试用ISO 8601格式解析（包含微秒和时区）
+        if self.contains("T") && (self.contains("+") || self.contains("Z")) {
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            
+            if let date = formatter.date(from: self) {
+                return date
+            }
+            
+            // 如果带微秒的解析失败，尝试不带微秒的格式
+            formatter.formatOptions = [.withInternetDateTime]
+            if let date = formatter.date(from: self) {
+                return date
+            }
+            
+            // 最后的备选方案：手动截取并解析
+            // 比如将"2025-05-20T19:59:39.284951+08:00"截取为"2025-05-20T19:59:39"
+            if let endIndex = self.firstIndex(of: ".") {
+                let truncated = String(self[..<endIndex])
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+                
+                // 创建日期时设置时区为UTC
+                dateFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+                
+                if let date = dateFormatter.date(from: truncated) {
+                    return date
+                }
+                
+                // 尝试再截取时区部分，处理"2025-05-20T19:59:39.284951+08:00"格式
+                if let plusIndex = self.firstIndex(of: "+"), let dotIndex = self.firstIndex(of: ".") {
+                    let baseDate = String(self[..<dotIndex])
+                    let timezone = String(self[plusIndex...])
+                    
+                    let dateFormatter = DateFormatter()
+                    dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZ"
+                    
+                    // 组合日期和时区
+                    let fullDateString = baseDate + timezone
+                    return dateFormatter.date(from: fullDateString)
+                }
+            }
+        }
+        
+        // 默认格式解析（如普通日期"2025-05-20"）
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = format
         return dateFormatter.date(from: self)

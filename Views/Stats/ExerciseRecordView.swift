@@ -109,12 +109,11 @@ struct ExerciseRecordView: View {
             
             // 只在第一次显示视图时加载数据
             if !hasAppeared {
-                DRDebug("[ExerciseRecordView] 首次加载视图，获取数据")
-                
                 // 确保使用当前日期初始化视图
                 let calendar = Calendar.current
-                let currentYear = calendar.component(.year, from: Date())
-                let currentMonth = calendar.component(.month, from: Date())
+                // 使用下划线忽略未使用的变量
+                let _ = calendar.component(.year, from: Date())
+                let _ = calendar.component(.month, from: Date())
                 
                 // 直接加载数据（已优化数据加载顺序）
                 viewModel.loadData()
@@ -122,8 +121,6 @@ struct ExerciseRecordView: View {
                 // 标记为已加载
                 hasAppeared = true
             } else {
-                DRDebug("[ExerciseRecordView] 视图已经加载过，但仍然刷新当前显示的数据")
-                
                 // 即使不是首次加载，也刷新当前视图的数据
                 refreshCurrentTabData()
             }

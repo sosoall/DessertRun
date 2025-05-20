@@ -48,11 +48,6 @@ extension APIService {
                     throw NetworkError.invalidResponse
                 }
                 
-                // 打印响应信息
-                DRDebug("[APIService] 运动统计API响应: 状态码=\(httpResponse.statusCode), 数据大小=\(data.count)字节")
-                if let jsonString = String(data: data, encoding: .utf8) {
-                    DRDebug("[APIService] 运动统计响应数据: \(jsonString)")
-                }
                 
                 // 验证状态码
                 guard (200..<300).contains(httpResponse.statusCode) else {

@@ -145,14 +145,15 @@ struct YearlyCalendarView: View {
     
     // 日历单元格
     private func calendarCell(year: Int, month: Int, day: Int) -> some View {
-        let calendar = Calendar.current
         var components = DateComponents()
         components.year = year
         components.month = month
         components.day = day
         
-        // 检查该日期是否有运动记录
-        let hasWorkout = viewModel.yearlyStatsMap[components] ?? false
+        // 直接通过比较年月日查找，解决DateComponents引用比较问题
+        let hasWorkout = viewModel.yearlyStatsMap.contains { key, _ in
+            return key.year == year && key.month == month && key.day == day
+        }
         
         // 颜色逻辑：有运动记录用粉色，无记录用灰色
         let cellColor: Color = hasWorkout ? Color(hex: "FE2D55") : Color(hex: "EEEEEE")

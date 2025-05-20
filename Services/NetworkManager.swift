@@ -283,6 +283,7 @@ public class NetworkManager {
                 }
             }
             .mapError { error -> NetworkError in
+                // 如果错误已经是NetworkError，直接返回即可
                 if let networkError = error as? NetworkError {
                     return networkError
                 } else {
@@ -357,6 +358,7 @@ public class NetworkManager {
                         return responseData
                     }
                     .mapError { error -> NetworkError in
+                        // 如果错误已经是NetworkError，直接返回即可
                         if let networkError = error as? NetworkError {
                             return networkError
                         } else {
@@ -834,6 +836,7 @@ public class NetworkManager {
                 }
             }
             .mapError { error -> NetworkError in
+                // 如果错误已经是NetworkError，直接返回即可
                 if let networkError = error as? NetworkError {
                     return networkError
                 } else {

@@ -102,8 +102,7 @@ extension APIService {
         }
         return data
     }
-    .mapError { [weak self] error -> APIServiceError in
-        guard let self = self else { return .unknown }
+    .mapError { error -> APIServiceError in
         if let networkError = error as? NetworkError {
             return .networkError(APINetworkError(error: networkError))
         } else {
@@ -138,8 +137,7 @@ extension APIService {
         }
         return data
     }
-    .mapError { [weak self] error -> APIServiceError in
-        guard let self = self else { return .unknown }
+    .mapError { error -> APIServiceError in
         if let networkError = error as? NetworkError {
             return .networkError(APINetworkError(error: networkError))
         } else {
@@ -169,8 +167,7 @@ extension APIService {
         }
         return data
     }
-    .mapError { [weak self] error -> APIServiceError in
-        guard let self = self else { return .unknown }
+    .mapError { error -> APIServiceError in
         if let networkError = error as? NetworkError {
             return .networkError(APINetworkError(error: networkError))
         } else {
