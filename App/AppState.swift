@@ -95,6 +95,32 @@ class AppState: ObservableObject {
     /// 是否显示新手引导
     @Published var showOnboarding = false
     
+    // MARK: - 挑战相关状态
+    
+    /// 当前选中的挑战活动ID
+    @Published var selectedChallengeId: String? = nil
+    
+    /// 当前选中的挑战报名记录ID
+    @Published var selectedEnrollmentId: String? = nil
+    
+    /// 缓存的挑战活动列表
+    @Published var challengeActivities: [ChallengeActivity] = []
+    
+    /// 缓存的用户已报名挑战列表
+    @Published var enrolledChallenges: [EnrollmentWithChallenge] = []
+    
+    /// 挑战活动列表是否正在加载
+    @Published var isLoadingChallenges: Bool = false
+    
+    /// 已报名挑战列表是否正在加载
+    @Published var isLoadingEnrollments: Bool = false
+    
+    /// 最后一次加载挑战列表的时间
+    @Published var lastChallengeLoadTime: Date? = nil
+    
+    /// 最后一次加载报名列表的时间
+    @Published var lastEnrollmentLoadTime: Date? = nil
+    
     /// 初始化
     private init() {
         // 登录状态应由AuthService确定，不应在这里强制设置

@@ -66,6 +66,17 @@ extension Color {
             endPoint: .bottomTrailing
         )
     }
+    
+    /// 使用十六进制整数创建颜色
+    init(hex: UInt, alpha: Double = 1.0) {
+        self.init(
+            .sRGB,
+            red: Double((hex >> 16) & 0xff) / 255,
+            green: Double((hex >> 8) & 0xff) / 255,
+            blue: Double(hex & 0xff) / 255,
+            opacity: alpha
+        )
+    }
 }
 
 // 注册颜色资源到应用Assets

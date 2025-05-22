@@ -68,6 +68,55 @@ public enum HTTPMethod: String {
 public class NetworkManager {
     public static let shared = NetworkManager()
     
+    // 自定义JSON解码器
+    private let decoder: JSONDecoder = {
+        let decoder = JSONDecoder()
+        
+        // 配置日期解码策略，支持多种格式
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSZ" // 标准格式带毫秒
+        
+        let backupFormatter = DateFormatter()
+        backupFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZ" // 不带毫秒的格式
+        
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let dateString = try container.decode(String.self)
+            
+            // 尝试使用主要日期格式
+            if let date = dateFormatter.date(from: dateString) {
+                return date
+            }
+            
+            // 尝试备用日期格式
+            if let date = backupFormatter.date(from: dateString) {
+                return date
+            }
+            
+            // 尝试ISO8601格式
+            if let date = ISO8601DateFormatter().date(from: dateString) {
+                return date
+            }
+            
+            // 尝试简单日期格式
+            let simpleFormatter = DateFormatter()
+            simpleFormatter.dateFormat = "yyyy-MM-dd"
+            if let date = simpleFormatter.date(from: dateString) {
+                return date
+            }
+            
+            // 如果所有格式都失败，抛出错误
+            throw DecodingError.dataCorrupted(
+                DecodingError.Context(
+                    codingPath: decoder.codingPath,
+                    debugDescription: "Expected date string to be ISO8601-formatted or in format 'yyyy-MM-dd'T'HH:mm:ss.SSSZ'."
+                )
+            )
+        }
+        
+        return decoder
+    }()
+    
     private init() {}
     
     /// 创建API请求
@@ -292,9 +341,7 @@ public class NetworkManager {
             }
             .flatMap { (data: Data) -> AnyPublisher<T, NetworkError> in
                 // 尝试解析为API响应格式
-                let decoder = JSONDecoder()
-                decoder.dateDecodingStrategy = .iso8601
-                
+                // 使用自定义解码器，支持多种日期格式
                 // 打印原始数据，用于调试
                 if let jsonString = String(data: data, encoding: .utf8) {
                     DRInfo("[NetworkManager] 收到的JSON数据: \(jsonString)")
@@ -307,9 +354,34 @@ public class NetworkManager {
                         .eraseToAnyPublisher()
                 }
                 
+                // 特殊处理数组类型响应，例如[ChallengeActivity]
+                if let arrayType = T.self as? Any.Type, 
+                   String(describing: arrayType).contains("Array<") {
+                    DRInfo("[NetworkManager] 检测到数组类型响应: \(T.self)")
+                    
+                    // 特别处理ChallengeActivity数组
+                    if T.self == [ChallengeActivity].self {
+                        do {
+                            // 检查是否是标准包装响应
+                            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                               json["code"] != nil {
+                                // 如果是标准响应格式，继续常规解析流程
+                            } else {
+                                // 如果是直接的数组响应，尝试直接解析
+                                let result = try self.decoder.decode([ChallengeActivity].self, from: data)
+                                return Just(result as! T)
+                                    .setFailureType(to: NetworkError.self)
+                                    .eraseToAnyPublisher()
+                            }
+                        } catch {
+                            DRError("[NetworkManager] 直接解析[ChallengeActivity]失败: \(error)")
+                        }
+                    }
+                }
+                
                 // 尝试解析为API标准响应格式
                 return Just(data)
-                    .decode(type: APIResponse<T>.self, decoder: decoder)
+                    .decode(type: APIResponse<T>.self, decoder: self.decoder)
                     .mapError { error -> NetworkError in
                         DRError("[NetworkManager] 解析API响应失败: \(error.localizedDescription)")
                         
@@ -318,7 +390,7 @@ public class NetworkManager {
                             DRInfo("[NetworkManager] 尝试直接解析为ExerciseTypesResponse类型")
                             do {
                                 // 直接解析为ExerciseTypesResponse
-                                _ = try decoder.decode(ExerciseTypesResponse.self, from: data)
+                                _ = try self.decoder.decode(ExerciseTypesResponse.self, from: data)
                                 // 这里不会真正执行，只是为了抛出错误并在catch中捕获
                                 throw NetworkError.customError("直接解析成功，请捕获此错误")
                             } catch {
@@ -372,7 +444,7 @@ public class NetworkManager {
                         // 特殊处理ExerciseTypesResponse类型的情况
                         if T.self == ExerciseTypesResponse.self {
                             do {
-                                let result = try decoder.decode(ExerciseTypesResponse.self, from: data)
+                                let result = try self.decoder.decode(ExerciseTypesResponse.self, from: data)
                                 return Just(result as! T)
                                     .setFailureType(to: NetworkError.self)
                                     .eraseToAnyPublisher()
@@ -385,7 +457,7 @@ public class NetworkManager {
                         if case .decodingFailed(let decodingError) = error,
                            decodingError is DecodingError {
                             return Just(data)
-                                .decode(type: T.self, decoder: decoder)
+                                .decode(type: T.self, decoder: self.decoder)
                                 .mapError { decodingError -> NetworkError in
                                     DRError("[NetworkManager] 直接解析失败: \(decodingError.localizedDescription)")
                                     return NetworkError.decodingFailed(decodingError)
@@ -568,7 +640,7 @@ public class NetworkManager {
                     }
                 }
             }
-            .decode(type: R.self, decoder: JSONDecoder())
+            .decode(type: R.self, decoder: self.decoder)
             .mapError { error -> NetworkError in
                 if let decodingError = error as? DecodingError {
                     DRError("[NetworkManager] 解析自定义响应失败: \(decodingError.localizedDescription)")

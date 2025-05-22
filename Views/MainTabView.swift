@@ -30,9 +30,10 @@ struct MainTabView: View {
     
     // 标签项配置
     private let tabItems = [
-        TabItem(title: "运动", icon: "figure.run", selectedIcon: "figure.run"),
-        TabItem(title: "甜品打卡", icon: "birthday.cake", selectedIcon: "birthday.cake"),
-        TabItem(title: "运动记录", icon: "chart.bar", selectedIcon: "chart.bar"),
+        TabItem(title: "挑战活动", icon: "trophy", selectedIcon: "trophy.fill"),
+        TabItem(title: "美食券", icon: "birthday.cake", selectedIcon: "birthday.cake"),
+        TabItem(title: "打卡", icon: "figure.run", selectedIcon: "figure.run"),
+        TabItem(title: "统计", icon: "chart.bar", selectedIcon: "chart.bar"),
         TabItem(title: "我的", icon: "person", selectedIcon: "person")
     ]
     
@@ -45,13 +46,10 @@ struct MainTabView: View {
             ) {
                 switch appState.selectedTabIndex {
                 case 0:
-                    // 运动标签
+                    // 挑战标签
                     NavigationStack {
-                        ExerciseHomeView(onDraggingChanged: { isDragging in
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                appState.hideTabBarForDrag = isDragging
-                            }
-                        })
+                        ChallengeHomeView()
+                            .environmentObject(appState)
                     }
                 case 1:
                     // 美食记录标签（甜品打卡）
@@ -63,6 +61,15 @@ struct MainTabView: View {
                     }
                     .id("foodCheckInTab") // 使用固定ID，避免每次都重新创建
                 case 2:
+                    // 运动标签
+                    NavigationStack {
+                        ExerciseHomeView(onDraggingChanged: { isDragging in
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                appState.hideTabBarForDrag = isDragging
+                            }
+                        })
+                    }
+                case 3:
                     // 运动记录标签
                     NavigationStack {
                         // 使用LazyView包装ExerciseRecordView，避免切换Tab时过早加载 
@@ -71,7 +78,7 @@ struct MainTabView: View {
                         )
                     }
                     .id("exerciseRecordTab") // 使用固定ID，避免每次都重新创建
-                case 3:
+                case 4:
                     // 个人信息标签
                     NavigationStack {
                         ProfileHomeView()
