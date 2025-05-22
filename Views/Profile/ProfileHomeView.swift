@@ -30,10 +30,6 @@ struct ProfileHomeView: View {
     @State private var isLoading = false
     @State private var errorMessage: String? = nil
     
-    // 钱包和VIP信息
-    @State private var walletInfo: UserWallet? = nil
-    @State private var vipInfo: VIPInfo? = nil
-    
     // 设置项列表
     private let settingItems: [(icon: String, title: String, color: Color)] = [
         ("lock.shield.fill", "账户安全设置", Color.blue),
@@ -229,8 +225,6 @@ struct ProfileHomeView: View {
         .onAppear {
             if authService.isLoggedIn {
                 fetchUserProfile()
-                fetchWalletInfo()
-                fetchVIPInfo()
             }
         }
     }
@@ -352,6 +346,7 @@ struct ProfileHomeView: View {
     }
     
     // 获取钱包信息
+    /* 星币功能已移除
     private func fetchWalletInfo() {
         APIService.shared.getWalletInfo()
             .receive(on: DispatchQueue.main)
@@ -368,24 +363,7 @@ struct ProfileHomeView: View {
             )
             .store(in: &authService.cancellables)
     }
-    
-    // 获取VIP信息
-    private func fetchVIPInfo() {
-        APIService.shared.getVIPInfo()
-            .receive(on: DispatchQueue.main)
-            .sink(
-                receiveCompletion: { completion in
-                    if case let .failure(error) = completion {
-                        DRError("获取VIP信息失败: \(error.errorMessage)")
-                    }
-                },
-                receiveValue: { vipInfo in
-                    DRInfo("获取VIP信息成功: 是否为VIP=\(vipInfo.isVIP)")
-                    self.vipInfo = vipInfo
-                }
-            )
-            .store(in: &authService.cancellables)
-    }
+    */
     
     // 用户资料卡片
     var userProfileCard: some View {
@@ -522,92 +500,6 @@ struct ProfileHomeView: View {
                                     .foregroundColor(.gray)
                             } else {
                                 Text("未设置")
-                                    .font(.caption)
-                                    .foregroundColor(.gray)
-                            }
-                        } else {
-                            Text("请先登录")
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                        }
-                        
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.gray)
-                    }
-                    .padding()
-                    .background(Color.white)
-                }
-                .disabled(!authService.isLoggedIn)
-                
-                Divider()
-                    .padding(.leading, 56)
-                
-                // 星币钱包
-                NavigationLink(destination: StarWalletView()) {
-                    HStack {
-                        Image(systemName: "star.circle.fill")
-                            .foregroundColor(Color.yellow)
-                            .frame(width: 30, height: 30)
-                        
-                        Text("星币钱包")
-                            .font(.body)
-                        
-                        Spacer()
-                        
-                        if authService.isLoggedIn {
-                            // 显示星币余额
-                            if let walletStars = walletInfo?.stars {
-                                Text("\(walletStars) 星币")
-                                    .font(.caption)
-                                    .foregroundColor(.gray)
-                            } else {
-                                Text("点击查看")
-                                    .font(.caption)
-                                    .foregroundColor(.gray)
-                            }
-                        } else {
-                            Text("请先登录")
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                        }
-                        
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.gray)
-                    }
-                    .padding()
-                    .background(Color.white)
-                }
-                .disabled(!authService.isLoggedIn)
-                
-                Divider()
-                    .padding(.leading, 56)
-                
-                // VIP会员
-                NavigationLink(destination: VIPMembershipView()) {
-                    HStack {
-                        Image(systemName: "crown.fill")
-                            .foregroundColor(Color.orange)
-                            .frame(width: 30, height: 30)
-                        
-                        Text("VIP会员")
-                            .font(.body)
-                        
-                        Spacer()
-                        
-                        if authService.isLoggedIn {
-                            // 显示VIP状态
-                            if let vip = vipInfo {
-                                if vip.isVIP {
-                                    Text("剩余\(vip.remainingDays ?? 0)天")
-                                        .font(.caption)
-                                        .foregroundColor(Color(hex: "FE2D55"))
-                                } else {
-                                    Text("未开通")
-                                        .font(.caption)
-                                        .foregroundColor(.gray)
-                                }
-                            } else {
-                                Text("点击查看")
                                     .font(.caption)
                                     .foregroundColor(.gray)
                             }

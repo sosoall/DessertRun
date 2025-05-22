@@ -144,15 +144,6 @@ struct WorkoutCompleteView: View {
                     }
                     .padding(.bottom, 20)
                 }
-                
-                // 底部文字
-                if !showVoucherFullScreen {
-                    Text("点击美食券查看详情")
-                        .font(.system(size: 16))
-                        .foregroundColor(.white.opacity(0.8)) // 修改为半透明白色以适应深色背景
-                        .opacity(bottomTextOpacity)
-                        .padding(.bottom, 30)
-                }
             }
             .padding()
             
