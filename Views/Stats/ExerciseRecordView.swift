@@ -68,11 +68,31 @@ struct ExerciseRecordView: View {
                     // 周视图
                     VStack(spacing: 16) {
                         // 周视图图表
-                        weekChartView
+                        if viewModel.weeklyStatsLoading {
+                            // 显示加载中
+                            VStack {
+                                Spacer()
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle())
+                                Text("加载中...")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                                    .padding(.top, 8)
+                                Spacer()
+                            }
+                            .frame(height: 300)
                             .background(Color.white)
                             .cornerRadius(16)
                             .shadow(color: Color.black.opacity(0.05), radius: 3, x: 0, y: 2)
                             .padding(.horizontal)
+                        } else {
+                            // 周视图图表
+                            weekChartView
+                                .background(Color.white)
+                                .cornerRadius(16)
+                                .shadow(color: Color.black.opacity(0.05), radius: 3, x: 0, y: 2)
+                                .padding(.horizontal)
+                        }
                             
                         // 进度条卡片
                         weeklyProgressCard
@@ -276,18 +296,18 @@ struct ExerciseRecordView: View {
                 
                 HStack(spacing: 4) {
                     Button(action: {
-                        selectedWeek = Calendar.current.date(byAdding: .weekOfYear, value: -1, to: selectedWeek) ?? selectedWeek
+                        viewModel.goToPreviousWeek()
                     }) {
                         Image(systemName: "chevron.left")
                             .foregroundColor(.gray)
                     }
                     
-                    Text(formatWeekRange(selectedWeek))
+                    Text(viewModel.currentWeekRangeText)
                         .font(.subheadline)
                         .fontWeight(.medium)
                     
                     Button(action: {
-                        selectedWeek = Calendar.current.date(byAdding: .weekOfYear, value: 1, to: selectedWeek) ?? selectedWeek
+                        viewModel.goToNextWeek()
                     }) {
                         Image(systemName: "chevron.right")
                             .foregroundColor(.gray)
@@ -300,9 +320,43 @@ struct ExerciseRecordView: View {
             .padding(.top, 12)
             
             // 周热量图表
-            WeeklyCalorieChart(dataPoints: generateWeekChartData(for: selectedWeek))
+            if viewModel.weeklyDailyStats.isEmpty {
+                // 如果没有数据，显示空状态
+                VStack {
+                    Spacer()
+                    Text("本周暂无数据")
+                        .font(.system(size: 16))
+                        .foregroundColor(.gray)
+                    Spacer()
+                }
                 .frame(height: 250)
                 .padding(.horizontal)
+            } else {
+                // 显示API返回的数据
+                WeeklyCalorieChart(dataPoints: viewModel.weeklyDailyStats.map {
+                    // 将API数据转换为图表数据模型
+                    let formatter = DateFormatter()
+                    formatter.dateFormat = "yyyy-MM-dd"
+                    let date = formatter.date(from: $0.date) ?? Date()
+                    
+                    let calendar = Calendar.current
+                    let weekday = calendar.component(.weekday, from: date)
+                    let weekdayName = ["日", "一", "二", "三", "四", "五", "六"][weekday - 1]
+                    
+                    return WeekDayData(
+                        date: date,
+                        day: weekdayName,
+                        caloriesBurned: Int($0.caloriesBurned),
+                        hasWorkout: $0.hasWorkout,
+                        isGoalAchieved: $0.caloriesBurned >= ($0.targetCalories ?? 0),
+                        targetCalories: $0.targetCalories != nil ? Int($0.targetCalories) : nil,
+                        dessertId: $0.dessertId,
+                        dessertCount: $0.dessertCount
+                    )
+                })
+                .frame(height: 250)
+                .padding(.horizontal)
+            }
             
             // 图例
             HStack(spacing: 16) {
@@ -344,7 +398,7 @@ struct ExerciseRecordView: View {
                 
                 Spacer()
                 
-                Text("\(calculateWeekWorkoutDays())/7天")
+                Text("\(viewModel.weeklyWorkoutDays)/7天")
                     .font(.system(size: 16))
                     .foregroundColor(Color(hex: "FF5D50"))
             }
@@ -400,89 +454,11 @@ struct ExerciseRecordView: View {
         .padding(16)
     }
     
-    // 计算当前选中周的运动天数
-    private func calculateWeekWorkoutDays() -> Int {
-        let weekData = generateWeekChartData(for: selectedWeek)
-        return weekData.filter { $0.hasWorkout }.count
-    }
-    
     // 计算进度条宽度
     private func calculateProgressWidth() -> CGFloat {
         let totalWidth: CGFloat = UIScreen.main.bounds.width - 32 - 32 - 4 // 屏幕宽度减去内外边距
-        let progress = CGFloat(calculateWeekWorkoutDays()) / 7.0
+        let progress = CGFloat(viewModel.weeklyWorkoutDays) / 7.0
         return totalWidth * progress
-    }
-    
-    // 格式化周范围字符串
-    private func formatWeekRange(_ date: Date) -> String {
-        let calendar = Calendar.current
-        
-        // 获取date所在周的周日（本周开始日期）
-        let components = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date)
-        guard let startOfWeek = calendar.date(from: components) else { return "" }
-        
-        // 获取周六（本周结束日期）
-        guard let endOfWeek = calendar.date(byAdding: .day, value: 6, to: startOfWeek) else { return "" }
-        
-        // 创建日期格式器
-        let formatter = DateFormatter()
-        formatter.dateFormat = "M月d日"
-        
-        // 返回格式化的周范围
-        return "\(formatter.string(from: startOfWeek)) - \(formatter.string(from: endOfWeek))"
-    }
-    
-    // 生成周视图的数据
-    private func generateWeekChartData(for weekStartDate: Date) -> [WeekDayData] {
-        let calendar = Calendar.current
-        
-        // 获取weekStartDate所在周的周日（本周开始日期）
-        let components = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: weekStartDate)
-        guard let startOfWeek = calendar.date(from: components) else { return [] }
-        
-        // 生成一周的数据
-        var weekData: [WeekDayData] = []
-        
-        for dayOffset in 0...6 {
-            guard let currentDate = calendar.date(byAdding: .day, value: dayOffset, to: startOfWeek) else { continue }
-            
-            // 获取当天的运动记录并按时间排序
-            let dayRecords = viewModel.getRecordsForDate(currentDate).sorted(by: { $0.date < $1.date })
-            
-            // 获取最早记录的甜品ID（如果有）
-            let firstDessertId = dayRecords.first?.dessert.id
-            
-            // 计算总消耗热量
-            let totalBurned = dayRecords.reduce(0.0) { $0 + $1.caloriesBurned }
-            
-            // 计算总目标热量
-            let totalTarget = dayRecords.reduce(0.0) { $0 + (Double($1.dessert.calories) ?? 0) }
-            
-            // 计算美食总数量
-            let totalDessertCount = dayRecords.reduce(0.0) { $0 + $1.equivalentDessertCount }
-            
-            // 判断是否达成目标
-            let isGoalAchieved = totalBurned >= totalTarget && totalTarget > 0
-            
-            // 获取星期几
-            let weekday = calendar.component(.weekday, from: currentDate)
-            
-            // 创建数据点
-            let dataPoint = WeekDayData(
-                date: currentDate,
-                day: ["日", "一", "二", "三", "四", "五", "六"][weekday - 1],
-                caloriesBurned: Int(totalBurned),
-                hasWorkout: !dayRecords.isEmpty,
-                isGoalAchieved: isGoalAchieved,
-                targetCalories: totalTarget > 0 ? Int(totalTarget) : nil,
-                dessertId: firstDessertId,
-                dessertCount: totalDessertCount
-            )
-            
-            weekData.append(dataPoint)
-        }
-        
-        return weekData
     }
     
     // 刷新当前选中标签页的数据
@@ -506,8 +482,8 @@ struct ExerciseRecordView: View {
             
         case .week:
             // 切换到周视图时，确保使用当前选中的周
-            // 周视图使用selectedWeek，不需要额外处理
-            break
+            // 主动加载周视图数据
+            viewModel.refreshWeeklyStats()
         }
     }
 }

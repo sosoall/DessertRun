@@ -308,4 +308,50 @@ public struct AuthResponseWrapper: Decodable {
     public let code: Int
     public let message: String
     public let data: AuthResponseData
+}
+
+/// 周统计API响应
+struct APIWeeklyWorkoutStatsResponse: Codable {
+    let code: Int
+    let message: String
+    let data: WeeklyStatsData
+    
+    struct WeeklyStatsData: Codable {
+        let totalWorkouts: Int
+        let totalCalories: Double
+        let totalDuration: Double
+        let totalDistance: Double
+        let workoutDays: Int
+        let weekRange: WeekRange
+        let dailyStats: [DailyStatData]
+        
+        struct WeekRange: Codable {
+            let startDate: String
+            let endDate: String
+        }
+        
+        struct DailyStatData: Codable, Identifiable {
+            let date: String
+            let day: String
+            let hasWorkout: Bool
+            let caloriesBurned: Double
+            let targetCalories: Double
+            let dessertCount: Double
+            let dessertId: String?
+            let dessertName: String?
+            
+            var id: String { date }
+            
+            // 计算属性：是否完成目标
+            var isTargetAchieved: Bool {
+                return hasWorkout && caloriesBurned >= targetCalories
+            }
+            
+            // 计算属性：目标完成百分比
+            var targetAchievedPercentage: Double {
+                guard targetCalories > 0 else { return 0 }
+                return min(caloriesBurned / targetCalories, 1.0)
+            }
+        }
+    }
 } 

@@ -9,8 +9,16 @@ class ExerciseRecordViewModel: ObservableObject {
     // 年月相关状态
     @Published var selectedMonth: Date = Date()
     @Published var selectedYear: Date = Date()
+    @Published var selectedWeek: (year: Int, week: Int) = {
+        let calendar = Calendar(identifier: .iso8601)
+        let date = Date()
+        let year = calendar.component(.yearForWeekOfYear, from: date)
+        let week = calendar.component(.weekOfYear, from: date)
+        return (year, week)
+    }()
     @Published var showMonthPicker: Bool = false
     @Published var showYearPicker: Bool = false
+    @Published var showWeekPicker: Bool = false
     
     // 加载状态
     @Published var isLoading: Bool = false
@@ -48,6 +56,16 @@ class ExerciseRecordViewModel: ObservableObject {
     @Published var calorieDeficit: Int = 0
     @Published var weeklyDeficitDays: Int = 0
     private var weeklyDeficitDatesSet: Set<DateComponents> = []
+    
+    // 周视图相关状态
+    @Published var weeklyStatsLoading: Bool = false
+    @Published var weeklyWorkoutCount: Int = 0
+    @Published var weeklyTotalDuration: Double = 0
+    @Published var weeklyTotalCalories: Double = 0
+    @Published var weeklyTotalDistance: Double = 0
+    @Published var weeklyWorkoutDays: Int = 0
+    @Published var weekRange: (start: Date, end: Date) = (Date(), Date())
+    @Published var weeklyDailyStats: [APIWeeklyWorkoutStatsResponse.WeeklyStatsData.DailyStatData] = []
     
     // MARK: - 依赖项
     private var appState: AppState
@@ -88,6 +106,12 @@ class ExerciseRecordViewModel: ObservableObject {
         // 初始筛选
         filterRecordsByMonth()
         filterRecordsByYear()
+        
+        // 初始加载周视图数据
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self = self else { return }
+            self.loadWeekStats(year: self.selectedWeek.year, week: self.selectedWeek.week)
+        }
     }
     
     // MARK: - 计算属性
@@ -156,6 +180,18 @@ class ExerciseRecordViewModel: ObservableObject {
         yearlyFilteredWorkoutRecords.reduce(0.0) { total, record in
             total + (record.distance ?? 0)
         }
+    }
+    
+    /// 当前周的时间范围（中文）
+    var currentWeekRangeText: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MM月dd日"
+        return "\(formatter.string(from: weekRange.start)) - \(formatter.string(from: weekRange.end))"
+    }
+    
+    /// 当前选中的周数
+    var currentWeekText: String {
+        return "第\(selectedWeek.week)周"
     }
     
     // MARK: - 月份和年份操作方法
@@ -654,6 +690,122 @@ class ExerciseRecordViewModel: ObservableObject {
     // 格式化总距离（公里）
     func formatTotalDistance(meters: Double) -> String {
         return String(format: "%.1f", meters / 1000.0)
+    }
+    
+    // MARK: - 周视图相关方法
+    
+    /// 刷新周视图数据（在切换到周视图标签时调用）
+    func refreshWeeklyStats() {
+        DRDebug("[ExerciseRecordViewModel] 刷新周视图数据")
+        loadWeekStats(year: selectedWeek.year, week: selectedWeek.week)
+    }
+    
+    /// 切换到上一周
+    func goToPreviousWeek() {
+        let (year, week) = selectedWeek
+        
+        if week > 1 {
+            selectedWeek = (year, week - 1)
+        } else {
+            // 第1周，需要切换到上一年的最后一周
+            let calendar = Calendar(identifier: .iso8601)
+            
+            // 创建上一年的日期
+            let components = DateComponents(year: year - 1, month: 12, day: 28)  // 12月28必然在上一年的最后一周
+            if let date = calendar.date(from: components) {
+                let weekOfYear = calendar.component(.weekOfYear, from: date)
+                selectedWeek = (year - 1, weekOfYear)
+            }
+        }
+        
+        loadWeekStats(year: selectedWeek.year, week: selectedWeek.week)
+    }
+    
+    /// 切换到下一周
+    func goToNextWeek() {
+        let (year, week) = selectedWeek
+        
+        // 获取当前年份的最大周数
+        let calendar = Calendar(identifier: .iso8601)
+        let components = DateComponents(year: year, month: 12, day: 28)  // 12月28必然在当年的最后一周
+        guard let date = calendar.date(from: components) else { return }
+        let maxWeekOfYear = calendar.component(.weekOfYear, from: date)
+        
+        if week < maxWeekOfYear {
+            selectedWeek = (year, week + 1)
+        } else {
+            // 最后一周，需要切换到下一年的第1周
+            selectedWeek = (year + 1, 1)
+        }
+        
+        loadWeekStats(year: selectedWeek.year, week: selectedWeek.week)
+    }
+    
+    /// 加载周统计数据
+    func loadWeekStats(year: Int, week: Int) {
+        DRDebug("[ExerciseRecordViewModel] 加载周统计数据: \(year)年第\(week)周")
+        
+        weeklyStatsLoading = true
+        errorMessage = nil
+        
+        APIService.shared.getWeeklyWorkoutStats(year: year, week: week)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { [weak self] completion in
+                    self?.weeklyStatsLoading = false
+                    
+                    if case let .failure(error) = completion {
+                        self?.errorMessage = "加载周统计数据失败: \(error.errorMessage)"
+                        DRError("[ExerciseRecordViewModel] 加载周统计数据失败: \(error.errorMessage)")
+                    }
+                },
+                receiveValue: { [weak self] response in
+                    guard let self = self else { return }
+                    
+                    self.weeklyStatsLoading = false
+                    
+                    // 更新视图模型中的统计数据
+                    self.weeklyWorkoutCount = response.data.totalWorkouts
+                    self.weeklyTotalDuration = response.data.totalDuration
+                    self.weeklyTotalCalories = response.data.totalCalories
+                    self.weeklyTotalDistance = response.data.totalDistance
+                    self.weeklyWorkoutDays = response.data.workoutDays
+                    
+                    // 更新周范围
+                    let formatter = DateFormatter()
+                    formatter.dateFormat = "yyyy-MM-dd"
+                    
+                    if let startDate = formatter.date(from: response.data.weekRange.startDate),
+                       let endDate = formatter.date(from: response.data.weekRange.endDate) {
+                        self.weekRange = (start: startDate, end: endDate)
+                    }
+                    
+                    // 更新每日统计数据
+                    self.weeklyDailyStats = response.data.dailyStats
+                    
+                    DRInfo("[ExerciseRecordViewModel] 成功加载周统计数据: 运动天数=\(self.weeklyWorkoutDays), 总卡路里=\(self.weeklyTotalCalories)")
+                }
+            )
+            .store(in: &cancellables)
+    }
+    
+    // MARK: - 初始化数据加载方法
+    
+    /// 加载初始数据
+    func loadInitialData() {
+        DRInfo("[ExerciseRecordViewModel] 加载所有初始数据")
+        let calendar = Calendar.current
+        let year = calendar.component(.year, from: selectedMonth)
+        let month = calendar.component(.month, from: selectedMonth)
+        
+        // 加载月度统计
+        loadMonthStats(year: year, month: month)
+        
+        // 加载年度统计
+        loadYearStats(year: year)
+        
+        // 加载周统计
+        loadWeekStats(year: selectedWeek.year, week: selectedWeek.week)
     }
 }
 

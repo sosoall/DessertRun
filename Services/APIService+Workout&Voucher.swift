@@ -1022,6 +1022,51 @@ extension APIService {
         }
         .eraseToAnyPublisher()
     }
+
+    /// 获取用户周统计数据
+    /// - Parameters:
+    ///   - year: 年份
+    ///   - week: 周数
+    /// - Returns: 包含周统计数据的发布者
+    func getWeeklyWorkoutStats(year: Int, week: Int) -> AnyPublisher<APIWeeklyWorkoutStatsResponse, APIServiceError> {
+        let queryParams = [
+            "year": "\(year)",
+            "week": "\(week)"
+        ]
+        
+        // 构建URL
+        var urlComponents = URLComponents(string: Config.API.baseURL + "/api/v1/workouts/weekly-stats")
+        urlComponents?.queryItems = queryParams.map { URLQueryItem(name: $0.key, value: $0.value) }
+        
+        guard let url = urlComponents?.url else {
+            DRError("[APIService] 构建周统计数据URL失败")
+            return Fail(error: APIServiceError.unknown).eraseToAnyPublisher()
+        }
+        
+        DRDebug("[APIService] 请求周统计数据: \(url)")
+        
+        return NetworkManager.shared.requestRaw(
+            endpoint: "/api/v1/workouts/weekly-stats",
+            method: .get,
+            parameters: queryParams,
+            requiresAuth: true
+        )
+        .map { data, _ in data }
+        .decode(type: APIWeeklyWorkoutStatsResponse.self, decoder: JSONDecoder())
+        .mapError { error -> APIServiceError in
+            if let decodingError = error as? DecodingError {
+                DRError("[APIService] 周统计数据解析错误: \(decodingError)")
+                return .decodeError(decodingError.localizedDescription)
+            } else if let networkError = error as? NetworkError {
+                DRError("[APIService] 周统计数据网络错误: \(networkError)")
+                return .networkError(APINetworkError(error: networkError))
+            } else {
+                DRError("[APIService] 获取周统计数据失败: \(error)")
+                return .unknown
+            }
+        }
+        .eraseToAnyPublisher()
+    }
 }
 
 // MARK: - 运动打卡记录响应模型
