@@ -8,6 +8,7 @@ class WorkoutFlowCoordinator: ObservableObject {
     
     // 状态变量
     @Published var latestWorkoutRecord: WorkoutRecord? = nil
+    @Published var latestDessertVoucher: DessertVoucher? = nil
     @Published var showCompletionView: Bool = false
     @Published var shouldNavigateToFoodCheckIn: Bool = false
     
@@ -26,16 +27,21 @@ class WorkoutFlowCoordinator: ObservableObject {
                 // 从通知中获取运动记录
                 if let record = notification.object as? WorkoutRecord {
                     self?.handleWorkoutCompletion(record: record)
+                } else if let data = notification.object as? [String: Any],
+                          let record = data["record"] as? WorkoutRecord,
+                          let voucher = data["voucher"] as? DessertVoucher {
+                    self?.handleWorkoutCompletionWithVoucher(record: record, voucher: voucher)
                 }
             }
             .store(in: &cancellables)
     }
     
-    // 处理运动完成
+    // 处理运动完成 (旧方法，为兼容性保留)
     func handleWorkoutCompletion(record: WorkoutRecord) {
         DispatchQueue.main.async {
             // 设置最新记录
             self.latestWorkoutRecord = record
+            self.latestDessertVoucher = nil // 清空可能存在的美食券
             
             // 设置应用状态
             AppState.shared.justCompletedWorkout = true
@@ -47,6 +53,26 @@ class WorkoutFlowCoordinator: ObservableObject {
             self.shouldNavigateToFoodCheckIn = false
             
             DRInfo("[WorkoutFlowCoordinator] 显示打卡完成页面，记录ID: \(record.id)")
+        }
+    }
+    
+    // 处理运动完成，并包含美食券信息
+    func handleWorkoutCompletionWithVoucher(record: WorkoutRecord, voucher: DessertVoucher) {
+        DispatchQueue.main.async {
+            // 设置最新记录和美食券
+            self.latestWorkoutRecord = record
+            self.latestDessertVoucher = voucher
+            
+            // 设置应用状态
+            AppState.shared.justCompletedWorkout = true
+            
+            // 显示完成视图
+            self.showCompletionView = true
+            
+            // 重置导航标志
+            self.shouldNavigateToFoodCheckIn = false
+            
+            DRInfo("[WorkoutFlowCoordinator] 显示打卡完成页面，记录ID: \(record.id)，美食券ID: \(voucher.id)")
         }
     }
     
@@ -73,9 +99,15 @@ class WorkoutFlowCoordinator: ObservableObject {
         handleWorkoutCompletion(record: record)
     }
     
+    // 手动触发完成流程（用于测试）,包含美食券
+    func triggerCompletionFlow(record: WorkoutRecord, voucher: DessertVoucher) {
+        handleWorkoutCompletionWithVoucher(record: record, voucher: voucher)
+    }
+    
     // 重置状态
     func reset() {
         latestWorkoutRecord = nil
+        latestDessertVoucher = nil
         showCompletionView = false
         shouldNavigateToFoodCheckIn = false
     }

@@ -89,6 +89,7 @@ struct MainTabView: View {
                     showFoodCheckInView: $workoutCoordinator.shouldNavigateToFoodCheckIn
                 )
                 .environmentObject(appState)
+                .environmentObject(workoutCoordinator)
                 .transition(.opacity)
                 .zIndex(100) // 确保在所有内容之上
             }

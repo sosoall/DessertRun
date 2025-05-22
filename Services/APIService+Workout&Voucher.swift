@@ -347,7 +347,7 @@ extension APIService {
     }
 
     /// 创建运动与美食打卡记录并创建美食券
-    func createWorkoutRecord(params: [String: Any]) -> AnyPublisher<WorkoutRecord?, APIServiceError> {
+    func createWorkoutRecord(params: [String: Any]) -> AnyPublisher<(WorkoutRecord?, DessertVoucher?), APIServiceError> {
         let endpoint = ApiEndpoints.Workout.base
         
         // 打印详细的请求参数
@@ -362,10 +362,15 @@ extension APIService {
         }
         
         // 定义API响应结构
-        struct WorkoutRecordResponse: Decodable {
+        struct WorkoutCompleteResponse: Decodable {
             let code: Int
             let message: String
-            let data: WorkoutRecordDTO
+            let data: WorkoutCompleteDTO
+            
+            struct WorkoutCompleteDTO: Decodable {
+                let workoutRecord: WorkoutRecordDTO
+                let voucher: VoucherDTO
+            }
             
             struct WorkoutRecordDTO: Decodable {
                 let id: String
@@ -382,6 +387,24 @@ extension APIService {
                 let equivalent_dessert_count: Double
                 let workout_tag: String
                 let created_at: String
+                let image_id: String?
+                let image_url: String?
+                let dessert_icon_url: String?
+            }
+            
+            struct VoucherDTO: Decodable {
+                let id: String
+                let user_id: String
+                let workout_record_id: String?
+                let dessert_id: String
+                let dessert_name: String
+                let image_id: String?
+                let image_url: String?
+                let equivalent_dessert_count: Double
+                let calories_value: Double
+                let status: String
+                let created_at: String
+                let expire_at: String?
             }
         }
         
@@ -391,7 +414,7 @@ extension APIService {
             parameters: params,
             requiresAuth: true
         )
-        .tryMap { data, response -> WorkoutRecord? in
+        .tryMap { data, response -> (WorkoutRecord?, DessertVoucher?) in
             // 打印响应数据，用于调试
             if let jsonString = String(data: data, encoding: .utf8) {
                 DRDebug("[APIService] 创建打卡响应: \(jsonString)")
@@ -399,15 +422,16 @@ extension APIService {
             
             // 解析响应
             let decoder = JSONDecoder()
-            let apiResponse = try decoder.decode(WorkoutRecordResponse.self, from: data)
+            let apiResponse = try decoder.decode(WorkoutCompleteResponse.self, from: data)
             
             // 检查响应状态
             guard apiResponse.code == 0 || apiResponse.code == 200 else {
                 DRError("[APIService] 创建打卡失败，错误码: \(apiResponse.code), 消息: \(apiResponse.message)")
-                return nil
+                return (nil, nil)
             }
             
-            let dto = apiResponse.data
+            let workoutDTO = apiResponse.data.workoutRecord
+            let voucherDTO = apiResponse.data.voucher
             
             // 解析日期
             let dateFormatter = ISO8601DateFormatter()
@@ -415,30 +439,30 @@ extension APIService {
             
             var completionDate: Date?
             // 尝试多种日期解析方法
-            if let date = dateFormatter.date(from: dto.completion_date) {
+            if let date = dateFormatter.date(from: workoutDTO.completion_date) {
                 completionDate = date
             } else {
                 // 如果失败，尝试不带毫秒的格式
                 dateFormatter.formatOptions = [.withInternetDateTime]
-                if let date = dateFormatter.date(from: dto.completion_date) {
+                if let date = dateFormatter.date(from: workoutDTO.completion_date) {
                     completionDate = date
                 } else {
                     // 使用更简单的格式再次尝试
                     let backupFormatter = DateFormatter()
                     backupFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZ"
-                    completionDate = backupFormatter.date(from: dto.completion_date) ?? Date()
+                    completionDate = backupFormatter.date(from: workoutDTO.completion_date) ?? Date()
                 }
             }
             
             // 获取运动类型
-            let exerciseType = APIExerciseType.fromString(dto.exercise_type, name: dto.exercise_name)
+            let exerciseType = APIExerciseType.fromString(workoutDTO.exercise_type, name: workoutDTO.exercise_name)
             
             // 创建甜品对象
             let dessert = DessertItem(
-                id: dto.dessert_id,
-                name: dto.dessert_name,
+                id: workoutDTO.dessert_id,
+                name: workoutDTO.dessert_name,
                 imageName: "dessert_placeholder",
-                calories: String(format: "%.0f", dto.dessert_calories),
+                calories: String(format: "%.0f", workoutDTO.dessert_calories),
                 category: .dessert,
                 description: "",
                 backgroundColor: nil,
@@ -450,19 +474,55 @@ extension APIService {
                 images: []
             )
             
-            // 创建并返回WorkoutRecord对象
-            return WorkoutRecord(
-                id: dto.id,
-                userId: dto.user_id,
+            // 创建运动记录对象
+            let workoutRecord = WorkoutRecord(
+                id: workoutDTO.id,
+                userId: workoutDTO.user_id,
                 exerciseType: exerciseType,
-                duration: dto.duration.map { TimeInterval($0) },
-                distance: dto.distance,
-                caloriesBurned: dto.calories_burned,
+                duration: workoutDTO.duration.map { TimeInterval($0) },
+                distance: workoutDTO.distance,
+                caloriesBurned: workoutDTO.calories_burned,
                 dessert: dessert,
                 date: completionDate ?? Date(),
-                workoutTag: dto.workout_tag,
-                equivalentDessertCount: dto.equivalent_dessert_count
+                workoutTag: workoutDTO.workout_tag,
+                equivalentDessertCount: workoutDTO.equivalent_dessert_count
             )
+            
+            // 解析美食券创建时间
+            var voucherCreatedDate: Date?
+            if let date = dateFormatter.date(from: voucherDTO.created_at) {
+                voucherCreatedDate = date
+            } else {
+                voucherCreatedDate = Date()
+            }
+            
+            // 解析美食券过期时间
+            var expireDate: Date?
+            if let expireStr = voucherDTO.expire_at,
+               let date = dateFormatter.date(from: expireStr) {
+                expireDate = date
+            }
+            
+            // 创建美食券对象
+            let voucher = DessertVoucher(
+                id: voucherDTO.id,
+                userId: voucherDTO.user_id,
+                dessertId: voucherDTO.dessert_id,
+                dessertName: voucherDTO.dessert_name,
+                equivalentDessertCount: voucherDTO.equivalent_dessert_count,
+                caloriesValue: voucherDTO.calories_value,
+                workoutRecordId: voucherDTO.workout_record_id,
+                status: voucherDTO.status,
+                createdAt: voucherCreatedDate ?? Date(),
+                updatedAt: nil,
+                expireAt: expireDate,
+                imageId: voucherDTO.image_id,
+                imageURL: voucherDTO.image_url,
+                exerciseType: workoutDTO.exercise_type,
+                exerciseName: workoutDTO.exercise_name
+            )
+            
+            return (workoutRecord, voucher)
         }
         .mapError { error -> APIServiceError in
             if let networkError = error as? NetworkError {
@@ -709,7 +769,7 @@ extension APIService {
                         dessertId: dto.dessert_id,
                         dessertName: dto.dessert_name,
                         equivalentDessertCount: dto.equivalent_dessert_count,
-                        caloriesValue: dto.calories_value, // 字段名与API响应匹配为calories_value
+                        caloriesValue: dto.calories_value,
                         workoutRecordId: dto.workout_record_id,
                         status: dto.status,
                         createdAt: createdAt,

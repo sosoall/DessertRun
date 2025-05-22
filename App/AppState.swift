@@ -196,6 +196,19 @@ class AppState: ObservableObject {
         // 在真实应用中，这里应该同步到后端服务器
     }
     
+    /// 添加新的美食券
+    func addDessertVoucher(_ voucher: DessertVoucher) {
+        // 检查是否已存在相同ID的美食券，避免重复
+        if !dessertVouchers.contains(where: { $0.id == voucher.id }) {
+            dessertVouchers.append(voucher)
+            print("【调试】已添加新的美食券: \(voucher.dessertName), ID: \(voucher.id)")
+        } else {
+            print("【调试】美食券已存在，ID: \(voucher.id)")
+        }
+        
+        // 在真实应用中，这里应该同步到后端服务器
+    }
+    
     /// 导航到指定的屏幕
     func navigateToScreen(_ screen: AppScreen) {
         switch screen {

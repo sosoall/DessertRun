@@ -7,6 +7,7 @@ struct WorkoutCompleteView: View {
     
     // 环境对象
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var coordinator: WorkoutFlowCoordinator
     
     // 状态变量
     @State private var showConfetti = true
@@ -21,8 +22,14 @@ struct WorkoutCompleteView: View {
     @Binding var isPresented: Bool
     @Binding var showFoodCheckInView: Bool
     
-    // 获取当前美食券
+    // 获取当前美食券 - 首选使用coordinator中的美食券，如果没有再从appState查找
     private var dessertVoucher: DessertVoucher? {
+        // 首选使用coordinator中的美食券
+        if let coordVoucher = coordinator.latestDessertVoucher {
+            return coordVoucher
+        }
+        
+        // 备选：从appState查找与运动记录ID匹配的美食券
         return appState.dessertVouchers.first(where: { $0.workoutRecordId == record.id })
     }
     

@@ -20,16 +20,35 @@ class ExerciseViewModel: ObservableObject {
     /// 创建运动打卡记录
     /// - Parameter params: 打卡记录参数
     /// - Returns: 结果发布者
-    func createWorkoutRecord(params: [String: Any]) -> AnyPublisher<WorkoutRecord?, APIServiceError> {
+    func createWorkoutRecord(params: [String: Any]) -> AnyPublisher<(WorkoutRecord?, DessertVoucher?), APIServiceError> {
         return apiService.createWorkoutRecord(params: params)
             .handleEvents(receiveOutput: { responseData in
+                // 解包响应，提取运动记录和美食券
+                let (workoutRecord, dessertVoucher) = responseData
+                
                 // 处理打卡成功，使用后端返回的数据
-                if let recordData = responseData {
+                if let record = workoutRecord {
                     DRInfo("[ExerciseViewModel] 发送打卡成功通知 WorkoutCompleted")
-                    NotificationCenter.default.post(
-                        name: NSNotification.Name("WorkoutCompleted"),
-                        object: recordData
-                    )
+                    
+                    if let voucher = dessertVoucher {
+                        // 同时有运动记录和美食券，打包发送通知
+                        let notificationData: [String: Any] = [
+                            "record": record,
+                            "voucher": voucher
+                        ]
+                        NotificationCenter.default.post(
+                            name: NSNotification.Name("WorkoutCompleted"),
+                            object: notificationData
+                        )
+                        DRInfo("[ExerciseViewModel] 发送包含美食券的打卡成功通知")
+                    } else {
+                        // 仅有运动记录，发送原始通知
+                        NotificationCenter.default.post(
+                            name: NSNotification.Name("WorkoutCompleted"),
+                            object: record
+                        )
+                        DRInfo("[ExerciseViewModel] 发送不含美食券的打卡成功通知")
+                    }
                 } else {
                     DRWarning("[ExerciseViewModel] 后端返回的记录数据为空，跳过发送通知")
                 }

@@ -284,8 +284,11 @@ struct DessertToExerciseTransition: View {
                     }
                 },
                 receiveValue: { response in
+                    // 解包响应，提取运动记录和美食券
+                    let (workoutRecord, dessertVoucher) = response
+                    
                     // 等待后端返回数据后，再执行后续操作
-                    if let record = response {
+                    if let record = workoutRecord {
                         // 设置加载状态为false
                         self.isLoading = false
                         
@@ -296,13 +299,23 @@ struct DessertToExerciseTransition: View {
                         appState.addWorkoutRecord(record)
                         DRInfo("成功创建运动记录: \(record.id)")
                         
+                        // 如果有美食券信息，也添加到应用状态
+                        if let voucher = dessertVoucher {
+                            appState.addDessertVoucher(voucher)
+                            DRInfo("成功创建美食券: \(voucher.id)")
+                        }
+                        
                         // 关闭面板
                         animationState.dismissPanel()
                         
                         // 优化：等待0.5秒，让美食图片完成回到气泡的动画后再显示中间页
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            // 通过协调器显示中间页，不再直接修改tabIndex
-                            WorkoutFlowCoordinator.shared.handleWorkoutCompletion(record: record)
+                            // 将美食券信息也传递给WorkoutFlowCoordinator
+                            if let voucher = dessertVoucher {
+                                WorkoutFlowCoordinator.shared.handleWorkoutCompletionWithVoucher(record: record, voucher: voucher)
+                            } else {
+                                WorkoutFlowCoordinator.shared.handleWorkoutCompletion(record: record)
+                            }
                         }
                     } else {
                         // API返回为空，显示错误
