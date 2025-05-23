@@ -14,44 +14,54 @@ struct ChallengeCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             // 挑战图片
-            if let imageURL = challenge.imageURL, !imageURL.isEmpty {
-                AsyncImage(url: URL(string: imageURL)) { phase in
-                    switch phase {
-                    case .empty:
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.2))
-                            .aspectRatio(1.5, contentMode: .fit)
-                            .cornerRadius(8)
-                            .overlay(
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle())
-                            )
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(height: 130)
-                            .clipped()
-                            .cornerRadius(8)
-                    case .failure:
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.2))
-                            .aspectRatio(1.5, contentMode: .fit)
-                            .cornerRadius(8)
-                            .overlay(
-                                Image(systemName: "photo")
-                                    .foregroundColor(.gray)
-                            )
-                    @unknown default:
-                        EmptyView()
+            if let imageURL = challenge.imageURL {
+                // 检查是否是本地图片路径（以"challenges/"开头）
+                if imageURL.starts(with: "challenges/") {
+                    // 使用本地图片 - 从路径中提取实际的图片名称
+                    let imageName = imageURL.replacingOccurrences(of: "challenges/", with: "")
+                    Image(imageName)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(maxWidth: .infinity)
+                        .cornerRadius(8)
+                } else if !imageURL.isEmpty {
+                    // 使用远程图片
+                    AsyncImage(url: URL(string: imageURL)) { phase in
+                        switch phase {
+                        case .empty:
+                            Rectangle()
+                                .fill(Color.gray.opacity(0.2))
+                                .aspectRatio(1.5, contentMode: .fit)
+                                .cornerRadius(8)
+                                .overlay(
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle())
+                                )
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(maxWidth: .infinity)
+                                .cornerRadius(8)
+                        case .failure:
+                            Rectangle()
+                                .fill(Color.gray.opacity(0.2))
+                                .aspectRatio(1.5, contentMode: .fit)
+                                .cornerRadius(8)
+                                .overlay(
+                                    Image(systemName: "photo")
+                                        .foregroundColor(.gray)
+                                )
+                        @unknown default:
+                            EmptyView()
+                        }
                     }
                 }
-                .frame(height: 130)
             } else {
                 // 默认占位图
                 Rectangle()
-                    .fill(Color(hex: 0xF5F5F5))
-                    .frame(height: 130)
+                    .fill(Color.gray.opacity(0.2))
+                    .aspectRatio(1.5, contentMode: .fit)
                     .cornerRadius(8)
                     .overlay(
                         Image(systemName: "trophy")
@@ -93,17 +103,11 @@ struct ChallengeCardView: View {
                 .foregroundColor(Color.black)
                 .lineLimit(1)
             
-            // 活动时间
-            HStack {
-                Image(systemName: "calendar")
-                    .font(.system(size: 12))
-                    .foregroundColor(.gray)
-                
-                Text(challenge.formattedDuration)
-                    .font(.system(size: 12))
-                    .foregroundColor(.gray)
-                    .lineLimit(1)
-            }
+            // 活动描述
+            Text(challenge.description)
+                .font(.system(size: 12))
+                .foregroundColor(.gray)
+                .padding(.top, 2)
             
             // 奖励信息
             HStack {
@@ -116,6 +120,7 @@ struct ChallengeCardView: View {
                     .foregroundColor(.gray)
                     .lineLimit(1)
             }
+            .padding(.top, 4)
             
             // 已报名标签（如果已报名）
             if isEnrolled {
@@ -132,14 +137,14 @@ struct ChallengeCardView: View {
                         RoundedRectangle(cornerRadius: 4)
                             .stroke(Color(hex: 0xFE2D55), lineWidth: 1)
                     )
+                    .padding(.top, 4)
             }
             
             Spacer(minLength: 0)
         }
-        .padding(12)
+        .padding(10) // 减小内边距
         .background(Color.white)
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 2)
+        .cornerRadius(8)
         .frame(maxWidth: .infinity)
     }
     
@@ -182,11 +187,16 @@ struct ChallengeCardView: View {
         isActive: true,
         isForBeginner: true,
         createdAt: Date(),
-        updatedAt: Date()
+        updatedAt: Date(),
+        imageURL: "challenges/1"
     )
     
-    return ChallengeCardView(challenge: challenge, isEnrolled: true)
-        .frame(width: 180)
-        .padding()
-        .background(Color(hex: 0xF5F5F5))
+    return ZStack {
+        Color(hex: 0xF5F5F5) // 浅灰色背景
+            .ignoresSafeArea()
+        
+        ChallengeCardView(challenge: challenge, isEnrolled: true)
+            .frame(width: 180)
+            .padding()
+    }
 }

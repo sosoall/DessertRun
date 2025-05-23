@@ -49,8 +49,8 @@ struct ChallengeGridView: View {
     
     var body: some View {
         ZStack(alignment: .top) {
-            // 背景色
-            Color.white.ignoresSafeArea()
+            // 背景色改为浅灰色
+            Color(hex: 0xF5F5F5).ignoresSafeArea()
             
             // 使用常规ScrollView
             ScrollView {
@@ -64,11 +64,11 @@ struct ChallengeGridView: View {
                         // 空状态
                         emptyStateView
                     } else {
-                        // 使用简化版瀑布流
+                        // 使用简化版瀑布流，减小间距
                         SimplifiedWaterfallGrid(
                             items: uniqueActivities,
                             columns: columnCount,
-                            spacing: 12
+                            spacing: 8 // 原来是12，现在减小到8
                         ) { challenge in
                             NavigationLink(destination: 
                                 ChallengeDetailView(challengeId: challenge.id)
@@ -81,7 +81,7 @@ struct ChallengeGridView: View {
                             }
                             .buttonStyle(PlainButtonStyle())
                         }
-                        .padding(.horizontal, 16)
+                        .padding(.horizontal, 12) // 原来是16，减小到12
                         .padding(.bottom, 100) // 添加底部空间，确保底部内容可以滚动到视图中心
                     }
                 }

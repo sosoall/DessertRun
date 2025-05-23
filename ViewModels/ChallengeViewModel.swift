@@ -41,7 +41,7 @@ class ChallengeViewModel: ObservableObject {
     // MARK: - 数据加载
     
     /// 加载挑战活动列表
-    func loadChallenges() {
+    func loadChallenges() {     
         // 避免重复加载，减轻服务器压力
         if isLoading || 
            (!challengeActivities.isEmpty && 
