@@ -21,7 +21,7 @@ struct ChallengeCardView: View {
                         Rectangle()
                             .fill(Color.gray.opacity(0.2))
                             .aspectRatio(1.5, contentMode: .fit)
-                            .cornerRadius(12)
+                            .cornerRadius(8)
                             .overlay(
                                 ProgressView()
                                     .progressViewStyle(CircularProgressViewStyle())
@@ -32,12 +32,12 @@ struct ChallengeCardView: View {
                             .aspectRatio(contentMode: .fill)
                             .frame(height: 130)
                             .clipped()
-                            .cornerRadius(12)
+                            .cornerRadius(8)
                     case .failure:
                         Rectangle()
                             .fill(Color.gray.opacity(0.2))
                             .aspectRatio(1.5, contentMode: .fit)
-                            .cornerRadius(12)
+                            .cornerRadius(8)
                             .overlay(
                                 Image(systemName: "photo")
                                     .foregroundColor(.gray)
@@ -52,7 +52,7 @@ struct ChallengeCardView: View {
                 Rectangle()
                     .fill(Color(hex: 0xF5F5F5))
                     .frame(height: 130)
-                    .cornerRadius(12)
+                    .cornerRadius(8)
                     .overlay(
                         Image(systemName: "trophy")
                             .font(.system(size: 40))
@@ -102,6 +102,7 @@ struct ChallengeCardView: View {
                 Text(challenge.formattedDuration)
                     .font(.system(size: 12))
                     .foregroundColor(.gray)
+                    .lineLimit(1)
             }
             
             // 奖励信息
@@ -113,6 +114,7 @@ struct ChallengeCardView: View {
                 Text(challenge.formattedReward)
                     .font(.system(size: 12))
                     .foregroundColor(.gray)
+                    .lineLimit(1)
             }
             
             // 已报名标签（如果已报名）
@@ -132,24 +134,13 @@ struct ChallengeCardView: View {
                     )
             }
             
-            Spacer()
+            Spacer(minLength: 0)
         }
         .padding(12)
         .background(Color.white)
-        .cornerRadius(16)
-        .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.gray.opacity(0.1), lineWidth: 1)
-        )
-        .background(
-            GeometryReader { geo in
-                Color.clear.preference(key: HeightPreferenceKey.self, value: geo.size.height)
-            }
-        )
-        .onPreferenceChange(HeightPreferenceKey.self) { height in
-            cardHeight = height
-        }
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 2)
+        .frame(maxWidth: .infinity)
     }
     
     // 根据状态文本获取颜色
@@ -166,14 +157,6 @@ struct ChallengeCardView: View {
         default:
             return Color.gray
         }
-    }
-}
-
-struct HeightPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
     }
 }
 

@@ -46,9 +46,9 @@ struct MainTabView: View {
             ) {
                 switch appState.selectedTabIndex {
                 case 0:
-                    // 挑战标签
+                    // 挑战标签 - 使用新的优化版界面
                     NavigationStack {
-                        ChallengeHomeView()
+                        ChallengeGridView()
                             .environmentObject(appState)
                     }
                 case 1:
@@ -95,10 +95,10 @@ struct MainTabView: View {
                     isPresented: $workoutCoordinator.showCompletionView,
                     showFoodCheckInView: $workoutCoordinator.shouldNavigateToFoodCheckIn
                 )
-                .environmentObject(appState)
-                .environmentObject(workoutCoordinator)
-                .transition(.opacity)
-                .zIndex(100) // 确保在所有内容之上
+                    .environmentObject(appState)
+                    .environmentObject(workoutCoordinator)
+                    .transition(.opacity)
+                    .zIndex(100) // 确保在所有内容之上
             }
         }
         .onChange(of: appState.shouldResetNavigation) { oldValue, shouldReset in
@@ -116,7 +116,7 @@ struct MainTabView: View {
             if shouldNavigate {
                 // 切换到美食券标签页
                 DispatchQueue.main.async {
-                    appState.selectedTabIndex = 1
+                    appState.selectedTabIndex = 1 // 更新为第二个标签(索引1)
                     // 重置导航标志
                     workoutCoordinator.shouldNavigateToFoodCheckIn = false
                 }
