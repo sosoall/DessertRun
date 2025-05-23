@@ -14,6 +14,39 @@ struct ChallengeDetailView: View {
     @State private var showProgress = false
     @State private var progress: ChallengeProgressResponse?
     
+    // 运动类型数据字典
+    private let exerciseTypes: [String: String] = [
+        "1": "跑步",
+        "2": "徒步",
+        "3": "骑车",
+        "4": "游泳",
+        "5": "健身",
+        "6": "瑜伽",
+        "7": "跳绳"
+    ]
+    
+    // 食物分类数据字典
+    private let foodCategories: [String: String] = [
+        "1": "甜点",
+        "2": "面食",
+        "3": "水果",
+        "4": "蔬菜",
+        "5": "肉类",
+        "6": "海鲜",
+        "7": "饮品"
+    ]
+    
+    // 食物名称数据字典
+    private let foodItems: [String: String] = [
+        "1": "蛋糕",
+        "2": "冰淇淋",
+        "3": "巧克力",
+        "4": "牛排",
+        "5": "三明治",
+        "6": "奶茶",
+        "7": "寿司"
+    ]
+    
     // 挑战ID
     let challengeId: String
     
@@ -52,7 +85,7 @@ struct ChallengeDetailView: View {
             viewModel.loadEnrollments()
             
             // 如果已报名，获取进度信息
-            if let enrollment = viewModel.getEnrollment(for: challengeId) {
+            if viewModel.getEnrollment(for: challengeId) != nil {
                 isEnrolled = true
                 viewModel.loadProgress(id: challengeId)
             }
@@ -296,30 +329,72 @@ struct ChallengeDetailView: View {
                     }
                     .padding(.top, 4)
                     
-                    // 特定要求
+                    // 特定运动类型要求
                     if let exerciseTypeId = challenge.requiredExerciseTypeId, !exerciseTypeId.isEmpty {
                         HStack {
                             Image(systemName: "figure.run")
                                 .foregroundColor(Color.DessertRun.accent)
                             
-                            Text("指定运动类型要求")
+                            // 获取运动类型名称
+                            Text("限定运动类型: \(exerciseTypes[exerciseTypeId] ?? "未知")")
                                 .font(.system(size: 14))
                                 .foregroundColor(.black)
                         }
-                        .padding(.top, 2)
+                        .padding(.top, 4)
                     }
                     
-                    if challenge.foodRestrictionType != "none" {
+                    // 不同运动类型要求
+                    if challenge.requiredDifferentExerciseTypes {
                         HStack {
-                            Image(systemName: "birthday.cake")
+                            Image(systemName: "figure.run")
                                 .foregroundColor(Color.DessertRun.accent)
                             
-                            Text("特定美食限制")
+                            Text("需完成三种不同的运动类型")
                                 .font(.system(size: 14))
                                 .foregroundColor(.black)
                         }
-                        .padding(.top, 2)
+                        .padding(.top, 4)
                     }
+                    
+                    // 美食限制
+                    if challenge.foodRestrictionType != "none" {
+                        HStack {
+                            Image(systemName: "fork.knife")
+                                .foregroundColor(Color.DessertRun.accent)
+                            
+                            if challenge.foodRestrictionType == "category", let categoryIds = challenge.requiredFoodCategoryIds, !categoryIds.isEmpty {
+                                let categoryNames = categoryIds.map { foodCategories[$0] ?? "未知分类" }.joined(separator: "、")
+                                Text("限定美食分类: \(categoryNames)")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.black)
+                            } else if challenge.foodRestrictionType == "specific", let foodIds = challenge.requiredFoodIds, !foodIds.isEmpty {
+                                let foodNames = foodIds.map { foodItems[$0] ?? "未知美食" }.joined(separator: "、")
+                                Text("限定美食: \(foodNames)")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.black)
+                            } else if challenge.requiredDifferentFoodTypes {
+                                Text("需打卡三种不同的美食")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.black)
+                            } else {
+                                Text("特定美食限制")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.black)
+                            }
+                        }
+                        .padding(.top, 4)
+                    }
+                    
+                    // 活动时间（移至最后显示）
+                    HStack {
+                        Image(systemName: "clock")
+                            .foregroundColor(Color.DessertRun.accent)
+                        
+                        Text("\(challenge.startDate.formatted()) - \(challenge.endDate.formatted())")
+                            .font(.system(size: 14))
+                            .foregroundColor(.black)
+                    }
+                    .padding(.top, 4)
                 }
             } else {
                 // 加载中状态

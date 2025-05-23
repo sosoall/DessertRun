@@ -32,6 +32,11 @@ struct ChallengeActivity: Identifiable, Codable, Equatable {
     let foodRestrictionType: String
     let requiredFoodCategoryIds: [String]?
     let requiredFoodIds: [String]?
+    let requiredDifferentFoodTypes: Bool
+    let requiredDifferentExerciseTypes: Bool
+    
+    // 排序
+    let displayOrder: Int
     
     // 价格信息（付费活动）
     let price: Int?
@@ -70,6 +75,9 @@ struct ChallengeActivity: Identifiable, Codable, Equatable {
         case foodRestrictionType = "food_restriction_type"
         case requiredFoodCategoryIds = "required_food_category_ids"
         case requiredFoodIds = "required_food_ids"
+        case requiredDifferentFoodTypes = "required_different_food_types"
+        case requiredDifferentExerciseTypes = "required_different_exercise_types"
+        case displayOrder = "display_order"
         case price
         case vipOnly = "vip_only"
         case rewardType = "reward_type"

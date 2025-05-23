@@ -237,13 +237,47 @@ class ChallengeViewModel: ObservableObject {
     
     /// 根据类型筛选活动
     private func filterActivities(by type: String) {
-        switch type {
-        case "free":
-            filteredActivities = challengeActivities.filter { $0.activityType == .free }
-        case "paid":
-            filteredActivities = challengeActivities.filter { $0.activityType == .paid }
-        default:
-            filteredActivities = challengeActivities
+        var filtered: [ChallengeActivity]
+        
+        // 筛选活动类型
+        if type == "all" {
+            filtered = challengeActivities
+        } else {
+            filtered = challengeActivities.filter { $0.activityType.rawValue == type }
+        }
+        
+        // 打印排序前的列表信息
+        DRDebug("【排序前】活动列表数量: \(filtered.count)")
+        for (index, challenge) in filtered.enumerated() {
+            DRDebug("【排序前】[\(index)] ID: \(challenge.id.suffix(6)), 名称: \(challenge.name), 新手: \(challenge.isForBeginner), 顺序值: \(challenge.displayOrder)")
+        }
+        
+        // 排序逻辑：
+        // 1. 首先将新手挑战(is_for_beginner=true)排在前面
+        // 2. 然后按display_order排序
+        filteredActivities = filtered.sorted { challenge1, challenge2 in
+            // 记录比较过程
+            DRDebug("比较: [\(challenge1.name)] 新手:\(challenge1.isForBeginner) 顺序:\(challenge1.displayOrder) VS [\(challenge2.name)] 新手:\(challenge2.isForBeginner) 顺序:\(challenge2.displayOrder)")
+            
+            // 如果一个是新手挑战而另一个不是，新手挑战排在前面
+            if challenge1.isForBeginner && !challenge2.isForBeginner {
+                DRDebug("结果: [\(challenge1.name)] 是新手挑战，排在前面")
+                return true
+            } else if !challenge1.isForBeginner && challenge2.isForBeginner {
+                DRDebug("结果: [\(challenge2.name)] 是新手挑战，排在前面")
+                return false
+            }
+            
+            // 如果两者都是新手挑战或都不是，按display_order排序
+            let result = challenge1.displayOrder < challenge2.displayOrder
+            DRDebug("结果: 按display_order排序, [\(challenge1.name)](\(challenge1.displayOrder)) \(result ? "排在前面" : "排在后面") [\(challenge2.name)](\(challenge2.displayOrder))")
+            return result
+        }
+        
+        // 打印排序后的列表信息
+        DRDebug("【排序后】活动列表数量: \(filteredActivities.count)")
+        for (index, challenge) in filteredActivities.enumerated() {
+            DRDebug("【排序后】[\(index)] ID: \(challenge.id.suffix(6)), 名称: \(challenge.name), 新手: \(challenge.isForBeginner), 顺序值: \(challenge.displayOrder)")
         }
     }
     

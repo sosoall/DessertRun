@@ -49,8 +49,8 @@ struct ChallengeGridView: View {
     
     var body: some View {
         ZStack(alignment: .top) {
-            // 背景色改为浅灰色
-            Color(hex: 0xF5F5F5).ignoresSafeArea()
+            // 背景色
+            Color(hex: 0xF2F2F2).ignoresSafeArea()
             
             // 使用常规ScrollView
             ScrollView {
@@ -64,11 +64,11 @@ struct ChallengeGridView: View {
                         // 空状态
                         emptyStateView
                     } else {
-                        // 使用简化版瀑布流，减小间距
+                        // 使用简化版瀑布流
                         SimplifiedWaterfallGrid(
                             items: uniqueActivities,
                             columns: columnCount,
-                            spacing: 8 // 原来是12，现在减小到8
+                            spacing: 12
                         ) { challenge in
                             NavigationLink(destination: 
                                 ChallengeDetailView(challengeId: challenge.id)
@@ -81,7 +81,7 @@ struct ChallengeGridView: View {
                             }
                             .buttonStyle(PlainButtonStyle())
                         }
-                        .padding(.horizontal, 12) // 原来是16，减小到12
+                        .padding(.horizontal, 16)
                         .padding(.bottom, 100) // 添加底部空间，确保底部内容可以滚动到视图中心
                     }
                 }
@@ -366,20 +366,78 @@ struct SimplifiedWaterfallGrid<Item: Identifiable, Content: View>: View {
         // 创建列高度数组，初始值都是0
         var columnHeights = Array(repeating: CGFloat(0), count: self.columns)
         
-        // 每次选择高度最小的列添加新项目
-        for item in items {
+        // 先对项目进行分类：新手挑战和非新手挑战
+        let beginnerItems = items.filter { 
+            // 尝试将item转换为ChallengeActivity来获取isForBeginner属性
+            if let challenge = $0 as? ChallengeActivity {
+                return challenge.isForBeginner
+            }
+            return false
+        }
+        
+        let nonBeginnerItems = items.filter {
+            // 尝试将item转换为ChallengeActivity来获取isForBeginner属性
+            if let challenge = $0 as? ChallengeActivity {
+                return !challenge.isForBeginner
+            }
+            return true // 如果无法转换，保持原样
+        }
+        
+        // 首先处理新手挑战，让它们出现在最开始
+        for item in beginnerItems {
             // 找到当前最短的列
             if let minIndex = columnHeights.enumerated().min(by: { $0.element < $1.element })?.offset {
                 // 将项目添加到该列
                 columns[minIndex].append(item)
                 
-                // 更新列高度（这里我们假设每个项目的高度大致相等，添加一个估计值）
-                // 在实际应用中，我们可能会有不同的项目高度，这是一个简化处理
-                columnHeights[minIndex] += 1 
+                // 计算并更新列高度（基于内容估算实际高度而非简单加1）
+                let estimatedHeight = calculateEstimatedHeight(for: item)
+                columnHeights[minIndex] += estimatedHeight
+            }
+        }
+        
+        // 然后处理其他挑战
+        for item in nonBeginnerItems {
+            // 找到当前最短的列
+            if let minIndex = columnHeights.enumerated().min(by: { $0.element < $1.element })?.offset {
+                // 将项目添加到该列
+                columns[minIndex].append(item)
+                
+                // 计算并更新列高度（基于内容估算实际高度而非简单加1）
+                let estimatedHeight = calculateEstimatedHeight(for: item)
+                columnHeights[minIndex] += estimatedHeight
             }
         }
         
         return columns
+    }
+    
+    // 根据内容估算项目的高度
+    private func calculateEstimatedHeight(for item: Item) -> CGFloat {
+        // 基础高度（卡片的最小高度）
+        var baseHeight: CGFloat = 180
+        
+        // 尝试将item转换为ChallengeActivity来获取详细信息
+        if let challenge = item as? ChallengeActivity {
+            // 为较长的文字内容添加额外高度
+            let nameLength = challenge.name.count
+            let descLength = challenge.description.count
+            
+            // 标题额外高度：每超过15个字符增加10点高度
+            let nameExtraHeight = CGFloat(max(0, nameLength - 15)) * 0.8
+            
+            // 描述额外高度：每超过50个字符增加5点高度
+            let descExtraHeight = CGFloat(max(0, descLength - 50)) * 0.5
+            
+            // 根据是否为付费挑战增加额外高度（付费挑战可能会显示价格信息）
+            let typeExtraHeight: CGFloat = challenge.activityType == .paid ? 20 : 0
+            
+            // 总高度
+            return baseHeight + nameExtraHeight + descExtraHeight + typeExtraHeight
+        }
+        
+        // 默认返回基础高度
+        return baseHeight
     }
 }
 

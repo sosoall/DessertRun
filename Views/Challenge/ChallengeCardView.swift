@@ -144,6 +144,7 @@ struct ChallengeCardView: View {
         }
         .padding(10) // 减小内边距
         .background(Color.white)
+
         .cornerRadius(8)
         .frame(maxWidth: .infinity)
     }
@@ -165,38 +166,3 @@ struct ChallengeCardView: View {
     }
 }
 
-#Preview {
-    let challenge = ChallengeActivity(
-        id: "1",
-        name: "新人挑战：连续运动7天",
-        description: "新人专属挑战，连续运动7天即可获得美食盲盒",
-        requirement: "每日需完成至少一次运动打卡",
-        activityType: .free,
-        startDate: Date(),
-        endDate: Date().addingTimeInterval(7*24*60*60),
-        requiredCheckins: 7,
-        requiredExerciseTypeId: nil,
-        foodRestrictionType: "none",
-        requiredFoodCategoryIds: nil,
-        requiredFoodIds: nil,
-        price: nil,
-        vipOnly: false,
-        rewardType: .dessertBox,
-        rewardAmount: 1,
-        rewardDescription: "随机美食盲盒一个",
-        isActive: true,
-        isForBeginner: true,
-        createdAt: Date(),
-        updatedAt: Date(),
-        imageURL: "challenges/1"
-    )
-    
-    return ZStack {
-        Color(hex: 0xF5F5F5) // 浅灰色背景
-            .ignoresSafeArea()
-        
-        ChallengeCardView(challenge: challenge, isEnrolled: true)
-            .frame(width: 180)
-            .padding()
-    }
-}
