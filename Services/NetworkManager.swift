@@ -355,8 +355,7 @@ public class NetworkManager {
                 }
                 
                 // 特殊处理数组类型响应，例如[ChallengeActivity]
-                if let arrayType = T.self as? Any.Type, 
-                   String(describing: arrayType).contains("Array<") {
+                if String(describing: T.self).contains("Array<") {
                     DRInfo("[NetworkManager] 检测到数组类型响应: \(T.self)")
                     
                     // 特别处理ChallengeActivity数组
@@ -382,39 +381,24 @@ public class NetworkManager {
                 // 尝试解析为API标准响应格式
                 return Just(data)
                     .decode(type: APIResponse<T>.self, decoder: self.decoder)
-                    .mapError { error -> NetworkError in
+                    .mapError { [weak self] error -> NetworkError in
                         DRError("[NetworkManager] 解析API响应失败: \(error.localizedDescription)")
                         
-                        // 特殊处理ExerciseTypesResponse类型
-                        if T.self == ExerciseTypesResponse.self {
-                            DRInfo("[NetworkManager] 尝试直接解析为ExerciseTypesResponse类型")
-                            do {
-                                // 直接解析为ExerciseTypesResponse
-                                _ = try self.decoder.decode(ExerciseTypesResponse.self, from: data)
-                                // 这里不会真正执行，只是为了抛出错误并在catch中捕获
-                                throw NetworkError.customError("直接解析成功，请捕获此错误")
-                            } catch {
-                                DRError("[NetworkManager] 直接解析为ExerciseTypesResponse也失败: \(error.localizedDescription)")
-                            }
+                        // 处理self为nil的情况
+                        guard let self = self else {
+                            return NetworkError.decodingFailed(error)
                         }
                         
+                        // 如果不是标准响应格式，尝试直接解析为目标类型
+                        DRInfo("[NetworkManager] 尝试直接解析为目标类型 \(T.self)")
+                        
+                        // 简化错误处理逻辑，避免使用case pattern matching
                         if let decodingError = error as? DecodingError {
-                            switch decodingError {
-                            case .keyNotFound(let key, let context):
-                                DRError("[NetworkManager] 找不到键: \(key.stringValue), 路径: \(context.codingPath.map { $0.stringValue })")
-                                // 尝试输出当前已解析的上下文内容
-                                DRError("[NetworkManager] 解析上下文: \(context.debugDescription)")
-                            case .valueNotFound(let type, let context):
-                                DRError("[NetworkManager] 找不到\(type)类型的值, 路径: \(context.codingPath.map { $0.stringValue })")
-                            case .typeMismatch(let type, let context):
-                                DRError("[NetworkManager] 类型不匹配: 期望\(type), 路径: \(context.codingPath.map { $0.stringValue })")
-                            case .dataCorrupted(let context):
-                                DRError("[NetworkManager] 数据损坏: \(context.debugDescription), 路径: \(context.codingPath.map { $0.stringValue })")
-                            @unknown default:
-                                DRError("[NetworkManager] 未知解码错误: \(decodingError)")
-                            }
+                            // 直接返回解码错误
+                            return NetworkError.decodingFailed(decodingError)
+                        } else {
+                            return NetworkError.requestFailed(error)
                         }
-                        return NetworkError.decodingFailed(error)
                     }
                     .tryMap { response in
                         // 检查响应状态
@@ -437,35 +421,24 @@ public class NetworkManager {
                             return NetworkError.decodingFailed(error)
                         }
                     }
-                    .catch { error -> AnyPublisher<T, NetworkError> in
+                    .catch { [weak self] error -> AnyPublisher<T, NetworkError> in
+                        // 处理self为nil的情况
+                        guard let self = self else {
+                            return Fail(error: error).eraseToAnyPublisher()
+                        }
+                        
                         // 如果不是标准响应格式，尝试直接解析为目标类型
                         DRInfo("[NetworkManager] 尝试直接解析为目标类型 \(T.self)")
                         
-                        // 特殊处理ExerciseTypesResponse类型的情况
-                        if T.self == ExerciseTypesResponse.self {
-                            do {
-                                let result = try self.decoder.decode(ExerciseTypesResponse.self, from: data)
-                                return Just(result as! T)
-                                    .setFailureType(to: NetworkError.self)
-                                    .eraseToAnyPublisher()
-                            } catch {
-                                DRError("[NetworkManager] 直接解析ExerciseTypesResponse失败: \(error)")
-                            }
-                        }
-                        
-                        // 检查是否为解码错误
-                        if case .decodingFailed(let decodingError) = error,
-                           decodingError is DecodingError {
-                            return Just(data)
-                                .decode(type: T.self, decoder: self.decoder)
-                                .mapError { decodingError -> NetworkError in
-                                    DRError("[NetworkManager] 直接解析失败: \(decodingError.localizedDescription)")
-                                    return NetworkError.decodingFailed(decodingError)
-                                }
+                        // 简化错误处理逻辑，避免使用case pattern matching
+                        if let decodingError = error as? DecodingError {
+                            // 直接返回解码错误
+                            return Fail(error: NetworkError.decodingFailed(decodingError))
+                                .eraseToAnyPublisher()
+                        } else {
+                            return Fail(error: error)
                                 .eraseToAnyPublisher()
                         }
-                        return Fail(error: error)
-                            .eraseToAnyPublisher()
                     }
                     .eraseToAnyPublisher()
             }
@@ -573,7 +546,7 @@ public class NetworkManager {
         // 执行请求
         return URLSession.shared.dataTaskPublisher(for: request)
             .mapError { NetworkError.requestFailed($0) }
-            .tryMap { data, response in
+            .tryMap { data, response -> (Data, HTTPURLResponse) in
                 guard let httpResponse = response as? HTTPURLResponse else {
                     throw NetworkError.invalidResponse
                 }
@@ -594,7 +567,7 @@ public class NetworkManager {
                 // 处理HTTP状态码
                 switch httpResponse.statusCode {
                 case 200..<300:
-                    return data
+                    return (data, httpResponse)
                 case 400:
                     // 提取具体的400错误信息
                     if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -640,8 +613,18 @@ public class NetworkManager {
                     }
                 }
             }
+            .map { data, _ in
+                // 先保存数据
+                let responseData = data
+                return responseData
+            }
             .decode(type: R.self, decoder: self.decoder)
-            .mapError { error -> NetworkError in
+            .mapError { [weak self] error -> NetworkError in
+                // 确保self不为nil
+                guard let self = self else {
+                    return NetworkError.decodingFailed(error)
+                }
+                
                 if let decodingError = error as? DecodingError {
                     DRError("[NetworkManager] 解析自定义响应失败: \(decodingError.localizedDescription)")
                     

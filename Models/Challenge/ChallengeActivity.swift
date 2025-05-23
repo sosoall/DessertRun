@@ -29,9 +29,12 @@ struct ChallengeActivity: Identifiable, Codable, Equatable {
     // 活动要求
     let requiredCheckins: Int
     let requiredExerciseTypeId: String?
+    let requiredExerciseTypeName: String?
     let foodRestrictionType: String
     let requiredFoodCategoryIds: [String]?
+    let requiredFoodCategoryNames: [String]?
     let requiredFoodIds: [String]?
+    let requiredFoodNames: [String]?
     let requiredDifferentFoodTypes: Bool
     let requiredDifferentExerciseTypes: Bool
     
@@ -72,9 +75,12 @@ struct ChallengeActivity: Identifiable, Codable, Equatable {
         case endDate = "end_date"
         case requiredCheckins = "required_checkins"
         case requiredExerciseTypeId = "required_exercise_type_id"
+        case requiredExerciseTypeName = "required_exercise_type_name"
         case foodRestrictionType = "food_restriction_type"
         case requiredFoodCategoryIds = "required_food_category_ids"
+        case requiredFoodCategoryNames = "required_food_category_names"
         case requiredFoodIds = "required_food_ids"
+        case requiredFoodNames = "required_food_names"
         case requiredDifferentFoodTypes = "required_different_food_types"
         case requiredDifferentExerciseTypes = "required_different_exercise_types"
         case displayOrder = "display_order"

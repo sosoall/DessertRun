@@ -14,39 +14,6 @@ struct ChallengeDetailView: View {
     @State private var showProgress = false
     @State private var progress: ChallengeProgressResponse?
     
-    // 运动类型数据字典
-    private let exerciseTypes: [String: String] = [
-        "1": "跑步",
-        "2": "徒步",
-        "3": "骑车",
-        "4": "游泳",
-        "5": "健身",
-        "6": "瑜伽",
-        "7": "跳绳"
-    ]
-    
-    // 食物分类数据字典
-    private let foodCategories: [String: String] = [
-        "1": "甜点",
-        "2": "面食",
-        "3": "水果",
-        "4": "蔬菜",
-        "5": "肉类",
-        "6": "海鲜",
-        "7": "饮品"
-    ]
-    
-    // 食物名称数据字典
-    private let foodItems: [String: String] = [
-        "1": "蛋糕",
-        "2": "冰淇淋",
-        "3": "巧克力",
-        "4": "牛排",
-        "5": "三明治",
-        "6": "奶茶",
-        "7": "寿司"
-    ]
-    
     // 挑战ID
     let challengeId: String
     
@@ -335,8 +302,8 @@ struct ChallengeDetailView: View {
                             Image(systemName: "figure.run")
                                 .foregroundColor(Color.DessertRun.accent)
                             
-                            // 获取运动类型名称
-                            Text("限定运动类型: \(exerciseTypes[exerciseTypeId] ?? "未知")")
+                            // 使用服务器返回的运动类型名称
+                            Text("限定运动类型: \(challenge.requiredExerciseTypeName ?? "未知")")
                                 .font(.system(size: 14))
                                 .foregroundColor(.black)
                         }
@@ -363,12 +330,28 @@ struct ChallengeDetailView: View {
                                 .foregroundColor(Color.DessertRun.accent)
                             
                             if challenge.foodRestrictionType == "category", let categoryIds = challenge.requiredFoodCategoryIds, !categoryIds.isEmpty {
-                                let categoryNames = categoryIds.map { foodCategories[$0] ?? "未知分类" }.joined(separator: "、")
+                                // 预先计算分类名称字符串
+                                let categoryNames: String = {
+                                    if let serverNames = challenge.requiredFoodCategoryNames, !serverNames.isEmpty {
+                                        return serverNames.joined(separator: "、")
+                                    } else {
+                                        return "未知分类"
+                                    }
+                                }()
+                                
                                 Text("限定美食分类: \(categoryNames)")
                                     .font(.system(size: 14))
                                     .foregroundColor(.black)
                             } else if challenge.foodRestrictionType == "specific", let foodIds = challenge.requiredFoodIds, !foodIds.isEmpty {
-                                let foodNames = foodIds.map { foodItems[$0] ?? "未知美食" }.joined(separator: "、")
+                                // 预先计算食物名称字符串
+                                let foodNames: String = {
+                                    if let serverNames = challenge.requiredFoodNames, !serverNames.isEmpty {
+                                        return serverNames.joined(separator: "、")
+                                    } else {
+                                        return "未知美食"
+                                    }
+                                }()
+                                
                                 Text("限定美食: \(foodNames)")
                                     .font(.system(size: 14))
                                     .foregroundColor(.black)

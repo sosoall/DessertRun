@@ -54,7 +54,8 @@ class ChallengeService {
         return networkManager.request(
             endpoint: ChallengeEndpoints.detail + id,
             method: .get,
-            requiresAuth: true
+            requiresAuth: true,
+            responseType: ChallengeActivity.self
         )
     }
     
