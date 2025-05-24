@@ -221,9 +221,19 @@ struct ChallengeDetailView: View {
                             .font(.system(size: 24))
                             .foregroundColor(challenge.activityType == .free ? Color(hex: "4CAF50") : Color(hex: "FF6B6B"))
                         
-                        Text(challenge.activityType == .free ? "免费" : "付费")
-                            .font(.system(size: 12))
-                            .foregroundColor(.gray)
+                        if challenge.activityType == .free {
+                            Text("免费")
+                                .font(.system(size: 12))
+                                .foregroundColor(.gray)
+                        } else if let price = challenge.price {
+                            Text("\(price)元")
+                                .font(.system(size: 12))
+                                .foregroundColor(.gray)
+                        } else {
+                            Text("付费")
+                                .font(.system(size: 12))
+                                .foregroundColor(.gray)
+                        }
                     }
                     .frame(width: 60)
                     
@@ -302,11 +312,15 @@ struct ChallengeDetailView: View {
                     
                     // 完成挑战天数限制
                     if let daysLimit = challenge.completionDaysLimit {
+                        // 获取格式化的截止日期文本
+                        let deadlineText = getFormattedDeadlineText(for: challenge, daysLimit: daysLimit)
+                        
                         HStack {
                             Image(systemName: "calendar")
                                 .foregroundColor(Color.DessertRun.accent)
                             
-                            Text("需在\(daysLimit)天内完成")
+                            // 使用准备好的文本内容
+                            Text(deadlineText)
                                 .font(.system(size: 14))
                                 .foregroundColor(.black)
                         }
@@ -318,7 +332,7 @@ struct ChallengeDetailView: View {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundColor(Color.DessertRun.accent)
                         
-                        Text("需完成 \(challenge.requiredCheckins) 次打卡")
+                        Text("打卡次数：\(challenge.requiredCheckins)次")
                             .font(.system(size: 14))
                             .foregroundColor(.black)
                     }
@@ -331,7 +345,7 @@ struct ChallengeDetailView: View {
                     
                     if hasPerCheckinRequirements {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("单次打卡要求:")
+                            Text("单次打卡要求：")
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(.black)
                                 .padding(.top, 4)
@@ -342,7 +356,7 @@ struct ChallengeDetailView: View {
                                     Image(systemName: "figure.walk")
                                         .foregroundColor(Color.DessertRun.accent)
                                     
-                                    Text("最小距离: \(String(format: "%.1f", minDistance))公里")
+                                    Text("运动量：\(String(format: "%.1f", minDistance))公里")
                                         .font(.system(size: 14))
                                         .foregroundColor(.black)
                                 }
@@ -355,7 +369,7 @@ struct ChallengeDetailView: View {
                                     Image(systemName: "clock")
                                         .foregroundColor(Color.DessertRun.accent)
                                     
-                                    Text("最小时长: \(minDuration)分钟")
+                                    Text("运动时长：\(minDuration)分钟")
                                         .font(.system(size: 14))
                                         .foregroundColor(.black)
                                 }
@@ -368,7 +382,7 @@ struct ChallengeDetailView: View {
                                     Image(systemName: "fork.knife")
                                         .foregroundColor(Color.DessertRun.accent)
                                     
-                                    Text("最小消耗美食: \(String(format: "%.1f", minDessert))个")
+                                    Text("消耗美食：\(String(format: "%.1f", minDessert))个")
                                         .font(.system(size: 14))
                                         .foregroundColor(.black)
                                 }
@@ -384,7 +398,7 @@ struct ChallengeDetailView: View {
                                 .foregroundColor(Color.DessertRun.accent)
                             
                             // 使用服务器返回的运动类型名称
-                            Text("限定运动类型: \(challenge.requiredExerciseTypeName ?? "未知")")
+                            Text("运动类型：\(challenge.requiredExerciseTypeName ?? "未知")")
                                 .font(.system(size: 14))
                                 .foregroundColor(.black)
                         }
@@ -397,7 +411,7 @@ struct ChallengeDetailView: View {
                             Image(systemName: "figure.run")
                                 .foregroundColor(Color.DessertRun.accent)
                             
-                            Text("需完成三种不同的运动类型")
+                            Text("要求：三种不同运动类型")
                                 .font(.system(size: 14))
                                 .foregroundColor(.black)
                         }
@@ -420,7 +434,7 @@ struct ChallengeDetailView: View {
                                     }
                                 }()
                                 
-                                Text("限定美食分类: \(categoryNames)")
+                                Text("美食分类：\(categoryNames)")
                                     .font(.system(size: 14))
                                     .foregroundColor(.black)
                             } else if challenge.foodRestrictionType == "specific", let foodIds = challenge.requiredFoodIds, !foodIds.isEmpty {
@@ -433,32 +447,21 @@ struct ChallengeDetailView: View {
                                     }
                                 }()
                                 
-                                Text("限定美食: \(foodNames)")
+                                Text("美食种类：\(foodNames)")
                                     .font(.system(size: 14))
                                     .foregroundColor(.black)
                             } else if challenge.requiredDifferentFoodTypes {
-                                Text("需打卡三种不同的美食")
+                                Text("要求：三种不同美食")
                                     .font(.system(size: 14))
                                     .foregroundColor(.black)
                             } else {
-                                Text("特定美食限制")
+                                Text("特定美食要求")
                                     .font(.system(size: 14))
                                     .foregroundColor(.black)
                             }
                         }
                         .padding(.top, 4)
                     }
-                    
-                    // 活动时间（移至最后显示）
-                    HStack {
-                        Image(systemName: "clock")
-                            .foregroundColor(Color.DessertRun.accent)
-                        
-                        Text("\(challenge.startDate.formatted()) - \(challenge.endDate.formatted())")
-                            .font(.system(size: 14))
-                            .foregroundColor(.black)
-                    }
-                    .padding(.top, 4)
                 }
             } else {
                 // 加载中状态
@@ -626,6 +629,19 @@ struct ChallengeDetailView: View {
             return "medal.fill"
         case .stars:
             return "star.fill"
+        }
+    }
+    
+    // 获取格式化的截止日期文本
+    private func getFormattedDeadlineText(for challenge: ChallengeActivity, daysLimit: Int?) -> String {
+        guard let daysLimit = daysLimit else { return "" }
+        
+        if daysLimit == 0 {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy年MM月dd日"
+            return "完成期限：\(formatter.string(from: challenge.endDate))"
+        } else {
+            return "完成期限：\(daysLimit)天内"
         }
     }
 }
