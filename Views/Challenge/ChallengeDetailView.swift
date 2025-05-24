@@ -64,9 +64,9 @@ struct ChallengeDetailView: View {
             viewModel.loadEnrollments()
             
             // 如果已报名，获取进度信息
-            if viewModel.getEnrollment(for: challengeId) != nil {
+            if let enrollment = viewModel.getEnrollment(for: challengeId) {
                 isEnrolled = true
-                viewModel.loadProgress(id: challengeId)
+                viewModel.loadProgress(enrollmentId: enrollment.id)
             }
         }
         .onChange(of: viewModel.enrolledChallenges) { _, newValue in
@@ -74,8 +74,8 @@ struct ChallengeDetailView: View {
             isEnrolled = newValue.contains { $0.challenge.id == challengeId }
             
             // 如果已报名，获取进度信息
-            if isEnrolled {
-                viewModel.loadProgress(id: challengeId)
+            if isEnrolled, let enrollment = viewModel.getEnrollment(for: challengeId) {
+                viewModel.loadProgress(enrollmentId: enrollment.id)
             }
         }
         .alert("确认报名", isPresented: $showingEnrollConfirmation) {
@@ -115,11 +115,11 @@ struct ChallengeDetailView: View {
                                 
                                 Spacer()
                                 
-                                Text("\(Int(progress.completionPercent * 100))%")
+                                Text("\(Int(progress.completionPercent))%")
                                     .font(.system(size: 16, weight: .semibold))
                             }
                             
-                            ProgressView(value: progress.completionPercent)
+                            ProgressView(value: progress.completionPercent / 100)
                                 .accentColor(Color(hex: "FE2D55"))
                                 .frame(height: 8)
                                 .clipShape(Capsule())

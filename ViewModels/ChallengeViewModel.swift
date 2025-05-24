@@ -150,11 +150,11 @@ class ChallengeViewModel: ObservableObject {
     }
     
     /// 加载挑战进度
-    func loadProgress(id: String) {
+    func loadProgress(enrollmentId: String) {
         isLoading = true
         errorMessage = nil
         
-        challengeService.getProgress(id: id)
+        challengeService.getProgress(enrollmentId: enrollmentId)
             .receive(on: DispatchQueue.main)
             .sink(
                 receiveCompletion: { [weak self] completion in
@@ -205,11 +205,11 @@ class ChallengeViewModel: ObservableObject {
     }
     
     /// 领取挑战奖励
-    func redeemReward(id: String, completion: @escaping (Bool) -> Void) {
+    func redeemReward(enrollmentId: String, completion: @escaping (Bool) -> Void) {
         isLoading = true
         errorMessage = nil
         
-        challengeService.redeemReward(id: id)
+        challengeService.redeemReward(enrollmentId: enrollmentId)
             .receive(on: DispatchQueue.main)
             .sink(
                 receiveCompletion: { [weak self] completionState in
@@ -224,8 +224,8 @@ class ChallengeViewModel: ObservableObject {
                 receiveValue: { _ in
                     DRInfo("成功领取奖励")
                     // 领取成功后重新加载进度
-                    if let id = self.appState.selectedChallengeId {
-                        self.loadProgress(id: id)
+                    if let enrollmentId = self.appState.selectedEnrollmentId {
+                        self.loadProgress(enrollmentId: enrollmentId)
                     }
                     completion(true)
                 }

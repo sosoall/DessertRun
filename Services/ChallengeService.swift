@@ -92,13 +92,13 @@ class ChallengeService {
         )
     }
     
-    /// 获取指定挑战的进度
+    /// 获取指定报名记录的挑战进度
     /// - Parameters:
-    ///   - id: 挑战ID
+    ///   - enrollmentId: 报名记录ID
     ///   - completion: 完成回调，返回结果包含挑战进度或错误
-    func getProgress(id: String) -> AnyPublisher<ChallengeProgressResponse, NetworkError> {
+    func getProgress(enrollmentId: String) -> AnyPublisher<ChallengeProgressResponse, NetworkError> {
         return networkManager.request(
-            endpoint: ChallengeEndpoints.progress + id + "/progress",
+            endpoint: ChallengeEndpoints.progress + enrollmentId + "/progress",
             method: .get,
             requiresAuth: true,
             responseType: ChallengeProgressResponse.self
@@ -107,13 +107,14 @@ class ChallengeService {
     
     /// 领取挑战奖励
     /// - Parameters:
-    ///   - id: 挑战ID
-    ///   - completion: 完成回调，返回结果包含操作结果或错误
-    func redeemReward(id: String) -> AnyPublisher<EmptyResponseData, NetworkError> {
+    ///   - enrollmentId: 报名记录ID
+    ///   - completion: 完成回调，返回结果包含是否成功领取或错误
+    func redeemReward(enrollmentId: String) -> AnyPublisher<EmptyResponse, NetworkError> {
         return networkManager.request(
-            endpoint: ChallengeEndpoints.redeem + id + "/redeem",
+            endpoint: ChallengeEndpoints.progress + enrollmentId + "/redeem",
             method: .post,
-            requiresAuth: true
+            requiresAuth: true,
+            responseType: EmptyResponse.self
         )
     }
     
