@@ -7,6 +7,30 @@ enum EnrollmentStatus: String, Codable {
     case failed = "failed"       // 失败
 }
 
+/// 用于处理Go后端的sql.NullString类型
+struct NullString: Codable {
+    let String: String?
+    let Valid: Bool
+    
+    var value: String? {
+        return Valid ? String : nil
+    }
+}
+
+/// 用于处理Go后端的sql.NullTime类型
+struct NullTime: Codable {
+    let Time: String
+    let Valid: Bool
+    
+    var date: Date? {
+        guard Valid else { return nil }
+        
+        // 解析ISO8601格式的时间字符串
+        let formatter = ISO8601DateFormatter()
+        return formatter.date(from: Time)
+    }
+}
+
 /// 挑战报名记录模型
 struct ChallengeEnrollment: Identifiable, Codable, Equatable {
     let id: String
@@ -19,14 +43,14 @@ struct ChallengeEnrollment: Identifiable, Codable, Equatable {
     
     // 进度追踪
     let completedCheckins: Int
-    let redeemedVouchers: [String]?
+    let redeemedVouchers: NullString?
     
     // 状态
     let status: EnrollmentStatus
-    let completedAt: Date?
+    let completedAt: NullTime?
     
     // 奖励核销时间
-    let redeemedAt: Date?
+    let redeemedAt: NullTime?
     
     // 创建和更新时间
     let createdAt: Date
@@ -78,7 +102,25 @@ struct ChallengeEnrollment: Identifiable, Codable, Equatable {
     
     /// 判断是否已领取奖励
     var hasRedeemedReward: Bool {
-        return redeemedAt != nil
+        return redeemedAt?.Valid == true
+    }
+    
+    /// 获取完成时间
+    var completionDate: Date? {
+        return completedAt?.date
+    }
+    
+    /// 获取奖励领取时间
+    var redemptionDate: Date? {
+        return redeemedAt?.date
+    }
+    
+    /// 已核销的优惠券数组
+    var voucherArray: [String] {
+        if let vouchers = redeemedVouchers?.value, !vouchers.isEmpty {
+            return vouchers.components(separatedBy: ",")
+        }
+        return []
     }
 }
 
@@ -99,4 +141,4 @@ struct ChallengeProgressResponse: Codable {
     let challenge: ChallengeActivity
     let completionPercent: Double
     let remainingDays: Int
-} 
+}

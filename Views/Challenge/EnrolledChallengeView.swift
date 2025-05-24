@@ -201,6 +201,38 @@ struct EnrollmentCard: View {
                         .foregroundColor(.gray)
                 }
             }
+            
+            // 完成信息（如果已完成）
+            if enrollment.enrollment.isCompleted {
+                HStack {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(Color.DessertRun.accent)
+                    
+                    if let completionDate = enrollment.enrollment.completionDate {
+                        Text("完成于：\(formatDate(completionDate))")
+                            .font(.system(size: 12))
+                            .foregroundColor(.gray)
+                    } else {
+                        Text("已完成")
+                            .font(.system(size: 12))
+                            .foregroundColor(.gray)
+                    }
+                    
+                    Spacer()
+                    
+                    // 奖励领取信息
+                    if let redemptionDate = enrollment.enrollment.redemptionDate {
+                        Text("已领取奖励")
+                            .font(.system(size: 12))
+                            .foregroundColor(Color.DessertRun.accent)
+                    } else {
+                        Text("未领取奖励")
+                            .font(.system(size: 12))
+                            .foregroundColor(.orange)
+                    }
+                }
+            }
         }
         .padding(16)
         .background(Color.white)

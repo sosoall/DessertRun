@@ -87,7 +87,8 @@ class ChallengeService {
         return networkManager.request(
             endpoint: ChallengeEndpoints.currentProgress,
             method: .get,
-            requiresAuth: true
+            requiresAuth: true,
+            responseType: ChallengeProgressResponse.self
         )
     }
     
@@ -99,7 +100,8 @@ class ChallengeService {
         return networkManager.request(
             endpoint: ChallengeEndpoints.progress + id + "/progress",
             method: .get,
-            requiresAuth: true
+            requiresAuth: true,
+            responseType: ChallengeProgressResponse.self
         )
     }
     

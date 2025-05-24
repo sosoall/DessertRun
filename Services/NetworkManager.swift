@@ -372,8 +372,46 @@ public class NetworkManager {
                                     .setFailureType(to: NetworkError.self)
                                     .eraseToAnyPublisher()
                             }
-                            } catch {
+                        } catch {
                             DRError("[NetworkManager] 直接解析[ChallengeActivity]失败: \(error)")
+                        }
+                    }
+                    
+                    // 特别处理EnrollmentWithChallenge数组
+                    if T.self == [EnrollmentWithChallenge].self {
+                        do {
+                            // 检查是否是标准包装响应
+                            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                               json["code"] != nil {
+                                // 如果是标准响应格式，继续常规解析流程
+                            } else {
+                                // 如果是直接的数组响应，尝试直接解析
+                                let result = try self.decoder.decode([EnrollmentWithChallenge].self, from: data)
+                                return Just(result as! T)
+                                    .setFailureType(to: NetworkError.self)
+                                    .eraseToAnyPublisher()
+                            }
+                        } catch {
+                            DRError("[NetworkManager] 直接解析[EnrollmentWithChallenge]失败: \(error)")
+                        }
+                    }
+                    
+                    // 特别处理ChallengeProgressResponse
+                    if T.self == ChallengeProgressResponse.self {
+                        do {
+                            // 检查是否是标准包装响应
+                            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                               json["code"] != nil {
+                                // 如果是标准响应格式，继续常规解析流程
+                            } else {
+                                // 如果是直接响应，尝试直接解析
+                                let result = try self.decoder.decode(ChallengeProgressResponse.self, from: data)
+                                return Just(result as! T)
+                                    .setFailureType(to: NetworkError.self)
+                                    .eraseToAnyPublisher()
+                            }
+                        } catch {
+                            DRError("[NetworkManager] 直接解析ChallengeProgressResponse失败: \(error)")
                         }
                     }
                 }
