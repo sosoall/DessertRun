@@ -126,6 +126,21 @@ struct ChallengeDetailView: View {
                     .padding(.horizontal)
                     .padding(.top, 4)
                     
+                    // 截止时间
+                    HStack {
+                        Text("截止日期")
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
+                        
+                        Spacer()
+                        
+                        Text(progress.enrollment.deadline.formatted(date: .long, time: .omitted))
+                            .font(.subheadline)
+                            .bold()
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, 4)
+                    
                     Spacer()
                     
                     // 关闭按钮
@@ -285,6 +300,19 @@ struct ChallengeDetailView: View {
                         .foregroundColor(.gray)
                         .lineSpacing(4)
                     
+                    // 完成挑战天数限制
+                    if let daysLimit = challenge.completionDaysLimit {
+                        HStack {
+                            Image(systemName: "calendar")
+                                .foregroundColor(Color.DessertRun.accent)
+                            
+                            Text("需在\(daysLimit)天内完成")
+                                .font(.system(size: 14))
+                                .foregroundColor(.black)
+                        }
+                        .padding(.top, 4)
+                    }
+                    
                     // 打卡次数要求
                     HStack {
                         Image(systemName: "checkmark.circle.fill")
@@ -295,6 +323,59 @@ struct ChallengeDetailView: View {
                             .foregroundColor(.black)
                     }
                     .padding(.top, 4)
+                    
+                    // 单次打卡要求
+                    let hasPerCheckinRequirements = challenge.minDistancePerCheckin != nil || 
+                                                  challenge.minDurationPerCheckin != nil || 
+                                                  challenge.minEquivalentDessertPerCheckin != nil
+                    
+                    if hasPerCheckinRequirements {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("单次打卡要求:")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.black)
+                                .padding(.top, 4)
+                            
+                            // 最小距离要求
+                            if let minDistance = challenge.minDistancePerCheckin {
+                                HStack {
+                                    Image(systemName: "figure.walk")
+                                        .foregroundColor(Color.DessertRun.accent)
+                                    
+                                    Text("最小距离: \(String(format: "%.1f", minDistance))公里")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.black)
+                                }
+                                .padding(.leading, 8)
+                            }
+                            
+                            // 最小时长要求
+                            if let minDuration = challenge.minDurationPerCheckin {
+                                HStack {
+                                    Image(systemName: "clock")
+                                        .foregroundColor(Color.DessertRun.accent)
+                                    
+                                    Text("最小时长: \(minDuration)分钟")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.black)
+                                }
+                                .padding(.leading, 8)
+                            }
+                            
+                            // 最小消耗美食数量
+                            if let minDessert = challenge.minEquivalentDessertPerCheckin {
+                                HStack {
+                                    Image(systemName: "fork.knife")
+                                        .foregroundColor(Color.DessertRun.accent)
+                                    
+                                    Text("最小消耗美食: \(String(format: "%.1f", minDessert))个")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.black)
+                                }
+                                .padding(.leading, 8)
+                            }
+                        }
+                    }
                     
                     // 特定运动类型要求
                     if let exerciseTypeId = challenge.requiredExerciseTypeId, !exerciseTypeId.isEmpty {

@@ -15,12 +15,6 @@ struct ChallengeGridView: View {
     @State private var showUserEnrollments = false
     @State private var selectedFilter: String = "all" // "all", "free", "paid"
     
-    // 调试状态
-    @State private var showDebugInfo: Bool = true
-    @State private var scrollOffset: CGPoint = .zero
-    @State private var scrollViewSize: CGSize = .zero
-    @State private var forceRefresh: UUID = UUID()
-    
     // 安全边距 - 初始使用较小值
     @State private var safetyMargin: CGFloat = 20
     
@@ -85,32 +79,9 @@ struct ChallengeGridView: View {
                         .padding(.bottom, 100) // 添加底部空间，确保底部内容可以滚动到视图中心
                     }
                 }
-                // 使用ID强制刷新
-                .id(forceRefresh)
-            }
-            .scrollIndicators(.visible) // 显示滚动指示器以便调试
-            .coordinateSpace(name: "scroll")
-            .overlay(
-                GeometryReader { geo in
-                    Color.clear
-                        .preference(key: ScrollPositionKey.self, value: geo.frame(in: .named("scroll")).origin)
-                        .onAppear {
-                            scrollViewSize = geo.size
-                        }
-                        .onChange(of: geo.size) { _, newSize in
-                            scrollViewSize = newSize
-                        }
-                }
-            )
-            .onPreferenceChange(ScrollPositionKey.self) { position in
-                self.scrollOffset = position
             }
             .refreshable {
-                // 刷新时先清空再加载
-                viewModel.challengeActivities = []
-                // 切换强制刷新标志，确保布局重置
-                forceRefresh = UUID()
-                // 加载新数据
+                // 刷新时加载新数据
                 viewModel.loadChallenges()
             }
             
@@ -124,72 +95,6 @@ struct ChallengeGridView: View {
             }
             .background(Color.white)
             .zIndex(10)
-            
-            // 详细调试信息
-            if showDebugInfo {
-                VStack(alignment: .leading) {
-                    Text("顶部高度: \(Int(fixedTopHeight))")
-                    Text("筛选高度: \(Int(fixedFilterHeight))")
-                    Text("安全边距: \(Int(safetyMargin))")
-                    Text("总顶部高度: \(Int(totalTopHeight))")
-                    Text("滚动偏移: y = \(Int(scrollOffset.y))")
-                    Text("滚动视图尺寸: \(Int(scrollViewSize.width)) x \(Int(scrollViewSize.height))")
-                    Text("活动数量: \(uniqueActivities.count)")
-                    Text("列数: \(columnCount)")
-                    
-                    Button("隐藏调试") {
-                        showDebugInfo = false
-                    }
-                    .buttonStyle(.borderedProminent)
-                    
-                    // 调整安全边距按钮
-                    HStack {
-                        Button {
-                            safetyMargin += 10
-                            print("增加安全边距到: \(safetyMargin)")
-                            // 切换强制刷新标志
-                            forceRefresh = UUID()
-                        } label: {
-                            Text("+10")
-                                .frame(width: 50, height: 30)
-                                .background(Color.green)
-                                .foregroundColor(.white)
-                                .cornerRadius(8)
-                        }
-                        
-                        Button {
-                            if safetyMargin >= 10 {
-                                safetyMargin -= 10
-                                print("减少安全边距到: \(safetyMargin)")
-                                // 切换强制刷新标志
-                                forceRefresh = UUID()
-                            }
-                        } label: {
-                            Text("-10")
-                                .frame(width: 50, height: 30)
-                                .background(Color.orange)
-                                .foregroundColor(.white)
-                                .cornerRadius(8)
-                        }
-                    }
-                    
-                    // 强制重新加载数据按钮
-                    Button("重新加载") {
-                        viewModel.challengeActivities = []
-                        forceRefresh = UUID()
-                        viewModel.loadChallenges()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.blue)
-                    .padding(.top, 8)
-                }
-                .padding()
-                .background(Color.yellow.opacity(0.8))
-                .cornerRadius(8)
-                .padding(8)
-                .position(x: 100, y: 200)
-                .zIndex(100)
-            }
             
             // 加载中指示器
             if viewModel.isLoading {
@@ -295,7 +200,6 @@ struct ChallengeGridView: View {
             
             Button("刷新") {
                 viewModel.challengeActivities = []
-                forceRefresh = UUID()
                 viewModel.loadChallenges()
             }
             .padding(.horizontal, 20)
@@ -306,17 +210,6 @@ struct ChallengeGridView: View {
         }
         .padding(.top, 100)
         .frame(maxWidth: .infinity)
-    }
-}
-
-// 滚动位置偏好键
-struct ScrollPositionKey: PreferenceKey {
-    static var defaultValue: CGPoint {
-        return .zero
-    }
-    
-    static func reduce(value: inout CGPoint, nextValue: () -> CGPoint) {
-        value = nextValue()
     }
 }
 

@@ -38,6 +38,12 @@ struct ChallengeActivity: Identifiable, Codable, Equatable {
     let requiredDifferentFoodTypes: Bool
     let requiredDifferentExerciseTypes: Bool
     
+    // 新增完成限制和单次打卡要求
+    let completionDaysLimit: Int?
+    let minDistancePerCheckin: Double?
+    let minDurationPerCheckin: Int?
+    let minEquivalentDessertPerCheckin: Double?
+    
     // 排序
     let displayOrder: Int
     
@@ -83,6 +89,10 @@ struct ChallengeActivity: Identifiable, Codable, Equatable {
         case requiredFoodNames = "required_food_names"
         case requiredDifferentFoodTypes = "required_different_food_types"
         case requiredDifferentExerciseTypes = "required_different_exercise_types"
+        case completionDaysLimit = "completion_days_limit"
+        case minDistancePerCheckin = "min_distance_per_checkin"
+        case minDurationPerCheckin = "min_duration_per_checkin"
+        case minEquivalentDessertPerCheckin = "min_equivalent_dessert_per_checkin"
         case displayOrder = "display_order"
         case price
         case vipOnly = "vip_only"

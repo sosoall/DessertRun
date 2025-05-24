@@ -95,10 +95,10 @@ struct MainTabView: View {
                     isPresented: $workoutCoordinator.showCompletionView,
                     showFoodCheckInView: $workoutCoordinator.shouldNavigateToFoodCheckIn
                 )
-                    .environmentObject(appState)
-                    .environmentObject(workoutCoordinator)
-                    .transition(.opacity)
-                    .zIndex(100) // 确保在所有内容之上
+                .environmentObject(appState)
+                .environmentObject(workoutCoordinator)
+                .transition(.opacity)
+                .zIndex(100) // 确保在所有内容之上
             }
         }
         .onChange(of: appState.shouldResetNavigation) { oldValue, shouldReset in

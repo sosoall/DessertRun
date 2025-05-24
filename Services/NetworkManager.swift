@@ -357,7 +357,7 @@ public class NetworkManager {
                 // 特殊处理数组类型响应，例如[ChallengeActivity]
                 if String(describing: T.self).contains("Array<") {
                     DRInfo("[NetworkManager] 检测到数组类型响应: \(T.self)")
-                    
+                        
                     // 特别处理ChallengeActivity数组
                     if T.self == [ChallengeActivity].self {
                         do {
@@ -372,7 +372,7 @@ public class NetworkManager {
                                     .setFailureType(to: NetworkError.self)
                                     .eraseToAnyPublisher()
                             }
-                        } catch {
+                            } catch {
                             DRError("[NetworkManager] 直接解析[ChallengeActivity]失败: \(error)")
                         }
                     }
@@ -434,10 +434,10 @@ public class NetworkManager {
                         if let decodingError = error as? DecodingError {
                             // 直接返回解码错误
                             return Fail(error: NetworkError.decodingFailed(decodingError))
-                                .eraseToAnyPublisher()
+                                    .eraseToAnyPublisher()
                         } else {
-                            return Fail(error: error)
-                                .eraseToAnyPublisher()
+                        return Fail(error: error)
+                            .eraseToAnyPublisher()
                         }
                     }
                     .eraseToAnyPublisher()

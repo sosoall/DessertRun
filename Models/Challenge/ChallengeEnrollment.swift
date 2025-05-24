@@ -15,6 +15,7 @@ struct ChallengeEnrollment: Identifiable, Codable, Equatable {
     
     // 报名信息
     let enrolledAt: Date
+    let deadline: Date
     
     // 进度追踪
     let completedCheckins: Int
@@ -37,6 +38,7 @@ struct ChallengeEnrollment: Identifiable, Codable, Equatable {
         case userId = "user_id"
         case activityId = "activity_id"
         case enrolledAt = "enrolled_at"
+        case deadline
         case completedCheckins = "completed_checkins"
         case redeemedVouchers = "redeemed_vouchers"
         case status
