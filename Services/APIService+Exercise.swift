@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import SwiftUI
 
 // MARK: - 运动相关 API 获取运动类型、计算运动时间、计算运动距离、获取单个运动类型详细信息
 extension APIService {
@@ -83,33 +84,71 @@ extension APIService {
     ///   - calories: 目标卡路里
     /// - Returns: 包含计算结果的发布者
     func calculateExerciseTime(exerciseType: String, calories: Double) -> AnyPublisher<ExerciseTimeResponse?, APIServiceError> {
-    let endpoint = ApiEndpoints.Exercise.calculateTime
-
-    return NetworkManager.shared.request(
-        endpoint: endpoint,
-        method: .get,
-        parameters: [
-            "type": exerciseType,
-            "calories": "\(calories)"
-        ],
-        requiresAuth: true
-    )
-    .map { (response: ApiResponse<ExerciseTimeResponse>) -> ExerciseTimeResponse? in
-        // 如果没有数据返回nil，由调用者处理
-        guard let data = response.data else {
-            DRWarning("[APIService] 计算运动时间API没有返回数据")
-            return nil
+        let endpoint = ApiEndpoints.Exercise.calculateTime
+        
+        return NetworkManager.shared.request(
+            endpoint: endpoint,
+            method: .get,
+            parameters: [
+                "type": exerciseType,
+                "calories": "\(calories)"
+            ],
+            requiresAuth: true,
+            responseType: ExerciseTimeResponse.self
+        )
+        .map { response -> ExerciseTimeResponse? in
+            return response
         }
-        return data
-    }
-    .mapError { error -> APIServiceError in
-        if let networkError = error as? NetworkError {
-            return .networkError(APINetworkError(error: networkError))
-        } else {
-            return .unknown
+        .catch { error -> AnyPublisher<ExerciseTimeResponse?, APIServiceError> in
+            DRError("[APIService] 计算运动时间API错误: \(error)")
+            
+            // 如果标准格式解析失败，尝试解析直接返回的数据
+            if case let NetworkError.decodingFailed(decodingError) = error {
+                DRWarning("[APIService] 尝试直接解析ExerciseTimeResponse")
+                
+                // 通过原始网络请求尝试获取响应
+                return NetworkManager.shared.requestRaw(
+                    endpoint: endpoint,
+                    method: .get,
+                    parameters: [
+                        "type": exerciseType,
+                        "calories": "\(calories)"
+                    ],
+                    requiresAuth: true
+                )
+                .tryMap { data, _ -> ExerciseTimeResponse? in
+                    let decoder = JSONDecoder()
+                    
+                    // 尝试解析不同格式
+                    do {
+                        // 首先尝试直接解析
+                        let directResponse = try decoder.decode(ExerciseTimeResponse.self, from: data)
+                        DRInfo("[APIService] 成功直接解析ExerciseTimeResponse")
+                        return directResponse
+                    } catch {
+                        // 尝试从APIResponse中解析data字段
+                        if let json = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
+                           let dataObj = json["data"] as? [String: Any] {
+                            let dataData = try JSONSerialization.data(withJSONObject: dataObj, options: [])
+                            let response = try decoder.decode(ExerciseTimeResponse.self, from: dataData)
+                            DRInfo("[APIService] 成功从APIResponse.data解析ExerciseTimeResponse")
+                            return response
+                        }
+                        
+                        // 都失败则抛出错误
+                        throw error
+                    }
+                }
+                .mapError { error -> APIServiceError in
+                    DRError("[APIService] 二次尝试解析ExerciseTimeResponse失败: \(error)")
+                    return .networkError(APINetworkError(error: NetworkError.decodingFailed(error)))
+                }
+                .eraseToAnyPublisher()
+            }
+            
+            return Fail(error: .networkError(APINetworkError(error: error))).eraseToAnyPublisher()
         }
-    }
-    .eraseToAnyPublisher()
+        .eraseToAnyPublisher()
     }
 
     /// 计算消耗指定卡路里所需的运动距离
@@ -118,33 +157,71 @@ extension APIService {
     ///   - calories: 目标卡路里
     /// - Returns: 包含计算结果的发布者
     func calculateExerciseDistance(exerciseType: String, calories: Double) -> AnyPublisher<ExerciseDistanceResponse?, APIServiceError> {
-    let endpoint = ApiEndpoints.Exercise.calculateDistance
-
-    return NetworkManager.shared.request(
-        endpoint: endpoint,
-        method: .get,
-        parameters: [
-            "type": exerciseType,
-            "calories": "\(calories)"
-        ],
-        requiresAuth: true
-    )
-    .map { (response: ApiResponse<ExerciseDistanceResponse>) -> ExerciseDistanceResponse? in
-        // 如果没有数据返回nil，由调用者处理
-        guard let data = response.data else {
-            DRWarning("[APIService] 计算运动距离API没有返回数据")
-            return nil
+        let endpoint = ApiEndpoints.Exercise.calculateDistance
+        
+        return NetworkManager.shared.request(
+            endpoint: endpoint,
+            method: .get,
+            parameters: [
+                "type": exerciseType,
+                "calories": "\(calories)"
+            ],
+            requiresAuth: true,
+            responseType: ExerciseDistanceResponse.self
+        )
+        .map { response -> ExerciseDistanceResponse? in
+            return response
         }
-        return data
-    }
-    .mapError { error -> APIServiceError in
-        if let networkError = error as? NetworkError {
-            return .networkError(APINetworkError(error: networkError))
-        } else {
-            return .unknown
+        .catch { error -> AnyPublisher<ExerciseDistanceResponse?, APIServiceError> in
+            DRError("[APIService] 计算运动距离API错误: \(error)")
+            
+            // 如果标准格式解析失败，尝试解析直接返回的数据
+            if case let NetworkError.decodingFailed(decodingError) = error {
+                DRWarning("[APIService] 尝试直接解析ExerciseDistanceResponse")
+                
+                // 通过原始网络请求尝试获取响应
+                return NetworkManager.shared.requestRaw(
+                    endpoint: endpoint,
+                    method: .get,
+                    parameters: [
+                        "type": exerciseType,
+                        "calories": "\(calories)"
+                    ],
+                    requiresAuth: true
+                )
+                .tryMap { data, _ -> ExerciseDistanceResponse? in
+                    let decoder = JSONDecoder()
+                    
+                    // 尝试解析不同格式
+                    do {
+                        // 首先尝试直接解析
+                        let directResponse = try decoder.decode(ExerciseDistanceResponse.self, from: data)
+                        DRInfo("[APIService] 成功直接解析ExerciseDistanceResponse")
+                        return directResponse
+                    } catch {
+                        // 尝试从APIResponse中解析data字段
+                        if let json = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
+                           let dataObj = json["data"] as? [String: Any] {
+                            let dataData = try JSONSerialization.data(withJSONObject: dataObj, options: [])
+                            let response = try decoder.decode(ExerciseDistanceResponse.self, from: dataData)
+                            DRInfo("[APIService] 成功从APIResponse.data解析ExerciseDistanceResponse")
+                            return response
+                        }
+                        
+                        // 都失败则抛出错误
+                        throw error
+                    }
+                }
+                .mapError { error -> APIServiceError in
+                    DRError("[APIService] 二次尝试解析ExerciseDistanceResponse失败: \(error)")
+                    return .networkError(APINetworkError(error: NetworkError.decodingFailed(error)))
+                }
+                .eraseToAnyPublisher()
+            }
+            
+            return Fail(error: .networkError(APINetworkError(error: error))).eraseToAnyPublisher()
         }
-    }
-    .eraseToAnyPublisher()
+        .eraseToAnyPublisher()
     }
 
     /// 获取单个运动类型的详细信息

@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import SwiftUI
 
 // 导入我们的APIErrors定义
 // 导入API错误类型
@@ -421,6 +422,21 @@ public class NetworkManager {
                     .decode(type: APIResponse<T>.self, decoder: self.decoder)
                     .mapError { [weak self] error -> NetworkError in
                         DRError("[NetworkManager] 解析API响应失败: \(error.localizedDescription)")
+                        
+                        // 添加更多特定类型的调试信息
+                        if T.self == ExerciseTimeResponse.self {
+                            DRError("[NetworkManager] 尝试解析ExerciseTimeResponse失败")
+                            if let jsonObject = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] {
+                                DRError("[NetworkManager] JSON数据结构: \(jsonObject)")
+                            }
+                        }
+                        
+                        if T.self == ExerciseDistanceResponse.self {
+                            DRError("[NetworkManager] 尝试解析ExerciseDistanceResponse失败")
+                            if let jsonObject = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] {
+                                DRError("[NetworkManager] JSON数据结构: \(jsonObject)")
+                            }
+                        }
                         
                         // 处理self为nil的情况
                         guard let self = self else {
