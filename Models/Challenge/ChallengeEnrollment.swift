@@ -141,4 +141,11 @@ struct ChallengeProgressResponse: Codable {
     let challenge: ChallengeActivity
     let completionPercent: Double
     let remainingDays: Int
+    
+    enum CodingKeys: String, CodingKey {
+        case enrollment
+        case challenge
+        case completionPercent = "completion_percent"
+        case remainingDays = "remaining_days"
+    }
 }
