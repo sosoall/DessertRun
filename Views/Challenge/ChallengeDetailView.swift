@@ -24,27 +24,39 @@ struct ChallengeDetailView: View {
     }
     
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                // 顶部背景图
-                headerImage
-                
-                // 挑战标题和基本信息
-                challengeHeader
-                
-                // 活动要求和详细信息
-                challengeDetails
-                
-                // 奖励信息
-                rewardSection
-                
-                // 报名按钮
-                actionButton
+        ZStack(alignment: .bottom) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    // 顶部背景图
+                    headerImage
+                    
+                    // 挑战内容区域
+                    VStack(spacing: 16) {
+                        // 挑战标题和基本信息
+                        challengeHeader
+                        
+                        // 挑战要求和详细信息
+                        challengeDetails
+                        
+                        // 奖励信息
+                        rewardSection
+                    }
+                    .padding(.horizontal, 20)
+                    
+                    // 底部间距
+                    Spacer(minLength: 80)
+                }
+                .padding(.bottom, 16)
             }
+            
+            // 报名按钮
+            actionButton
+                .padding(.horizontal, 20)
+                .padding(.bottom, 16)
         }
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(false)
-        .background(Color(hex: "F5F5F5"))
+        .background(Color(UIColor.systemGray6))
         .onAppear {
             // 加载挑战详情
             viewModel.loadChallengeDetail(id: challengeId)
@@ -86,60 +98,88 @@ struct ChallengeDetailView: View {
         .sheet(isPresented: $showProgress) {
             if let progress = viewModel.progressResponse {
                 // 显示挑战进度详情
-                VStack {
+                VStack(spacing: 16) {
+                    // 标题
                     Text("挑战进度")
-                        .font(.headline)
-                        .padding()
+                        .font(.system(size: 20, weight: .semibold))
+                        .padding(.top, 20)
                     
-                    // 进度条
-                    ProgressView(value: progress.completionPercent)
-                        .accentColor(Color.DessertRun.accent)
-                        .padding(.horizontal)
-                    
-                    // 进度信息
-                    HStack {
-                        Text("已完成")
-                            .font(.subheadline)
-                            .foregroundColor(.gray)
+                    // 进度卡片
+                    VStack(spacing: 12) {
+                        // 进度条
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("完成进度")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(.gray)
+                                
+                                Spacer()
+                                
+                                Text("\(Int(progress.completionPercent * 100))%")
+                                    .font(.system(size: 16, weight: .semibold))
+                            }
+                            
+                            ProgressView(value: progress.completionPercent)
+                                .accentColor(Color(hex: "FE2D55"))
+                                .frame(height: 8)
+                                .clipShape(Capsule())
+                        }
+                        .padding(.horizontal, 16)
                         
-                        Spacer()
+                        Divider()
                         
-                        Text("\(progress.enrollment.completedCheckins)/\(progress.challenge.requiredCheckins)")
-                            .font(.subheadline)
-                            .bold()
+                        // 进度信息
+                        HStack(spacing: 16) {
+                            // 打卡进度
+                            VStack(spacing: 4) {
+                                Text("已完成")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.gray)
+                                
+                                Text("\(progress.enrollment.completedCheckins)/\(progress.challenge.requiredCheckins)")
+                                    .font(.system(size: 20, weight: .semibold))
+                                    .foregroundColor(Color(hex: "FE2D55"))
+                            }
+                            .frame(maxWidth: .infinity)
+                            
+                            Divider()
+                                .frame(height: 30)
+                            
+                            // 剩余天数
+                            VStack(spacing: 4) {
+                                Text("剩余天数")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.gray)
+                                
+                                Text("\(progress.remainingDays)天")
+                                    .font(.system(size: 20, weight: .semibold))
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        
+                        Divider()
+                        
+                        // 截止日期
+                        HStack {
+                            Text("截止日期")
+                                .font(.system(size: 14))
+                                .foregroundColor(.gray)
+                            
+                            Spacer()
+                            
+                            // 使用已格式化的日期字符串
+                            Text(formattedDate(date: progress.enrollment.deadline))
+                                .font(.system(size: 14, weight: .medium))
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 8)
                     }
-                    .padding(.horizontal)
-                    .padding(.top, 8)
-                    
-                    // 剩余天数
-                    HStack {
-                        Text("剩余天数")
-                            .font(.subheadline)
-                            .foregroundColor(.gray)
-                        
-                        Spacer()
-                        
-                        Text("\(progress.remainingDays)天")
-                            .font(.subheadline)
-                            .bold()
-                    }
-                    .padding(.horizontal)
-                    .padding(.top, 4)
-                    
-                    // 截止时间
-                    HStack {
-                        Text("截止日期")
-                            .font(.subheadline)
-                            .foregroundColor(.gray)
-                        
-                        Spacer()
-                        
-                        Text(progress.enrollment.deadline.formatted(date: .long, time: .omitted))
-                            .font(.subheadline)
-                            .bold()
-                    }
-                    .padding(.horizontal)
-                    .padding(.top, 4)
+                    .background(Color.white)
+                    .cornerRadius(16)
+                    .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+                    .padding(.horizontal, 20)
                     
                     Spacer()
                     
@@ -147,14 +187,19 @@ struct ChallengeDetailView: View {
                     Button("关闭") {
                         showProgress = false
                     }
-                    .padding()
-                    .frame(maxWidth: .infinity)
-                    .background(Color.DessertRun.accent)
+                    .font(.system(size: 16, weight: .medium))
                     .foregroundColor(.white)
-                    .cornerRadius(8)
-                    .padding()
+                    .frame(height: 50)
+                    .frame(maxWidth: .infinity)
+                    .background(
+                        RoundedRectangle(cornerRadius: 25)
+                            .fill(Color(hex: "FE2D55"))
+                    )
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 20)
                 }
-                .frame(height: 300)
+                .background(Color(UIColor.systemGray6))
+                .presentationDetents([.medium])
             }
         }
     }
@@ -169,12 +214,12 @@ struct ChallengeDetailView: View {
                     case .empty:
                         Rectangle()
                             .fill(Color.gray.opacity(0.2))
-                            .frame(height: 200)
+                            .frame(height: 180)
                     case .success(let image):
                         image
                             .resizable()
                             .aspectRatio(contentMode: .fill)
-                            .frame(height: 200)
+                            .frame(height: 180)
                             .clipped()
                     case .failure:
                         defaultHeaderBackground
@@ -187,16 +232,17 @@ struct ChallengeDetailView: View {
                 defaultHeaderBackground
             }
         }
+        .cornerRadius(0)
     }
     
     // 默认头部背景
     private var defaultHeaderBackground: some View {
         LinearGradient(
-            gradient: Gradient(colors: [Color.DessertRun.accent, Color.DessertRun.accent.opacity(0.7)]),
+            gradient: Gradient(colors: [Color(hex: "FE2D55"), Color(hex: "FE2D55").opacity(0.7)]),
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
-        .frame(height: 200)
+        .frame(height: 180)
         .overlay(
             Image(systemName: "trophy.fill")
                 .font(.system(size: 60))
@@ -206,109 +252,120 @@ struct ChallengeDetailView: View {
     
     // 挑战标题和基本信息
     private var challengeHeader: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        Group {
             if let challenge = viewModel.selectedChallenge {
-                // 标题
-                Text(challenge.name)
-                    .font(.system(size: 22, weight: .bold))
-                    .foregroundColor(.black)
-                
                 // 基本信息卡片
-                HStack(spacing: 12) {
-                    // 活动类型
-                    VStack {
-                        Image(systemName: challenge.activityType == .free ? "star" : "dollarsign.circle")
-                            .font(.system(size: 24))
-                            .foregroundColor(challenge.activityType == .free ? Color(hex: "4CAF50") : Color(hex: "FF6B6B"))
-                        
-                        if challenge.activityType == .free {
-                            Text("免费")
-                                .font(.system(size: 12))
-                                .foregroundColor(.gray)
-                        } else if let price = challenge.price {
-                            Text("\(price)元")
-                                .font(.system(size: 12))
-                                .foregroundColor(.gray)
-                        } else {
-                            Text("付费")
-                                .font(.system(size: 12))
-                                .foregroundColor(.gray)
+                VStack(alignment: .leading, spacing: 12) {
+                    // 标题
+                    Text(challenge.name)
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundColor(.black)
+                    
+                    HStack {
+                        // 活动类型
+                        HStack(spacing: 8) {
+                            Image(systemName: challenge.activityType == .free ? "star" : "dollarsign.circle")
+                                .font(.system(size: 16))
+                                .foregroundColor(challenge.activityType == .free ? Color(hex: "4CAF50") : Color(hex: "FF6B6B"))
+                            
+                            if challenge.activityType == .free {
+                                Text("免费")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(.gray)
+                            } else if let price = challenge.price {
+                                Text("\(price)元")
+                                    .font(.system(size: 18, weight: .medium))
+                                    .foregroundColor(Color(hex: "FF6B6B"))
+                            } else {
+                                Text("付费")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(.gray)
+                            }
                         }
+                        
+                        Spacer()
+                        
+                        // 状态标签
+                        Text(challenge.statusText)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(
+                                Capsule()
+                                    .fill(getStatusColor(status: challenge.statusText))
+                            )
                     }
-                    .frame(width: 60)
                     
                     Divider()
-                        .frame(height: 40)
                     
                     // 活动时间
-                    VStack(alignment: .leading) {
-                        Text("活动时间")
-                            .font(.system(size: 12))
-                            .foregroundColor(.gray)
+                    HStack(spacing: 8) {
+                        Image(systemName: "calendar")
+                            .font(.system(size: 16))
+                            .foregroundColor(Color(hex: "FE2D55"))
                         
                         Text(challenge.formattedDuration)
                             .font(.system(size: 14))
-                            .foregroundColor(.black)
+                            .foregroundColor(.gray)
                     }
-                    
-                    Spacer()
-                    
-                    // 状态标签
-                    Text(challenge.statusText)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(getStatusColor(status: challenge.statusText))
-                        )
                 }
-                .padding(16)
+                .padding(20)
                 .background(Color.white)
-                .cornerRadius(12)
-                .shadow(color: Color.black.opacity(0.05), radius: 4)
+                .cornerRadius(16)
+                .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
             } else {
                 // 加载中状态
-                ProgressView()
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding()
+                VStack {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding()
+                    
+                    Text("加载中...")
+                        .font(.system(size: 14))
+                        .foregroundColor(.gray)
+                }
+                .padding(20)
+                .background(Color.white)
+                .cornerRadius(16)
+                .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
             }
         }
-        .padding(16)
-        .background(Color.white)
-        .offset(y: -30)
-        .zIndex(1)
     }
     
     // 挑战详情部分
     private var challengeDetails: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        Group {
             if let challenge = viewModel.selectedChallenge {
-                // 活动描述
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("活动描述")
-                        .font(.system(size: 16, weight: .semibold))
+                // 挑战描述
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("挑战描述")
+                        .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(.black)
                     
                     Text(challenge.description)
-                        .font(.system(size: 14))
+                        .font(.system(size: 16))
                         .foregroundColor(.gray)
-                        .lineSpacing(4)
+                        .lineSpacing(5)
                 }
+                .padding(20)
+                .background(Color.white)
+                .cornerRadius(16)
+                .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
                 
-                Divider()
-                
-                // 活动要求
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("活动要求")
-                        .font(.system(size: 16, weight: .semibold))
+                // 挑战要求
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("挑战要求")
+                        .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(.black)
                     
                     Text(challenge.requirement)
-                        .font(.system(size: 14))
+                        .font(.system(size: 16))
                         .foregroundColor(.gray)
-                        .lineSpacing(4)
+                        .lineSpacing(5)
+                    
+                    Divider()
+                        .padding(.vertical, 6)
                     
                     // 完成挑战天数限制
                     if let daysLimit = challenge.completionDaysLimit {
@@ -317,214 +374,240 @@ struct ChallengeDetailView: View {
                         
                         HStack {
                             Image(systemName: "calendar")
-                                .foregroundColor(Color.DessertRun.accent)
+                                .foregroundColor(Color(hex: "FE2D55"))
                             
                             // 使用准备好的文本内容
                             Text(deadlineText)
-                                .font(.system(size: 14))
+                                .font(.system(size: 16))
                                 .foregroundColor(.black)
                         }
-                        .padding(.top, 4)
+                        .padding(.vertical, 4)
                     }
                     
                     // 打卡次数要求
                     HStack {
                         Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(Color.DessertRun.accent)
+                            .foregroundColor(Color(hex: "FE2D55"))
                         
                         Text("打卡次数：\(challenge.requiredCheckins)次")
-                            .font(.system(size: 14))
+                            .font(.system(size: 16))
                             .foregroundColor(.black)
                     }
-                    .padding(.top, 4)
+                    .padding(.vertical, 4)
                     
                     // 单次打卡要求
                     let hasPerCheckinRequirements = challenge.minDistancePerCheckin != nil || 
                                                   challenge.minDurationPerCheckin != nil || 
-                                                  challenge.minEquivalentDessertPerCheckin != nil
+                                                  challenge.minEquivalentDessertPerCheckin != nil || 
+                                                  challenge.requiredExerciseTypeId != nil && !challenge.requiredExerciseTypeId!.isEmpty ||
+                                                  challenge.requiredDifferentExerciseTypes ||
+                                                  challenge.foodRestrictionType != "none"
                     
                     if hasPerCheckinRequirements {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("单次打卡要求：")
-                                .font(.system(size: 14, weight: .medium))
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("单次打卡要求")
+                                .font(.system(size: 16, weight: .semibold))
                                 .foregroundColor(.black)
-                                .padding(.top, 4)
+                                .padding(.top, 8)
                             
-                            // 最小距离要求
-                            if let minDistance = challenge.minDistancePerCheckin {
-                                HStack {
-                                    Image(systemName: "figure.walk")
-                                        .foregroundColor(Color.DessertRun.accent)
-                                    
-                                    Text("运动量：\(String(format: "%.1f", minDistance))公里")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.black)
-                                }
-                                .padding(.leading, 8)
-                            }
-                            
-                            // 最小时长要求
-                            if let minDuration = challenge.minDurationPerCheckin {
-                                HStack {
-                                    Image(systemName: "clock")
-                                        .foregroundColor(Color.DessertRun.accent)
-                                    
-                                    Text("运动时长：\(minDuration)分钟")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.black)
-                                }
-                                .padding(.leading, 8)
-                            }
-                            
-                            // 最小消耗美食数量
-                            if let minDessert = challenge.minEquivalentDessertPerCheckin {
-                                HStack {
-                                    Image(systemName: "fork.knife")
-                                        .foregroundColor(Color.DessertRun.accent)
-                                    
-                                    Text("消耗美食：\(String(format: "%.1f", minDessert))个")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.black)
-                                }
-                                .padding(.leading, 8)
-                            }
-                        }
-                    }
-                    
-                    // 特定运动类型要求
-                    if let exerciseTypeId = challenge.requiredExerciseTypeId, !exerciseTypeId.isEmpty {
-                        HStack {
-                            Image(systemName: "figure.run")
-                                .foregroundColor(Color.DessertRun.accent)
-                            
-                            // 使用服务器返回的运动类型名称
-                            Text("运动类型：\(challenge.requiredExerciseTypeName ?? "未知")")
-                                .font(.system(size: 14))
-                                .foregroundColor(.black)
-                        }
-                        .padding(.top, 4)
-                    }
-                    
-                    // 不同运动类型要求
-                    if challenge.requiredDifferentExerciseTypes {
-                        HStack {
-                            Image(systemName: "figure.run")
-                                .foregroundColor(Color.DessertRun.accent)
-                            
-                            Text("要求：三种不同运动类型")
-                                .font(.system(size: 14))
-                                .foregroundColor(.black)
-                        }
-                        .padding(.top, 4)
-                    }
-                    
-                    // 美食限制
-                    if challenge.foodRestrictionType != "none" {
-                        HStack {
-                            Image(systemName: "fork.knife")
-                                .foregroundColor(Color.DessertRun.accent)
-                            
-                            if challenge.foodRestrictionType == "category", let categoryIds = challenge.requiredFoodCategoryIds, !categoryIds.isEmpty {
-                                // 预先计算分类名称字符串
-                                let categoryNames: String = {
-                                    if let serverNames = challenge.requiredFoodCategoryNames, !serverNames.isEmpty {
-                                        return serverNames.joined(separator: "、")
-                                    } else {
-                                        return "未知分类"
+                            // 打卡要求卡片
+                            VStack(alignment: .leading, spacing: 10) {
+                                // 最小距离要求
+                                if let minDistance = challenge.minDistancePerCheckin {
+                                    HStack(spacing: 10) {
+                                        Image(systemName: "figure.walk")
+                                            .foregroundColor(Color(hex: "FE2D55"))
+                                            .frame(width: 24)
+                                        
+                                        Text("运动量：\(String(format: "%.1f", minDistance))公里")
+                                            .font(.system(size: 16))
+                                            .foregroundColor(.black)
                                     }
-                                }()
+                                }
                                 
-                                Text("美食分类：\(categoryNames)")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.black)
-                            } else if challenge.foodRestrictionType == "specific", let foodIds = challenge.requiredFoodIds, !foodIds.isEmpty {
-                                // 预先计算食物名称字符串
-                                let foodNames: String = {
-                                    if let serverNames = challenge.requiredFoodNames, !serverNames.isEmpty {
-                                        return serverNames.joined(separator: "、")
-                                    } else {
-                                        return "未知美食"
+                                // 最小时长要求
+                                if let minDuration = challenge.minDurationPerCheckin {
+                                    HStack(spacing: 10) {
+                                        Image(systemName: "clock")
+                                            .foregroundColor(Color(hex: "FE2D55"))
+                                            .frame(width: 24)
+                                        
+                                        Text("运动时长：\(minDuration)分钟")
+                                            .font(.system(size: 16))
+                                            .foregroundColor(.black)
                                     }
-                                }()
+                                }
                                 
-                                Text("美食种类：\(foodNames)")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.black)
-                            } else if challenge.requiredDifferentFoodTypes {
-                                Text("要求：三种不同美食")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.black)
-                            } else {
-                                Text("特定美食要求")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.black)
+                                // 最小消耗美食数量
+                                if let minDessert = challenge.minEquivalentDessertPerCheckin {
+                                    HStack(spacing: 10) {
+                                        Image(systemName: "fork.knife")
+                                            .foregroundColor(Color(hex: "FE2D55"))
+                                            .frame(width: 24)
+                                        
+                                        Text("消耗美食：\(String(format: "%.1f", minDessert))个")
+                                            .font(.system(size: 16))
+                                            .foregroundColor(.black)
+                                    }
+                                }
+                                
+                                // 特定运动类型要求
+                                if let exerciseTypeId = challenge.requiredExerciseTypeId, !exerciseTypeId.isEmpty {
+                                    HStack(spacing: 10) {
+                                        Image(systemName: "figure.run")
+                                            .foregroundColor(Color(hex: "FE2D55"))
+                                            .frame(width: 24)
+                                        
+                                        Text("运动类型：\(challenge.requiredExerciseTypeName ?? "未知")")
+                                            .font(.system(size: 16))
+                                            .foregroundColor(.black)
+                                    }
+                                }
+                                
+                                // 不同运动类型要求
+                                if challenge.requiredDifferentExerciseTypes {
+                                    HStack(spacing: 10) {
+                                        Image(systemName: "figure.run")
+                                            .foregroundColor(Color(hex: "FE2D55"))
+                                            .frame(width: 24)
+                                        
+                                        Text("要求：三种不同运动类型")
+                                            .font(.system(size: 16))
+                                            .foregroundColor(.black)
+                                    }
+                                }
+                                
+                                // 美食限制
+                                if challenge.foodRestrictionType != "none" {
+                                    HStack(spacing: 10) {
+                                        Image(systemName: "fork.knife")
+                                            .foregroundColor(Color(hex: "FE2D55"))
+                                            .frame(width: 24)
+                                        
+                                        if challenge.foodRestrictionType == "category", let categoryIds = challenge.requiredFoodCategoryIds, !categoryIds.isEmpty {
+                                            // 预先计算分类名称字符串
+                                            let categoryNames: String = {
+                                                if let serverNames = challenge.requiredFoodCategoryNames, !serverNames.isEmpty {
+                                                    return serverNames.joined(separator: "、")
+                                                } else {
+                                                    return "未知分类"
+                                                }
+                                            }()
+                                            
+                                            Text("美食分类：\(categoryNames)")
+                                                .font(.system(size: 16))
+                                                .foregroundColor(.black)
+                                        } else if challenge.foodRestrictionType == "specific", let foodIds = challenge.requiredFoodIds, !foodIds.isEmpty {
+                                            // 预先计算食物名称字符串
+                                            let foodNames: String = {
+                                                if let serverNames = challenge.requiredFoodNames, !serverNames.isEmpty {
+                                                    return serverNames.joined(separator: "、")
+                                                } else {
+                                                    return "未知美食"
+                                                }
+                                            }()
+                                            
+                                            Text("美食种类：\(foodNames)")
+                                                .font(.system(size: 16))
+                                                .foregroundColor(.black)
+                                        } else if challenge.requiredDifferentFoodTypes {
+                                            Text("要求：三种不同美食")
+                                                .font(.system(size: 16))
+                                                .foregroundColor(.black)
+                                        } else {
+                                            Text("特定美食要求")
+                                                .font(.system(size: 16))
+                                                .foregroundColor(.black)
+                                        }
+                                    }
+                                }
                             }
+                            .padding(16)
+                            .background(Color(UIColor.systemGray6).opacity(0.5))
+                            .cornerRadius(12)
                         }
-                        .padding(.top, 4)
                     }
                 }
+                .padding(20)
+                .background(Color.white)
+                .cornerRadius(16)
+                .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
             } else {
                 // 加载中状态
-                ProgressView()
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding()
+                VStack {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding()
+                    
+                    Text("加载中...")
+                        .font(.system(size: 14))
+                        .foregroundColor(.gray)
+                }
+                .padding(20)
+                .background(Color.white)
+                .cornerRadius(16)
+                .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
             }
         }
-        .padding(16)
-        .background(Color.white)
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.05), radius: 4)
-        .padding(.horizontal, 16)
-        .padding(.top, -10)
     }
     
     // 奖励信息部分
     private var rewardSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        Group {
             if let challenge = viewModel.selectedChallenge {
-                Text("活动奖励")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.black)
-                
-                HStack(spacing: 16) {
-                    // 奖励图标
-                    Image(systemName: getRewardIcon(for: challenge.rewardType))
-                        .font(.system(size: 32))
-                        .foregroundColor(Color.DessertRun.accent)
-                        .frame(width: 60, height: 60)
-                        .background(Color.DessertRun.accent.opacity(0.1))
-                        .cornerRadius(30)
+                // 奖励信息卡片
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("挑战奖励")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.black)
                     
-                    VStack(alignment: .leading, spacing: 4) {
-                        // 奖励名称
-                        Text(challenge.formattedReward)
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.black)
+                    HStack(spacing: 16) {
+                        // 奖励图标
+                        ZStack {
+                            Circle()
+                                .fill(Color(hex: "FE2D55").opacity(0.1))
+                                .frame(width: 60, height: 60)
+                            
+                            Image(systemName: getRewardIcon(for: challenge.rewardType))
+                                .font(.system(size: 24))
+                                .foregroundColor(Color(hex: "FE2D55"))
+                        }
                         
-                        // 奖励描述
-                        Text(challenge.rewardDescription)
-                            .font(.system(size: 14))
-                            .foregroundColor(.gray)
-                            .lineSpacing(4)
+                        VStack(alignment: .leading, spacing: 6) {
+                            // 奖励名称
+                            Text(challenge.formattedReward)
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundColor(.black)
+                            
+                            // 奖励描述
+                            Text(challenge.rewardDescription)
+                                .font(.system(size: 16))
+                                .foregroundColor(.gray)
+                                .lineSpacing(5)
+                        }
                     }
                 }
-                .padding(16)
+                .padding(20)
                 .background(Color.white)
-                .cornerRadius(12)
-                .shadow(color: Color.black.opacity(0.05), radius: 4)
+                .cornerRadius(16)
+                .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
             } else {
                 // 加载中状态
-                ProgressView()
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding()
+                VStack {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding()
+                    
+                    Text("加载中...")
+                        .font(.system(size: 14))
+                        .foregroundColor(.gray)
+                }
+                .padding(20)
+                .background(Color.white)
+                .cornerRadius(16)
+                .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
             }
         }
-        .padding(16)
-        .background(Color.white)
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.05), radius: 4)
-        .padding(.horizontal, 16)
-        .padding(.top, 16)
     }
     
     // 底部操作按钮
@@ -543,7 +626,7 @@ struct ChallengeDetailView: View {
                             .frame(maxWidth: .infinity)
                             .background(
                                 RoundedRectangle(cornerRadius: 25)
-                                    .fill(Color.DessertRun.accent)
+                                    .fill(Color(hex: "FE2D55"))
                             )
                     }
                 } else if challenge.isInProgress {
@@ -558,12 +641,12 @@ struct ChallengeDetailView: View {
                             .frame(maxWidth: .infinity)
                             .background(
                                 RoundedRectangle(cornerRadius: 25)
-                                    .fill(Color.DessertRun.accent)
+                                    .fill(Color(hex: "FE2D55"))
                             )
                     }
                 } else if challenge.statusText == "即将开始" {
                     // 活动未开始 - 显示不可报名状态
-                    Text("活动未开始")
+                    Text("挑战未开始")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.white)
                         .frame(height: 50)
@@ -574,7 +657,7 @@ struct ChallengeDetailView: View {
                         )
                 } else {
                     // 活动已结束 - 显示不可报名状态
-                    Text("活动已结束")
+                    Text("挑战已结束")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.white)
                         .frame(height: 50)
@@ -595,11 +678,9 @@ struct ChallengeDetailView: View {
                     )
             }
         }
-        .padding(16)
         .background(Color.white)
-        .cornerRadiusExt(12, corners: [.topLeft, .topRight])
-        .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: -5)
-        .padding(.top, 24)
+        .cornerRadius(25)
+        .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
     }
     
     // 根据状态文本获取颜色
@@ -643,6 +724,13 @@ struct ChallengeDetailView: View {
         } else {
             return "完成期限：\(daysLimit)天内"
         }
+    }
+    
+    // 日期格式化辅助方法
+    private func formattedDate(date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy年MM月dd日"
+        return formatter.string(from: date)
     }
 }
 
