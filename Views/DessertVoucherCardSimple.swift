@@ -67,6 +67,9 @@ struct DessertVoucherCardSimple: View {
     /// 添加状态变量存储图标图片
     @State private var iconImage: UIImage? = nil
     
+    /// 添加状态变量存储美食券大图片
+    @State private var voucherImage: UIImage? = nil
+    
     var body: some View {
         GeometryReader { geometry in // 使用GeometryReader获取整体宽度
             ZStack(alignment: .top) {
@@ -171,30 +174,13 @@ struct DessertVoucherCardSimple: View {
                 if forceExpanded {
                     // 展开状态下的图片
                     Group {
-                        if let imageURL = voucherImageURL {
-                            AsyncImage(url: imageURL) { phase in
-                                switch phase {
-                                case .empty:
-                                    ProgressView()
-                                        .frame(width: 90, height: 90)
-                                case .success(let image):
-                                    image
-                                        .resizable()
-                                        .scaledToFit()
-                                        .frame(width: 90, height: 90)
-                                case .failure:
-                                    // 使用系统图像作为兜底图
-                                    Image(systemName: "fork.knife.circle.fill")
-                                        .resizable()
-                                        .scaledToFit()
-                                        .foregroundColor(Color(hex: "#FF9D0B"))
-                                        .frame(width: 90, height: 90)
-                                @unknown default:
-                                    EmptyView()
-                                }
-                            }
+                        if let voucherImage = voucherImage {
+                            Image(uiImage: voucherImage)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 90, height: 90)
                         } else {
-                            // 使用系统图像作为兜底图
+                            // 加载中或失败时显示占位图
                             Image(systemName: "fork.knife.circle.fill")
                                 .resizable()
                                 .scaledToFit()
@@ -237,30 +223,13 @@ struct DessertVoucherCardSimple: View {
                 } else {
                     // 收起状态下的图片
                     Group {
-                        if let imageURL = voucherImageURL {
-                            AsyncImage(url: imageURL) { phase in
-                                switch phase {
-                                case .empty:
-                                    ProgressView()
-                                        .frame(width: 65, height: 65)
-                                case .success(let image):
-                                    image
-                                        .resizable()
-                                        .scaledToFit()
-                                        .frame(width: 65, height: 65)
-                                case .failure:
-                                    // 使用系统图像作为兜底图
-                                    Image(systemName: "fork.knife.circle.fill")
-                                        .resizable()
-                                        .scaledToFit()
-                                        .foregroundColor(Color(hex: "#FF9D0B"))
-                                        .frame(width: 65, height: 65)
-                                @unknown default:
-                                    EmptyView()
-                                }
-                            }
+                        if let voucherImage = voucherImage {
+                            Image(uiImage: voucherImage)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 65, height: 65)
                         } else {
-                            // 使用系统图像作为兜底图
+                            // 加载中或失败时显示占位图
                             Image(systemName: "fork.knife.circle.fill")
                                 .resizable()
                                 .scaledToFit()
@@ -675,46 +644,43 @@ struct DessertVoucherCardSimple: View {
         }
 
         // 1. 加载美食券图片
-        if voucherImageURL == nil {
+        if voucherImage == nil {
             if let imageId = voucher.imageId {
-                // 首先尝试从URL缓存获取
-                if let cachedURL = ImageCacheService.shared.getCachedImageURL(forId: imageId) {
-                    voucherImageURL = URL(string: cachedURL)
-                    DRDebug("[DessertVoucherCard-\(instanceId.prefix(6))] 使用缓存的美食券图片URL: \(cachedURL)")
+                // 首先尝试从缓存获取UIImage
+                if let cachedImage = ImageCacheService.shared.getCachedImage(forId: imageId) {
+                    voucherImage = cachedImage
+                    DRDebug("[DessertVoucherCard-\(instanceId.prefix(6))] 使用缓存的美食券图片")
                     
                     // 标记图片部分加载完成
                     if iconImage != nil {
                         hasLoadedImages = true
                     }
                 } else if let url = voucher.imageURL, !url.isEmpty {
-                    // 直接使用美食券的图片URL
-                    voucherImageURL = URL(string: url)
-                    DRDebug("[DessertVoucherCard-\(instanceId.prefix(6))] 使用美食券图片URL: \(url)")
-                    
-                    // 标记图片部分加载完成
-                    if iconImage != nil {
-                        hasLoadedImages = true
+                    // 直接下载并缓存UIImage
+                    ImageCacheService.shared.downloadAndCacheImage(url: url) { [self] image in
+                        if let image = image {
+                            DispatchQueue.main.async {
+                                self.voucherImage = image
+                                // 同时缓存到ID映射
+                                ImageCacheService.shared.cacheImageURL(url, forId: imageId)
+                                
+                                // 标记图片部分加载完成
+                                if self.iconImage != nil {
+                                    self.hasLoadedImages = true
+                                }
+                                DRDebug("[DessertVoucherCard-\(instanceId.prefix(6))] 美食券图片下载完成")
+                            }
+                        } else {
+                            loadVoucherImageFallback(imageId: imageId)
+                        }
                     }
                 } else {
                     // 缓存未命中，使用标准API获取
-                    let dessertId = voucher.dessertId
-                    let newURL = APIService.shared.getDessertImageURLWithImageID(dessertId: dessertId, type: "voucher", imageId: imageId)
-                    voucherImageURL = newURL
-                    
-                    // 标记图片部分加载完成
-                    if iconImage != nil {
-                        hasLoadedImages = true
-                    }
+                    loadVoucherImageFallback(imageId: nil)
                 }
             } else {
                 // 无图片ID时使用标准API
-                let dessertId = voucher.dessertId
-                voucherImageURL = APIService.shared.getDessertImageURL(dessertId: dessertId, type: "voucher")
-                
-                // 标记图片部分加载完成
-                if iconImage != nil {
-                    hasLoadedImages = true
-                }
+                loadVoucherImageFallback(imageId: nil)
             }
         }
         
@@ -731,8 +697,11 @@ struct DessertVoucherCardSimple: View {
                     if let image = image {
                         DispatchQueue.main.async {
                             self.iconImage = image
-                            self.hasLoadedImages = true
-                            DRDebug("[DessertVoucherCard-\(instanceId.prefix(6))] 图标加载完成")
+                            // 仅当同时有voucherImage时才标记为已完成
+                            if self.voucherImage != nil {
+                                self.hasLoadedImages = true
+                                DRDebug("[DessertVoucherCard-\(instanceId.prefix(6))] 图标加载完成，美食券图片已存在，标记为已加载")
+                            }
                         }
                     } else {
                         loadIconFallback(dessertId: dessertId)
@@ -743,9 +712,9 @@ struct DessertVoucherCardSimple: View {
             }
         } else {
             // 图标已存在，直接设置完成标志
-            if voucherImageURL != nil {
+            if voucherImage != nil {
                 hasLoadedImages = true
-                DRDebug("[DessertVoucherCard-\(instanceId.prefix(6))] 图标已存在，图片URL已设置，标记为已加载")
+                DRDebug("[DessertVoucherCard-\(instanceId.prefix(6))] 图标已存在，美食券图片已设置，标记为已加载")
             }
         }
     }
@@ -760,18 +729,18 @@ struct DessertVoucherCardSimple: View {
                 if let image = image {
                     DispatchQueue.main.async {
                         self.iconImage = image
-                        // 仅当同时有voucherImageURL时才标记为已完成
-                        if self.voucherImageURL != nil {
+                        // 仅当同时有voucherImage时才标记为已完成
+                        if self.voucherImage != nil {
                             self.hasLoadedImages = true
-                            DRDebug("[DessertVoucherCard-\(instanceId.prefix(6))] 图标加载完成，美食券图片URL已存在，标记为已加载")
+                            DRDebug("[DessertVoucherCard-\(instanceId.prefix(6))] 图标加载完成，美食券图片已存在，标记为已加载")
                         }
                     }
                 } else {
                     // 图标加载失败，但仍需检查是否可以标记为已完成
                     DispatchQueue.main.async {
-                        if self.voucherImageURL != nil {
+                        if self.voucherImage != nil {
                             self.hasLoadedImages = true
-                            DRDebug("[DessertVoucherCard-\(instanceId.prefix(6))] 图标加载失败，但美食券图片URL已存在，标记为已加载")
+                            DRDebug("[DessertVoucherCard-\(instanceId.prefix(6))] 图标加载失败，但美食券图片已存在，标记为已加载")
                         }
                     }
                 }
@@ -779,9 +748,60 @@ struct DessertVoucherCardSimple: View {
         } else {
             // 获取图标URL失败，检查是否可以标记为已完成
             DispatchQueue.main.async {
-                if self.voucherImageURL != nil {
+                if self.voucherImage != nil {
                     self.hasLoadedImages = true
-                    DRDebug("[DessertVoucherCard-\(instanceId.prefix(6))] 无法获取图标URL，但美食券图片URL已存在，标记为已加载")
+                    DRDebug("[DessertVoucherCard-\(instanceId.prefix(6))] 无法获取图标URL，但美食券图片已存在，标记为已加载")
+                }
+            }
+        }
+    }
+    
+    // 加载美食券图片的备用方法
+    private func loadVoucherImageFallback(imageId: String?) {
+        let dessertId = voucher.dessertId
+        
+        // 从API获取图片URL
+        let imageURL: URL?
+        if let imageId = imageId {
+            imageURL = APIService.shared.getDessertImageURLWithImageID(dessertId: dessertId, type: "voucher", imageId: imageId)
+        } else {
+            imageURL = APIService.shared.getDessertImageURL(dessertId: dessertId, type: "voucher")
+        }
+        
+        if let url = imageURL {
+            // 使用ImageCacheService下载并缓存图片
+            ImageCacheService.shared.downloadAndCacheImage(url: url.absoluteString) { [self] image in
+                if let image = image {
+                    DispatchQueue.main.async {
+                        self.voucherImage = image
+                        
+                        // 如果有imageId，同时缓存URL映射
+                        if let imageId = imageId {
+                            ImageCacheService.shared.cacheImageURL(url.absoluteString, forId: imageId)
+                        }
+                        
+                        // 仅当同时有iconImage时才标记为已完成
+                        if self.iconImage != nil {
+                            self.hasLoadedImages = true
+                            DRDebug("[DessertVoucherCard-\(instanceId.prefix(6))] 美食券图片加载完成，图标已存在，标记为已加载")
+                        }
+                    }
+                } else {
+                    // 图片加载失败，但仍需检查是否可以标记为已完成
+                    DispatchQueue.main.async {
+                        if self.iconImage != nil {
+                            self.hasLoadedImages = true
+                            DRDebug("[DessertVoucherCard-\(instanceId.prefix(6))] 美食券图片加载失败，但图标已存在，标记为已加载")
+                        }
+                    }
+                }
+            }
+        } else {
+            // 无法获取图片URL，检查是否可以标记为已完成
+            DispatchQueue.main.async {
+                if self.iconImage != nil {
+                    self.hasLoadedImages = true
+                    DRDebug("[DessertVoucherCard-\(instanceId.prefix(6))] 无法获取美食券图片URL，但图标已存在，标记为已加载")
                 }
             }
         }

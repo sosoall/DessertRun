@@ -443,7 +443,7 @@ struct DessertToExerciseTransition: View {
             titleView
             
             // 请选择运动类型标题
-            Text("请选择运动打卡")
+            Text("请选择运动")
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundColor(Color(hex: "757575"))
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -571,7 +571,7 @@ struct DessertToExerciseTransition: View {
                             .foregroundColor(.gray)
                             .padding(.trailing, 20)
                     } else {
-                        Text("打卡")
+                        Text("去运动")
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundColor(.white)
                             .padding(.horizontal, 16)
@@ -804,7 +804,7 @@ struct DessertToExerciseTransition: View {
                     .shadow(color: Color(hex: "FF2D55").opacity(0.2), radius: 6, x: 0, y: 3)
                 } else {
                     // 正常状态
-                    Text("完成打卡")
+                    Text("完成运动")
                         .font(.system(size: 17, weight: .bold))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)

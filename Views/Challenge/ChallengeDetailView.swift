@@ -130,7 +130,7 @@ struct ChallengeDetailView: View {
                         
                         // 进度信息
                         HStack(spacing: 16) {
-                            // 打卡进度
+                            // 挑战完成进度
                             VStack(spacing: 4) {
                                 Text("已完成")
                                     .font(.system(size: 14))
@@ -384,18 +384,18 @@ struct ChallengeDetailView: View {
                         .padding(.vertical, 4)
                     }
                     
-                    // 打卡次数要求
+                    // 运动次数要求
                     HStack {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundColor(Color(hex: "FE2D55"))
                         
-                        Text("打卡次数：\(challenge.requiredCheckins)次")
+                        Text("完成\(challenge.requiredCheckins)次有效运动打卡")
                             .font(.system(size: 16))
                             .foregroundColor(.black)
                     }
                     .padding(.vertical, 4)
                     
-                    // 单次打卡要求
+                    // 单次运动要求
                     let hasPerCheckinRequirements = challenge.minDistancePerCheckin != nil || 
                                                   challenge.minDurationPerCheckin != nil || 
                                                   challenge.minEquivalentDessertPerCheckin != nil || 
@@ -405,12 +405,12 @@ struct ChallengeDetailView: View {
                     
                     if hasPerCheckinRequirements {
                         VStack(alignment: .leading, spacing: 10) {
-                            Text("单次打卡要求")
+                            Text("运动要求")
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundColor(.black)
                                 .padding(.top, 8)
                             
-                            // 打卡要求卡片
+                            // 运动要求卡片
                             VStack(alignment: .leading, spacing: 10) {
                                 // 最小距离要求
                                 if let minDistance = challenge.minDistancePerCheckin {
@@ -419,7 +419,7 @@ struct ChallengeDetailView: View {
                                             .foregroundColor(Color(hex: "FE2D55"))
                                             .frame(width: 24)
                                         
-                                        Text("运动量：\(String(format: "%.1f", minDistance))公里")
+                                        Text("\(String(format: "%.1f", minDistance))公里")
                                             .font(.system(size: 16))
                                             .foregroundColor(.black)
                                     }
@@ -432,7 +432,7 @@ struct ChallengeDetailView: View {
                                             .foregroundColor(Color(hex: "FE2D55"))
                                             .frame(width: 24)
                                         
-                                        Text("运动时长：\(minDuration)分钟")
+                                        Text("\(minDuration)分钟")
                                             .font(.system(size: 16))
                                             .foregroundColor(.black)
                                     }
@@ -445,7 +445,7 @@ struct ChallengeDetailView: View {
                                             .foregroundColor(Color(hex: "FE2D55"))
                                             .frame(width: 24)
                                         
-                                        Text("消耗美食：\(String(format: "%.1f", minDessert))个")
+                                        Text("消耗美食\(String(format: "%.1f", minDessert))个")
                                             .font(.system(size: 16))
                                             .foregroundColor(.black)
                                     }
@@ -458,7 +458,7 @@ struct ChallengeDetailView: View {
                                             .foregroundColor(Color(hex: "FE2D55"))
                                             .frame(width: 24)
                                         
-                                        Text("运动类型：\(challenge.requiredExerciseTypeName ?? "未知")")
+                                        Text("\(challenge.requiredExerciseTypeName ?? "未知")")
                                             .font(.system(size: 16))
                                             .foregroundColor(.black)
                                     }
@@ -471,7 +471,7 @@ struct ChallengeDetailView: View {
                                             .foregroundColor(Color(hex: "FE2D55"))
                                             .frame(width: 24)
                                         
-                                        Text("要求：三种不同运动类型")
+                                        Text("三种不同运动类型")
                                             .font(.system(size: 16))
                                             .foregroundColor(.black)
                                     }
@@ -494,7 +494,7 @@ struct ChallengeDetailView: View {
                                                 }
                                             }()
                                             
-                                            Text("美食分类：\(categoryNames)")
+                                            Text("\(categoryNames)")
                                                 .font(.system(size: 16))
                                                 .foregroundColor(.black)
                                         } else if challenge.foodRestrictionType == "specific", let foodIds = challenge.requiredFoodIds, !foodIds.isEmpty {
@@ -507,15 +507,15 @@ struct ChallengeDetailView: View {
                                                 }
                                             }()
                                             
-                                            Text("美食种类：\(foodNames)")
+                                            Text("\(foodNames)")
                                                 .font(.system(size: 16))
                                                 .foregroundColor(.black)
                                         } else if challenge.requiredDifferentFoodTypes {
-                                            Text("要求：三种不同美食")
+                                            Text("三种不同美食")
                                                 .font(.system(size: 16))
                                                 .foregroundColor(.black)
                                         } else {
-                                            Text("特定美食要求")
+                                            Text("特定美食")
                                                 .font(.system(size: 16))
                                                 .foregroundColor(.black)
                                         }
