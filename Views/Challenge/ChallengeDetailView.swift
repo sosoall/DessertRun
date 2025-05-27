@@ -1,9 +1,11 @@
 import SwiftUI
+import UIKit
 
 /// 挑战详情页面
 struct ChallengeDetailView: View {
     // 环境对象
     @EnvironmentObject var appState: AppState
+    @Environment(\.presentationMode) var presentationMode
     
     // 视图模型
     @StateObject private var viewModel: ChallengeViewModel
@@ -13,6 +15,7 @@ struct ChallengeDetailView: View {
     @State private var isEnrolled = false
     @State private var showProgress = false
     @State private var progress: ChallengeProgressResponse?
+    @State private var voucherSheetHeight: CGFloat = UIScreen.main.bounds.height * 0.5
     
     // 挑战ID
     let challengeId: String
@@ -43,16 +46,6 @@ struct ChallengeDetailView: View {
                             progressSection
                         }
 
-                        // 美食券列表（仅在已报名时显示）
-                        if isEnrolled, let enrollment = viewModel.selectedEnrollment {
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("美食券列表")
-                                    .font(.system(size: 18, weight: .semibold))
-                                EnrollmentVoucherListView(enrollmentId: enrollment.id)
-                                    .environmentObject(appState)
-                            }
-                        }
-
                         // 挑战要求和详细信息
                         challengeDetails
                     }
@@ -69,8 +62,7 @@ struct ChallengeDetailView: View {
                 .padding(.horizontal, 20)
                 .padding(.bottom, 16)
         }
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(false)
+        .navigationBarHidden(true)
         .background(Color(UIColor.systemGray6))
         .onAppear {
             // 加载挑战详情
@@ -83,6 +75,11 @@ struct ChallengeDetailView: View {
                 isEnrolled = true
                 viewModel.loadProgress(enrollmentId: enrollment.id)
             }
+            
+            // 隐藏底部TabBar
+            withAnimation(.easeInOut(duration: 0.25)) {
+                appState.hideTabBarForDrag = true
+            }
         }
         .onChange(of: viewModel.enrolledChallenges) { _, newValue in
             // 更新报名状态
@@ -91,6 +88,11 @@ struct ChallengeDetailView: View {
             // 如果已报名，获取进度信息
             if isEnrolled, let enrollment = viewModel.getEnrollment(for: challengeId) {
                 viewModel.loadProgress(enrollmentId: enrollment.id)
+            }
+        }
+        .onChange(of: viewModel.progressResponse?.enrollment.id) { _, newValue in
+            if isEnrolled && newValue != nil {
+                showProgress = true
             }
         }
         .alert("确认报名", isPresented: $showingEnrollConfirmation) {
@@ -112,89 +114,12 @@ struct ChallengeDetailView: View {
         }
         .sheet(isPresented: $showProgress) {
             if let progress = viewModel.progressResponse {
-                // 显示挑战进度详情
+                // 显示美食券列表
                 VStack(spacing: 16) {
-                    // 标题
-                    Text("挑战进度")
-                        .font(.system(size: 20, weight: .semibold))
-                        .padding(.top, 20)
                     
-                    // 进度卡片
-                    VStack(spacing: 12) {
-                        // 进度条
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Text("完成进度")
-                                    .font(.system(size: 16, weight: .medium))
-                                    .foregroundColor(.gray)
-                                
-                                Spacer()
-                                
-                                Text("\(Int(progress.completionPercent))%")
-                                    .font(.system(size: 16, weight: .semibold))
-                            }
-                            
-                            ProgressView(value: progress.completionPercent / 100)
-                                .accentColor(Color(hex: "FE2D55"))
-                                .frame(height: 8)
-                                .clipShape(Capsule())
-                        }
-                        .padding(.horizontal, 16)
-                        
-                        Divider()
-                        
-                        // 进度信息
-                        HStack(spacing: 16) {
-                            // 挑战完成进度
-                            VStack(spacing: 4) {
-                                Text("已完成")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.gray)
-                                
-                                Text("\(progress.enrollment.completedCheckins)/\(progress.challenge.requiredCheckins)")
-                                    .font(.system(size: 20, weight: .semibold))
-                                    .foregroundColor(Color(hex: "FE2D55"))
-                            }
-                            .frame(maxWidth: .infinity)
-                            
-                            Divider()
-                                .frame(height: 30)
-                            
-                            // 剩余天数
-                            VStack(spacing: 4) {
-                                Text("剩余天数")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.gray)
-                                
-                                Text("\(progress.remainingDays)天")
-                                    .font(.system(size: 20, weight: .semibold))
-                            }
-                            .frame(maxWidth: .infinity)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        
-                        Divider()
-                        
-                        // 截止日期
-                        HStack {
-                            Text("截止日期")
-                                .font(.system(size: 14))
-                                .foregroundColor(.gray)
-                            
-                            Spacer()
-                            
-                            // 使用已格式化的日期字符串
-                            Text(formattedDate(date: progress.enrollment.deadline))
-                                .font(.system(size: 14, weight: .medium))
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 8)
-                    }
-                    .background(Color.white)
-                    .cornerRadius(16)
-                    .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
-                    .padding(.horizontal, 20)
+                    // 美食券列表
+                    BasicEnrollmentVoucherListView(sheetHeight: $voucherSheetHeight, enrollmentId: progress.enrollment.id)
+                        .environmentObject(appState)
                     
                     Spacer()
                     
@@ -214,9 +139,15 @@ struct ChallengeDetailView: View {
                     .padding(.bottom, 20)
                 }
                 .background(Color(UIColor.systemGray6))
-                .presentationDetents([.medium])
+                .presentationDetents([.height(voucherSheetHeight)])
             }
         }
+        .onDisappear {
+            withAnimation(.easeInOut(duration: 0.25)) {
+                appState.hideTabBarForDrag = false
+            }
+        }
+        .overlay(backButton, alignment: .topLeading)
     }
     
     // 顶部背景图
@@ -416,10 +347,6 @@ struct ChallengeDetailView: View {
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(.black)
                     
-                    Text("完成进度：\(Int(progress.completionPercent))%")
-                        .font(.system(size: 16))
-                        .foregroundColor(.gray)
-                    
                     Text("已完成：\(progress.enrollment.completedCheckins)/\(progress.challenge.requiredCheckins)")
                         .font(.system(size: 16))
                         .foregroundColor(.black)
@@ -427,11 +354,8 @@ struct ChallengeDetailView: View {
                     Text("剩余天数：\(progress.remainingDays)天")
                         .font(.system(size: 16))
                         .foregroundColor(.gray)
-                    
-                    Text("截止日期：\(formattedDate(date: progress.enrollment.deadline))")
-                        .font(.system(size: 16))
-                        .foregroundColor(.black)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(20)
                 .background(Color.white)
                 .cornerRadius(16)
@@ -678,11 +602,11 @@ struct ChallengeDetailView: View {
         VStack {
             if let challenge = viewModel.selectedChallenge {
                 if isEnrolled {
-                    // 已报名 - 显示查看进度按钮
+                    // 已报名 - 显示去运动按钮
                     Button(action: {
                         showProgress = true
                     }) {
-                        Text("查看进度")
+                        Text("去运动")
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(.white)
                             .frame(height: 50)
@@ -794,6 +718,24 @@ struct ChallengeDetailView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy年MM月dd日"
         return formatter.string(from: date)
+    }
+}
+
+// MARK: - 自定义返回按钮
+
+extension ChallengeDetailView {
+    private var backButton: some View {
+        Button(action: { presentationMode.wrappedValue.dismiss() }) {
+            Image(systemName: "chevron.left")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(.black)
+                .padding(12)
+                .background(Color.white.opacity(0.8))
+                .clipShape(Circle())
+        }
+        .padding(.leading, 16)
+        .padding(.top, (UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.keyWindow }.first?.safeAreaInsets.top ?? 0) + 8)
+        .zIndex(100)
     }
 }
 
