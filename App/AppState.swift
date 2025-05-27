@@ -107,7 +107,7 @@ class AppState: ObservableObject {
     @Published var challengeActivities: [ChallengeActivity] = []
     
     /// 缓存的用户已报名挑战列表
-    @Published var enrolledChallenges: [EnrollmentWithChallenge] = []
+    @Published var enrolledChallenges: [EnrollmentWithChallengeDetail] = []
     
     /// 挑战活动列表是否正在加载
     @Published var isLoadingChallenges: Bool = false

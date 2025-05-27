@@ -35,11 +35,26 @@ struct ChallengeDetailView: View {
                         // 挑战标题和基本信息
                         challengeHeader
                         
-                        // 挑战要求和详细信息
-                        challengeDetails
-                        
                         // 奖励信息
                         rewardSection
+
+                        // 进度信息（仅在已报名时显示）
+                        if isEnrolled, let _ = viewModel.progressResponse {
+                            progressSection
+                        }
+
+                        // 美食券列表（仅在已报名时显示）
+                        if isEnrolled, let enrollment = viewModel.selectedEnrollment {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("美食券列表")
+                                    .font(.system(size: 18, weight: .semibold))
+                                EnrollmentVoucherListView(enrollmentId: enrollment.id)
+                                    .environmentObject(appState)
+                            }
+                        }
+
+                        // 挑战要求和详细信息
+                        challengeDetails
                     }
                     .padding(.horizontal, 20)
                     
@@ -333,6 +348,113 @@ struct ChallengeDetailView: View {
         }
     }
     
+    // 奖励信息部分
+    private var rewardSection: some View {
+        Group {
+            if let challenge = viewModel.selectedChallenge {
+                // 奖励信息卡片
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("挑战奖励")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.black)
+                    
+                    HStack(spacing: 16) {
+                        // 奖励图标
+                        ZStack {
+                            Circle()
+                                .fill(Color(hex: "FE2D55").opacity(0.1))
+                                .frame(width: 60, height: 60)
+                            
+                            Image(systemName: getRewardIcon(for: challenge.rewardType))
+                                .font(.system(size: 24))
+                                .foregroundColor(Color(hex: "FE2D55"))
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 6) {
+                            // 奖励名称
+                            Text(challenge.formattedReward)
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundColor(.black)
+                            
+                            // 奖励描述
+                            Text(challenge.rewardDescription)
+                                .font(.system(size: 16))
+                                .foregroundColor(.gray)
+                                .lineSpacing(5)
+                        }
+                    }
+                }
+                .padding(20)
+                .background(Color.white)
+                .cornerRadius(16)
+                .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+            } else {
+                // 加载中状态
+                VStack {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding()
+                    
+                    Text("加载中...")
+                        .font(.system(size: 14))
+                        .foregroundColor(.gray)
+                }
+                .padding(20)
+                .background(Color.white)
+                .cornerRadius(16)
+                .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+            }
+        }
+    }
+    
+    // 进度信息部分
+    private var progressSection: some View {
+        Group {
+            if let progress = viewModel.progressResponse {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("进度信息")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.black)
+                    
+                    Text("完成进度：\(Int(progress.completionPercent))%")
+                        .font(.system(size: 16))
+                        .foregroundColor(.gray)
+                    
+                    Text("已完成：\(progress.enrollment.completedCheckins)/\(progress.challenge.requiredCheckins)")
+                        .font(.system(size: 16))
+                        .foregroundColor(.black)
+                    
+                    Text("剩余天数：\(progress.remainingDays)天")
+                        .font(.system(size: 16))
+                        .foregroundColor(.gray)
+                    
+                    Text("截止日期：\(formattedDate(date: progress.enrollment.deadline))")
+                        .font(.system(size: 16))
+                        .foregroundColor(.black)
+                }
+                .padding(20)
+                .background(Color.white)
+                .cornerRadius(16)
+                .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+            } else {
+                // 加载中状态
+                VStack {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding()
+                    
+                    Text("加载中...")
+                        .font(.system(size: 14))
+                        .foregroundColor(.gray)
+                }
+                .padding(20)
+                .background(Color.white)
+                .cornerRadius(16)
+                .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+            }
+        }
+    }
+    
     // 挑战详情部分
     private var challengeDetails: some View {
         Group {
@@ -525,65 +647,6 @@ struct ChallengeDetailView: View {
                             .padding(16)
                             .background(Color(UIColor.systemGray6).opacity(0.5))
                             .cornerRadius(12)
-                        }
-                    }
-                }
-                .padding(20)
-                .background(Color.white)
-                .cornerRadius(16)
-                .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
-            } else {
-                // 加载中状态
-                VStack {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding()
-                    
-                    Text("加载中...")
-                        .font(.system(size: 14))
-                        .foregroundColor(.gray)
-                }
-                .padding(20)
-                .background(Color.white)
-                .cornerRadius(16)
-                .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
-            }
-        }
-    }
-    
-    // 奖励信息部分
-    private var rewardSection: some View {
-        Group {
-            if let challenge = viewModel.selectedChallenge {
-                // 奖励信息卡片
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("挑战奖励")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.black)
-                    
-                    HStack(spacing: 16) {
-                        // 奖励图标
-                        ZStack {
-                            Circle()
-                                .fill(Color(hex: "FE2D55").opacity(0.1))
-                                .frame(width: 60, height: 60)
-                            
-                            Image(systemName: getRewardIcon(for: challenge.rewardType))
-                                .font(.system(size: 24))
-                                .foregroundColor(Color(hex: "FE2D55"))
-                        }
-                        
-                        VStack(alignment: .leading, spacing: 6) {
-                            // 奖励名称
-                            Text(challenge.formattedReward)
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(.black)
-                            
-                            // 奖励描述
-                            Text(challenge.rewardDescription)
-                                .font(.system(size: 16))
-                                .foregroundColor(.gray)
-                                .lineSpacing(5)
                         }
                     }
                 }

@@ -132,7 +132,7 @@ struct EnrolledChallengeView: View {
 
 /// 报名挑战卡片
 struct EnrollmentCard: View {
-    let enrollment: EnrollmentWithChallenge
+    let enrollment: EnrollmentWithChallengeDetail
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -146,14 +146,14 @@ struct EnrollmentCard: View {
                 Spacer()
                 
                 // 状态标签
-                Text(getStatusText(enrollment.enrollment.status))
+                Text(getStatusText(enrollment.enrollment.enrollmentStatus))
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.white)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .background(
                         RoundedRectangle(cornerRadius: 4)
-                            .fill(getStatusColor(enrollment.enrollment.status))
+                            .fill(getStatusColor(enrollment.enrollment.enrollmentStatus))
                     )
             }
             

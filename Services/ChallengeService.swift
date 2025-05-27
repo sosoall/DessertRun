@@ -71,14 +71,47 @@ class ChallengeService {
         )
     }
     
-    /// 获取用户已报名的挑战列表
-    /// - Parameter completion: 完成回调，返回结果包含报名列表或错误
-    func getEnrollments() -> AnyPublisher<[EnrollmentWithChallenge], NetworkError> {
-        return networkManager.request(
+    /// 获取用户已报名挑战列表（新后端格式）
+    /// 后端返回: { code,message,data:{ challenges:[...], pagination:{...} } }
+    func getEnrollments() -> AnyPublisher<[EnrollmentWithChallengeDetail], NetworkError> {
+        return networkManager.requestRaw(
             endpoint: ChallengeEndpoints.enrollments,
             method: .get,
+            parameters: nil,
             requiresAuth: true
         )
+        .tryMap { data, _ -> [EnrollmentWithChallengeDetail] in
+            let decoder = JSONDecoder()
+            // 自定义日期解析：同时支持带毫秒和不带毫秒的 ISO8601 字符串
+            decoder.dateDecodingStrategy = .custom { dec in
+                let container = try dec.singleValueContainer()
+                let dateStr = try container.decode(String.self)
+
+                // 1) 带毫秒的 ISO8601
+                let fmtWithFraction = ISO8601DateFormatter()
+                fmtWithFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                if let d = fmtWithFraction.date(from: dateStr) { return d }
+
+                // 2) 普通 ISO8601
+                let fmt = ISO8601DateFormatter()
+                if let d = fmt.date(from: dateStr) { return d }
+
+                // 3) 后端可能返回的 "yyyy-MM-dd HH:mm:ssZ" 格式
+                let df = DateFormatter()
+                df.locale = Locale(identifier: "en_US_POSIX")
+                df.dateFormat = "yyyy-MM-dd HH:mm:ssZ"
+                if let d = df.date(from: dateStr) { return d }
+
+                throw DecodingError.dataCorruptedError(in: container, debugDescription: "无法解析日期字符串: \(dateStr)")
+            }
+            let resp = try decoder.decode(EnrolledChallengesResponse.self, from: data)
+            return resp.data.challenges
+        }
+        .mapError { error in
+            if let netErr = error as? NetworkError { return netErr }
+            return NetworkError.decodingFailed(error)
+        }
+        .eraseToAnyPublisher()
     }
     
     /// 获取当前进行中挑战的进度

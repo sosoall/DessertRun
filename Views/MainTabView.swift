@@ -34,6 +34,7 @@ struct MainTabView: View {
         TabItem(title: "美食券", icon: "birthday.cake", selectedIcon: "birthday.cake"),
         TabItem(title: "打卡", icon: "figure.run", selectedIcon: "figure.run"),
         TabItem(title: "统计", icon: "chart.bar", selectedIcon: "chart.bar"),
+        TabItem(title: "我的挑战", icon: "list.bullet.rectangle", selectedIcon: "list.bullet.rectangle"),
         TabItem(title: "我的", icon: "person", selectedIcon: "person")
     ]
     
@@ -79,6 +80,13 @@ struct MainTabView: View {
                     }
                     .id("exerciseRecordTab") // 使用固定ID，避免每次都重新创建
                 case 4:
+                    // 我的挑战标签
+                    NavigationStack {
+                        EnrolledChallengeView()
+                            .environmentObject(appState)
+                    }
+                    .id("myChallengeTab")
+                case 5:
                     // 个人信息标签
                     NavigationStack {
                         ProfileHomeView()

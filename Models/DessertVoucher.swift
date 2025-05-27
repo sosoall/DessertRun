@@ -22,11 +22,11 @@ struct DessertVoucher: Identifiable, Codable, Equatable {
     /// 用户ID
     let userId: String
     
-    /// 甜品ID
-    let dessertId: String
+    /// 甜品ID（后端可能返回null）
+    let dessertId: String?
     
-    /// 甜品名称
-    let dessertName: String
+    /// 甜品名称(可选)
+    let dessertName: String?
     
     /// 等效美食数量
     let equivalentDessertCount: Double
@@ -122,7 +122,7 @@ struct DessertVoucher: Identifiable, Codable, Equatable {
         return DessertVoucher(
             id: UUID().uuidString,
             userId: "",
-            dessertId: "",
+            dessertId: nil,
             dessertName: "未知美食",
             equivalentDessertCount: 0,
             caloriesValue: 0,
@@ -180,5 +180,93 @@ struct DessertVoucher: Identifiable, Codable, Equatable {
         case imageURL = "image_url"
         case exerciseType = "exercise_type"
         case exerciseName = "exercise_name"
+    }
+}
+
+// MARK: - 自定义Codable兼容
+
+extension DessertVoucher {
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        id = try container.decode(String.self, forKey: .id)
+        userId = try container.decode(String.self, forKey: .userId)
+        dessertId = try? container.decodeIfPresent(String.self, forKey: .dessertId)
+        dessertName = try? container.decodeIfPresent(String.self, forKey: .dessertName)
+        equivalentDessertCount = try container.decode(Double.self, forKey: .equivalentDessertCount)
+        caloriesValue = try container.decode(Double.self, forKey: .caloriesValue)
+        workoutRecordId = try? container.decodeIfPresent(String.self, forKey: .workoutRecordId)
+        status = try container.decode(String.self, forKey: .status)
+
+        // 日期解析：后端返回ISO8601，带毫秒或不带毫秒
+        let iso8601WithMs = ISO8601DateFormatter()
+        iso8601WithMs.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let iso8601 = ISO8601DateFormatter()
+
+        func decodeDate(forKey key: CodingKeys) throws -> Date {
+            let dateStr = try container.decode(String.self, forKey: key)
+            if let d = iso8601WithMs.date(from: dateStr) { return d }
+            if let d = iso8601.date(from: dateStr) { return d }
+            throw DecodingError.dataCorruptedError(forKey: key, in: container, debugDescription: "日期格式不符合ISO8601")
+        }
+
+        createdAt = try decodeDate(forKey: .createdAt)
+        updatedAt = (try? container.decodeIfPresent(String.self, forKey: .updatedAt)).flatMap { iso8601WithMs.date(from: $0) ?? iso8601.date(from: $0) }
+        expireAt = (try? container.decodeIfPresent(String.self, forKey: .expireAt)).flatMap { iso8601WithMs.date(from: $0) ?? iso8601.date(from: $0) }
+
+        imageId = try? container.decodeIfPresent(String.self, forKey: .imageId)
+
+        // image_url 或 voucher_image_url
+        if let img = try? container.decodeIfPresent(String.self, forKey: .imageURL) {
+            imageURL = img
+        } else {
+            // 动态尝试 voucher_image_url 字段
+            struct DynamicKey: CodingKey {
+                var stringValue: String
+                init?(stringValue: String) { self.stringValue = stringValue }
+                var intValue: Int?
+                init?(intValue: Int) { return nil }
+            }
+
+            let altKey = DynamicKey(stringValue: "voucher_image_url")!
+            let altContainer = try decoder.container(keyedBy: DynamicKey.self)
+            if let altImg = try? altContainer.decodeIfPresent(String.self, forKey: altKey) {
+                imageURL = altImg
+            } else {
+                imageURL = nil
+            }
+        }
+
+        // exercise type/name
+        exerciseType = try? container.decodeIfPresent(String.self, forKey: .exerciseType)
+        exerciseName = try? container.decodeIfPresent(String.self, forKey: .exerciseName)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+
+        try container.encode(id, forKey: .id)
+        try container.encode(userId, forKey: .userId)
+        try container.encodeIfPresent(dessertId, forKey: .dessertId)
+        try container.encodeIfPresent(dessertName, forKey: .dessertName)
+        try container.encode(equivalentDessertCount, forKey: .equivalentDessertCount)
+        try container.encode(caloriesValue, forKey: .caloriesValue)
+        try container.encodeIfPresent(workoutRecordId, forKey: .workoutRecordId)
+        try container.encode(status, forKey: .status)
+
+        let iso8601 = ISO8601DateFormatter()
+        let createdStr = iso8601.string(from: createdAt)
+        try container.encode(createdStr, forKey: .createdAt)
+        if let up = updatedAt {
+            try container.encode(iso8601.string(from: up), forKey: .updatedAt)
+        }
+        if let ex = expireAt {
+            try container.encode(iso8601.string(from: ex), forKey: .expireAt)
+        }
+
+        try container.encodeIfPresent(imageId, forKey: .imageId)
+        try container.encodeIfPresent(imageURL, forKey: .imageURL)
+        try container.encodeIfPresent(exerciseType, forKey: .exerciseType)
+        try container.encodeIfPresent(exerciseName, forKey: .exerciseName)
     }
 } 

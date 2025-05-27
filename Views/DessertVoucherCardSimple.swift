@@ -686,7 +686,7 @@ struct DessertVoucherCardSimple: View {
         
         // 2. 加载图标
         if iconImage == nil {
-            let dessertId = voucher.dessertId
+            let dessertId = voucher.dessertId ?? ""
             
             // 优先尝试从URL缓存获取图标
             if let cachedIconURL = ImageCacheService.shared.getCachedImageURL(forId: "icon_\(dessertId)") {
@@ -758,7 +758,7 @@ struct DessertVoucherCardSimple: View {
     
     // 加载美食券图片的备用方法
     private func loadVoucherImageFallback(imageId: String?) {
-        let dessertId = voucher.dessertId
+        let dessertId = voucher.dessertId ?? ""
         
         // 从API获取图片URL
         let imageURL: URL?

@@ -18,7 +18,7 @@ class ChallengeViewModel: ObservableObject {
     @Published var errorMessage: String? = nil
     @Published var challengeActivities: [ChallengeActivity] = []
     @Published var filteredActivities: [ChallengeActivity] = []
-    @Published var enrolledChallenges: [EnrollmentWithChallenge] = []
+    @Published var enrolledChallenges: [EnrollmentWithChallengeDetail] = []
     @Published var selectedChallenge: ChallengeActivity? = nil
     @Published var selectedEnrollment: ChallengeEnrollment? = nil
     @Published var progressResponse: ChallengeProgressResponse? = nil
@@ -287,7 +287,7 @@ class ChallengeViewModel: ObservableObject {
     }
     
     /// 获取指定挑战的报名信息
-    func getEnrollment(for challengeId: String) -> ChallengeEnrollment? {
+    func getEnrollment(for challengeId: String) -> ChallengeEnrollmentDetail? {
         return enrolledChallenges.first { $0.challenge.id == challengeId }?.enrollment
     }
     
