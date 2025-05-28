@@ -16,10 +16,12 @@ struct BasicEnrollmentVoucherListView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
+            Spacer().frame(height: 20)
             // 引导语
             Text("请用运动去激活下列美食券，完成挑战吧！")
-                .font(.system(size: 16))
-                .foregroundColor(.gray)
+                .font(.headline)
+                .foregroundColor(Color.DessertRun.accent)
+                .bold()
                 .multilineTextAlignment(.leading)
                 .padding(.horizontal, 20)
             

@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import ConfettiSwiftUI
 
 /// 挑战详情页面
 struct ChallengeDetailView: View {
@@ -17,6 +18,8 @@ struct ChallengeDetailView: View {
     @State private var progress: ChallengeProgressResponse?
     @State private var showGiftStatus = false
     @State private var voucherSheetHeight: CGFloat = UIScreen.main.bounds.height * 0.5
+    @State private var showConfetti = false
+    @State private var confettiCounter = 0
     
     // 挑战ID
     let challengeId: String
@@ -80,10 +83,10 @@ struct ChallengeDetailView: View {
                 // 挑战内容区域
                 challengeContentArea
                 
-                // 底部间距
-                Spacer(minLength: 80)
+                // 底部间距（移除或极小化）
+                Spacer(minLength: 0)
             }
-            .padding(.bottom, 16)
+            .padding(.bottom, 86) // 16 基础间距 + 70 按钮高度
         }
     }
     
@@ -94,8 +97,8 @@ struct ChallengeDetailView: View {
             challengeHeader
             
             // 进度信息（仅在已报名时显示）
-            if isEnrolled, let _ = currentEnrollment {
-                progressSection
+            if isEnrolled, viewModel.progressResponse != nil {
+                progressInfoArea
             }
 
             // 奖励信息
@@ -110,23 +113,19 @@ struct ChallengeDetailView: View {
     // 操作按钮区域
     private var actionButtonArea: some View {
         VStack(spacing: 0) {
-            // 按钮内容
             actionButton
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
-                .padding(.bottom, 8)
-            
-            // 安全区域
-            Rectangle()
-                .fill(Color.clear)
-                .frame(height: max(0, (UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.keyWindow }.first?.safeAreaInsets.bottom ?? 0) - 8))
         }
+        .frame(maxWidth: .infinity)
+        .frame(height: 70)
         .background(
-            // 磨砂玻璃效果
             Rectangle()
-                .fill(.thinMaterial)
-                .ignoresSafeArea(.container, edges: .bottom)
+                .fill(.ultraThinMaterial)
+                .opacity(0.6)
+                .blur(radius: 6)
         )
+        .confettiCannon(trigger: $confettiCounter, num: 40, colors: [.red, .yellow, .green, .blue], radius: 400)
     }
     
     // 初始数据加载
@@ -161,6 +160,7 @@ struct ChallengeDetailView: View {
             DRInfo("报名详情: 状态=\(enrollment.enrollment.enrollmentStatus), ID=\(enrollment.enrollment.id.suffix(6))")
         }
         
+        // 进度百分比直接显示100%
         // 如果用户已报名且状态为进行中，默认展开美食券面板
         // 优先使用progressResponse中的状态，如果没有则使用enrolledChallenges中的状态
         let shouldAutoExpand: Bool = {
@@ -214,11 +214,7 @@ struct ChallengeDetailView: View {
             Button("取消", role: .cancel) {}
             Button("确认") {
                 // 执行报名操作
-                viewModel.enrollChallenge(id: challengeId) { success in
-                    if success {
-                        isEnrolled = true
-                    }
-                }
+                enrollAction()
             }
         }
     }
@@ -259,18 +255,19 @@ struct ChallengeDetailView: View {
         .presentationDetents([.height(voucherSheetHeight)])
     }
     
-    // 进度页面关闭按钮
+    // 进度页面关闭按钮（次按钮样式）
     private var progressCloseButton: some View {
         Button("关闭") {
             showProgress = false
         }
         .font(.system(size: 16, weight: .medium))
-        .foregroundColor(.white)
+        .foregroundColor(Color(hex: "FE2D55"))
         .frame(height: 50)
         .frame(maxWidth: .infinity)
         .background(
             RoundedRectangle(cornerRadius: 25)
-                .fill(Color(hex: "FE2D55"))
+                .stroke(Color(hex: "FE2D55"), lineWidth: 2)
+                .background(Color.white.cornerRadius(25))
         )
         .padding(.horizontal, 20)
         .padding(.bottom, 20)
@@ -528,44 +525,48 @@ struct ChallengeDetailView: View {
         }
     }
     
-    // 进度信息部分
-    private var progressSection: some View {
-        Group {
-            if let enrollment = currentEnrollment {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("挑战进度")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.black)
-                    
-                    Text("已完成：\(enrollment.enrollment.completedCheckins)/\(enrollment.challenge.requiredCheckins)")
-                        .font(.system(size: 16))
-                        .foregroundColor(.black)
-                    
-                    Text("剩余天数：\(enrollment.progress.remainingDays)天")
-                        .font(.system(size: 16))
-                        .foregroundColor(.gray)
+    // 进度信息区域
+    @ViewBuilder
+    private var progressInfoArea: some View {
+        if isEnrolled, let progress = viewModel.progressResponse {
+            VStack(spacing: 12) {
+                HStack {
+                    Image(systemName: "checkmark.seal.fill")
+                        .foregroundColor(.green)
+                        .font(.system(size: 28))
+                        .scaleEffect(showConfetti ? 1.2 : 1.0)
+                        .animation(.spring(response: 0.4, dampingFraction: 0.5), value: showConfetti)
+                    Text("恭喜你已报名成功！")
+                        .font(.title3.bold())
+                        .foregroundColor(.accentColor)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(20)
-                .background(Color.white)
-                .cornerRadius(16)
-                .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
-            } else {
-                // 加载中状态
-                VStack {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding()
-                    
-                    Text("加载中...")
-                        .font(.system(size: 14))
-                        .foregroundColor(.gray)
-                }
-                .padding(20)
-                .background(Color.white)
-                .cornerRadius(16)
-                .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+                Text("当前进度：\(Int(progress.completionPercent))%")
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                    .padding(.top, 2)
+                Text("剩余天数：\(progress.remainingDays)天")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                // 可选：进度条动画
+                ProgressView(value: progress.completionPercent / 100)
+                    .progressViewStyle(LinearProgressViewStyle(tint: .accentColor))
+                    .frame(height: 8)
+                    .padding(.horizontal, 24)
+                    .scaleEffect(x: 1, y: 1.3, anchor: .center)
+                    .animation(.easeOut(duration: 0.6), value: showConfetti)
             }
+            .padding(.vertical, 18)
+            .frame(maxWidth: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 18)
+                    .fill(Color.white.opacity(0.85))
+                    .shadow(color: .accentColor.opacity(0.08), radius: 8, y: 2)
+            )
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
+            .transition(.move(edge: .top).combined(with: .opacity))
+        } else {
+            EmptyView()
         }
     }
     
@@ -1055,6 +1056,18 @@ struct ChallengeDetailView: View {
             }
         }
     }
+    
+    // 报名按钮点击事件
+    private func enrollAction() {
+        viewModel.enrollChallenge(id: challengeId) { success in
+            if success {
+                // 报名成功后触发彩带动画
+                showConfetti = true
+                confettiCounter += 1
+                // 可选：自动滚动到进度区或弹窗提示
+            }
+        }
+    }
 }
 
 // MARK: - 自定义返回按钮
@@ -1066,7 +1079,7 @@ extension ChallengeDetailView {
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundColor(.black)
                 .padding(12)
-                .background(Color.white.opacity(0.8))
+                .background(Color.white.opacity(0.2))
                 .clipShape(Circle())
         }
         .padding(.leading, 16)
