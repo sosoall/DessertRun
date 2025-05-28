@@ -21,6 +21,11 @@ struct ChallengeDetailView: View {
     @State private var showConfetti = false
     @State private var confettiCounter = 0
     
+    // 展开美食券根级弹窗
+    @State private var showExpandedVoucher = false
+    @State private var selectedVoucherForPopup: DessertVoucher? = nil
+    @State private var reopenVoucherSheetAfterFullScreen = false
+    
     // 挑战ID
     let challengeId: String
     
@@ -39,6 +44,17 @@ struct ChallengeDetailView: View {
         mainContent
             .navigationBarHidden(true)
             .background(Color(UIColor.systemGray6))
+            // 背景缩放
+            .scaleEffect(showProgress ? 0.90 : 1)
+            // 额外黑色遮罩而非简单降低不透明度
+            .overlay(
+                Color.black
+                    .opacity(showProgress ? 0.55 : 0)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+                    .animation(.easeInOut(duration: 0.25), value: showProgress)
+            )
+            .animation(.easeInOut(duration: 0.25), value: showProgress)
             .onAppear {
                 loadInitialData()
             }
@@ -53,9 +69,6 @@ struct ChallengeDetailView: View {
             } message: {
                 alertMessage
             }
-            .sheet(isPresented: $showProgress) {
-                progressSheet
-            }
             .sheet(isPresented: $showGiftStatus) {
                 giftStatusSheet
             }
@@ -63,6 +76,41 @@ struct ChallengeDetailView: View {
                 hideTabBar()
             }
             .overlay(backButton, alignment: .topLeading)
+            // 系统 sheet 显示进度面板
+            .sheet(isPresented: $showProgress) {
+                if let enrollment = currentEnrollment {
+                    challengeVoucherContent(enrollment: enrollment)
+                        .presentationDetents([.height(voucherSheetHeight)])
+                        .presentationCornerRadius(25)
+                }
+            }
+            // 展开美食券 - 全屏覆盖
+            .fullScreenCover(isPresented: $showExpandedVoucher, onDismiss: {
+                if reopenVoucherSheetAfterFullScreen {
+                    reopenVoucherSheetAfterFullScreen = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                        showProgress = true
+                    }
+                }
+            }) {
+                if let voucher = selectedVoucherForPopup {
+                    ExpandedVoucherFullScreen(voucher: voucher, isPresented: $showExpandedVoucher)
+                        .environmentObject(appState)
+                }
+            }
+            // 监听卡片展开通知
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowExpandedCard"))) { notification in
+                if let voucher = notification.object as? DessertVoucher {
+                    reopenVoucherSheetAfterFullScreen = showProgress
+                    if showProgress {
+                        showProgress = false
+                    }
+                    self.selectedVoucherForPopup = voucher
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        self.showExpandedVoucher = true
+                    }
+                }
+            }
     }
     
     // 主要内容区域
@@ -228,49 +276,6 @@ struct ChallengeDetailView: View {
                 Text("您确定要报名参加此挑战吗？")
             }
         }
-    }
-    
-    // 进度展示页面
-    private var progressSheet: some View {
-        Group {
-            if let enrollment = currentEnrollment {
-                progressSheetContent(enrollment: enrollment)
-            }
-        }
-    }
-    
-    // 进度页面内容
-    private func progressSheetContent(enrollment: EnrollmentWithChallengeDetail) -> some View {
-        VStack(spacing: 16) {
-            // 美食券列表
-            BasicEnrollmentVoucherListView(sheetHeight: $voucherSheetHeight, enrollmentId: enrollment.enrollment.id)
-                .environmentObject(appState)
-            
-            Spacer()
-            
-            // 关闭按钮
-            progressCloseButton
-        }
-        .background(Color(UIColor.systemGray6))
-        .presentationDetents([.height(voucherSheetHeight)])
-    }
-    
-    // 进度页面关闭按钮（次按钮样式）
-    private var progressCloseButton: some View {
-        Button("关闭") {
-            showProgress = false
-        }
-        .font(.system(size: 16, weight: .medium))
-        .foregroundColor(Color(hex: "FE2D55"))
-        .frame(height: 50)
-        .frame(maxWidth: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: 25)
-                .stroke(Color(hex: "FE2D55"), lineWidth: 2)
-                .background(Color.white.cornerRadius(25))
-        )
-        .padding(.horizontal, 20)
-        .padding(.bottom, 20)
     }
     
     // 查看礼物状态页面
@@ -626,7 +631,7 @@ struct ChallengeDetailView: View {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundColor(Color(hex: "FE2D55"))
                         
-                        Text("完成\(challenge.requiredCheckins)次有效运动打卡")
+                        Text("\(challenge.requiredCheckins)次有效运动打卡")
                             .font(.system(size: 16))
                             .foregroundColor(.black)
                     }
@@ -1068,6 +1073,27 @@ struct ChallengeDetailView: View {
             }
         }
     }
+    
+    // MARK: - 进度面板内容（系统 sheet 使用）
+    private func challengeVoucherContent(enrollment: EnrollmentWithChallengeDetail) -> some View {
+        VStack(spacing: 16) {
+            BasicEnrollmentVoucherListView(sheetHeight: $voucherSheetHeight, enrollmentId: enrollment.enrollment.id)
+                .environmentObject(appState)
+
+            Button("关闭") { showProgress = false }
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(Color(hex: "FE2D55"))
+                .frame(height: 50)
+                .frame(maxWidth: .infinity)
+                .background(
+                    RoundedRectangle(cornerRadius: 25)
+                        .fill(Color.white)
+                )
+                .padding(.horizontal, 20)
+                .padding(.bottom, 32)
+        }
+        .background(Color(UIColor.systemBackground))
+    }
 }
 
 // MARK: - 自定义返回按钮
@@ -1085,6 +1111,25 @@ extension ChallengeDetailView {
         .padding(.leading, 16)
         .padding(.top, (UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.keyWindow }.first?.safeAreaInsets.top ?? 0) + 8)
         .zIndex(100)
+    }
+}
+
+// ExpandedVoucherFullScreen : full screen cover view
+private struct ExpandedVoucherFullScreen: View {
+    let voucher: DessertVoucher
+    @Binding var isPresented: Bool
+    @EnvironmentObject var appState: AppState
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.8)
+                .ignoresSafeArea()
+                .onTapGesture { isPresented = false }
+
+            ExpandedCardView(voucher: voucher, isShowing: $isPresented, preloadedImageInfo: nil)
+                .environmentObject(appState)
+                .padding(.horizontal, 20)
+        }
     }
 }
 

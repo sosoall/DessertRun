@@ -70,6 +70,11 @@ struct DessertVoucherCardSimple: View {
     /// 添加状态变量存储美食券大图片
     @State private var voucherImage: UIImage? = nil
     
+    /// 添加状态便捷属性
+    private var status: VoucherStatus { voucher.voucherStatus }
+    private var isInactive: Bool { status == .inactive }
+    private var isActive: Bool { status == .active }
+    
     var body: some View {
         GeometryReader { geometry in // 使用GeometryReader获取整体宽度
             ZStack(alignment: .top) {
@@ -270,117 +275,25 @@ struct DessertVoucherCardSimple: View {
                 
                 // 4. 底部操作区 - 第一阶段就完整显示
                 if forceExpanded {
-                    // 展开状态下的底部区域
-                    VStack(spacing: 0) {
-                        // 底部核销区域背景、文字和按钮
-                        HStack {
-                            VStack(alignment: .leading, spacing: 1) {
-                                if forceExpanded {
-                                    Text("美食券")
-                                        .font(.system(size: 14, weight: .medium))
-                                }
-                                
-                                // 使用美食券的剩余天数
-                                let daysRemaining = voucher.remainingDays
-                                // 剩余天数
-                                Text("剩余\(daysRemaining)天")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.gray)
-                            }
-                            
-                            Spacer()
-                            
-                            // 核销按钮 - 加入到底部区域中
-                            Button(action: {
-                                showRedeemConfirm = true
-                            }) {
-                                // 按钮层
-                                ZStack {
-                                    Text("立即核销")
-                                        .font(.system(size: 14, weight: .medium))
-                                        .foregroundColor(.white)
-                                        .padding(.vertical, 5)
-                                        .padding(.horizontal, 14)
-                                        .background(Color(hex: "#FF318D"))
-                                        .cornerRadius(8)
-                                    
-                                    // 按钮光韵效果 - 第五阶段
-                                    Rectangle()
-                                        .fill(
-                                            LinearGradient(
-                                                gradient: Gradient(stops: [
-                                                    .init(color: Color.white.opacity(0.0), location: 0),
-                                                    .init(color: Color.white.opacity(0.5), location: 0.3),
-                                                    .init(color: Color.white.opacity(0.8), location: 0.5),
-                                                    .init(color: Color.white.opacity(0.5), location: 0.7),
-                                                    .init(color: Color.white.opacity(0.0), location: 1)
-                                                ]),
-                                                startPoint: .leading,
-                                                endPoint: .trailing
-                                            )
-                                        )
-                                        .frame(width: 100, height: 30)
-                                        .offset(x: buttonShineOffset)
-                                        .mask(
-                                            Text("立即核销")
-                                                .font(.system(size: 14, weight: .medium))
-                                                .padding(.vertical, 5)
-                                                .padding(.horizontal, 14)
-                                                .background(Color.white)
-                                                .cornerRadius(8)
-                                        )
-                                        .opacity(animateButtonShine ? 1 : 0)
-                                }
-                            }
-                            .disabled(isRedeeming)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 16) // 垂直内边距
-                    }
-                    .frame(width: geometry.size.width, height: 68) // 固定高度
-                    .background(
-                        CustomShape(radius: 10, corners: [.bottomLeft, .bottomRight])
-                            .fill(Color.white)
-                    )
-                    .overlay(
-                        // 只添加顶部的虚线分隔线
-                        Rectangle()
-                            .frame(width: geometry.size.width, height: 1)
-                            .foregroundColor(Color.gray.opacity(0.5))
-                            .position(x: geometry.size.width/2, y: 0.5) // 放置在顶部
-                            .overlay(
-                                Rectangle()
-                                    .frame(width: geometry.size.width, height: 1)
-                                    .foregroundColor(.white)
-                                    .mask(
-                                        HStack(spacing: 2.5) {
-                                            ForEach(0..<Int(geometry.size.width/5), id: \.self) { _ in
-                                                Rectangle().frame(width: 2.5, height: 1)
-                                                Spacer().frame(width: 2.5)
-                                            }
-                                        }
-                                    )
-                                    .position(x: geometry.size.width/2, y: 0.5) // 放置在顶部
-                            )
-                    )
-                    .offset(y: 220) // 位置固定，紧接着上面的卡片
-                    .opacity(animateFooterBase ? 1 : 0)
-                    .animation(.easeIn(duration: 0.2), value: animateFooterBase)
-                    .zIndex(10)
+                    // 底部副券区域已废弃，不再显示
                 } else {
-                    // 收起状态下的底部
-                    cardFooter
-                        .frame(width: geometry.size.width)
-                        .offset(y: 75)
-                        .zIndex(10)
+                    // 收起状态：仅任务卡显示底部操作区
+                    if isInactive {
+                        cardFooter
+                            .frame(width: geometry.size.width)
+                            .offset(y: 75)
+                            .zIndex(10)
+                    }
                 }
             }
             .frame(width: geometry.size.width) // 确保整体宽度一致
         }
         // 确保整个卡片没有任何外部padding
         .padding(0)
-        .frame(height: forceExpanded ? (220 + 68) : (75 + 40)) // 明确设置总高度为两部分高度之和
+        .frame(height: forceExpanded ? 220 : (75 + (isInactive ? 40 : 0))) // 展开无副券，收起任务卡含副券40
         .id("card-\(voucher.id)-\(instanceId)") // 添加唯一ID避免状态混淆
+        // 为未激活任务卡添加灰度效果
+        .grayscale(isInactive ? 1.0 : 0.0)
         .onAppear {
             // 获取美食券相关图片
             loadImages()
@@ -410,26 +323,23 @@ struct DessertVoucherCardSimple: View {
             }
         }
         .onTapGesture {
-            // 只有非强制展开状态下才触发弹窗展示
-            if !forceExpanded {
-                // 创建包含已加载图片信息的userInfo字典
+            guard !forceExpanded else { return }
+            if isInactive {
+                // 任务卡整体点击 => 去运动
+                NotificationCenter.default.post(name: NSNotification.Name("GoWorkoutFromTaskCard"), object: voucher)
+            } else {
+                // 展开美食券
                 var userInfo: [String: Any] = [
-                    "preloadedImages": hasLoadedImages,  // 传递已加载状态
-                    "instanceId": instanceId,            // 传递实例ID
-                    "voucherId": voucher.id              // 传递美食券ID
+                    "preloadedImages": hasLoadedImages,
+                    "instanceId": instanceId,
+                    "voucherId": voucher.id
                 ]
-                
-                // 如果有图片URL，也传递
                 if let imageURL = voucherImageURL {
                     userInfo["imageURL"] = imageURL.absoluteString
                 }
-                
-                // 如果有图标图片，标记为已加载
                 if iconImage != nil {
                     userInfo["iconLoaded"] = true
                 }
-                
-                // 通知父视图显示弹窗，并传递额外信息
                 NotificationCenter.default.post(
                     name: NSNotification.Name("ShowExpandedCard"),
                     object: voucher,
@@ -1139,50 +1049,55 @@ struct DessertVoucherCardSimple: View {
     
     // MARK: - 卡片底部部分
     private var cardFooter: some View {
-        // 底部核销区域 - 不使用GeometryReader，简化结构
         HStack {
             VStack(alignment: .leading, spacing: 1) {
-                if forceExpanded {
-                    Text("美食券")
-                        .font(.system(size: 14, weight: .medium))
-                }
-                
+                // 标签：任务卡/美食券
+                Text(isInactive ? "任务卡" : "美食券")
+                    .font(.system(size: 14, weight: .medium))
                 // 剩余天数
                 Text("剩余\(voucher.remainingDays)天")
                     .font(.system(size: 12))
                     .foregroundColor(.gray)
             }
-            
             Spacer()
-            
-            // 核销按钮
-            Button(action: {
-                showRedeemConfirm = true
-            }) {
-                Text("立即核销")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.white)
-                    .padding(.vertical, 5)
-                    .padding(.horizontal, 14)
-                    .background(Color(hex: "#FE2D55"))
-                    .cornerRadius(8)
+            // 根据状态显示按钮或占位
+            if isInactive {
+                // 去运动按钮
+                Button(action: {
+                    // 发送通知，外部可导航去运动
+                    NotificationCenter.default.post(name: NSNotification.Name("GoWorkoutFromTaskCard"), object: voucher)
+                }) {
+                    Text("去运动")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.white)
+                        .padding(.vertical, 5)
+                        .padding(.horizontal, 14)
+                        .background(Color(hex: "#9E9E9E"))
+                        .cornerRadius(8)
+                }
+            } else if status == .used {
+                Text("已使用")
+                    .font(.system(size: 14))
+                    .foregroundColor(.gray)
+            } else if status == .expired {
+                Text("已过期")
+                    .font(.system(size: 14))
+                    .foregroundColor(.gray)
             }
-            .disabled(isRedeeming)
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 8) // 垂直内边距
-        .frame(height: 40) // 固定高度
+        .padding(.vertical, 8)
+        .frame(height: 40)
         .background(
             CustomShape(radius: 10, corners: [.bottomLeft, .bottomRight])
                 .fill(Color.white)
         )
         .overlay(
-            // 只添加顶部的虚线分隔线
             GeometryReader { geo in
                 Rectangle()
                     .frame(width: geo.size.width, height: 1)
                     .foregroundColor(Color.gray.opacity(0.5))
-                    .position(x: geo.size.width/2, y: 0.5) // 放置在顶部
+                    .position(x: geo.size.width/2, y: 0.5)
                     .overlay(
                         Rectangle()
                             .frame(width: geo.size.width, height: 1)
@@ -1195,7 +1110,7 @@ struct DessertVoucherCardSimple: View {
                                     }
                                 }
                             )
-                            .position(x: geo.size.width/2, y: 0.5) // 放置在顶部
+                            .position(x: geo.size.width/2, y: 0.5)
                     )
             }
         )

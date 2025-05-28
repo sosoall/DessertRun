@@ -9,9 +9,10 @@ import Foundation
 
 /// 美食券状态
 enum VoucherStatus: String, Codable {
-    case active = "active"     // 有效
-    case used = "used"         // 已使用
-    case expired = "expired"   // 已过期
+    case inactive = "inactive"   // 未激活，任务卡
+    case active = "active"       // 已激活，可查看
+    case used = "used"           // 已使用
+    case expired = "expired"     // 已过期
 }
 
 /// 美食券模型
@@ -86,7 +87,7 @@ struct DessertVoucher: Identifiable, Codable, Equatable {
     
     /// 检查券是否可用
     var isUsable: Bool {
-        return voucherStatus == .active
+        return voucherStatus == .active // 仅激活后可用
     }
     
     /// 获取剩余有效天数
