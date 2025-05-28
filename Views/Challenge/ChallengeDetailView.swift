@@ -7,95 +7,210 @@ struct ChallengeDetailView: View {
     @EnvironmentObject var appState: AppState
     @Environment(\.presentationMode) var presentationMode
     
-    // 视图模型
-    @StateObject private var viewModel: ChallengeViewModel
+    // 视图模型 - 接受外部传入的共享实例
+    @ObservedObject var viewModel: ChallengeViewModel
     
     // 视图状态
     @State private var showingEnrollConfirmation = false
     @State private var isEnrolled = false
     @State private var showProgress = false
     @State private var progress: ChallengeProgressResponse?
+    @State private var showGiftStatus = false
     @State private var voucherSheetHeight: CGFloat = UIScreen.main.bounds.height * 0.5
     
     // 挑战ID
     let challengeId: String
     
-    // 初始化
-    init(challengeId: String) {
+    // 计算属性：获取当前挑战的报名信息
+    private var currentEnrollment: EnrollmentWithChallengeDetail? {
+        return viewModel.enrolledChallenges.first { $0.challenge.id == challengeId }
+    }
+    
+    // 初始化 - 接受共享的viewModel
+    init(challengeId: String, viewModel: ChallengeViewModel) {
         self.challengeId = challengeId
-        self._viewModel = StateObject(wrappedValue: ChallengeViewModel(appState: AppState.shared))
+        self.viewModel = viewModel
     }
     
     var body: some View {
-        ZStack(alignment: .bottom) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    // 顶部背景图
-                    headerImage
-                    
-                    // 挑战内容区域
-                    VStack(spacing: 16) {
-                        // 挑战标题和基本信息
-                        challengeHeader
-                        
-                        // 奖励信息
-                        rewardSection
-
-                        // 进度信息（仅在已报名时显示）
-                        if isEnrolled, let _ = viewModel.progressResponse {
-                            progressSection
-                        }
-
-                        // 挑战要求和详细信息
-                        challengeDetails
-                    }
-                    .padding(.horizontal, 20)
-                    
-                    // 底部间距
-                    Spacer(minLength: 80)
-                }
-                .padding(.bottom, 16)
+        mainContent
+            .navigationBarHidden(true)
+            .background(Color(UIColor.systemGray6))
+            .onAppear {
+                loadInitialData()
             }
+            .onChange(of: viewModel.enrolledChallenges) { _, newValue in
+                updateEnrollmentStatus(newValue)
+            }
+            .onChange(of: viewModel.progressResponse) { _, newProgressResponse in
+                updateEnrollmentStatusFromProgress(newProgressResponse)
+            }
+            .alert("确认报名", isPresented: $showingEnrollConfirmation) {
+                enrollmentAlert
+            } message: {
+                alertMessage
+            }
+            .sheet(isPresented: $showProgress) {
+                progressSheet
+            }
+            .sheet(isPresented: $showGiftStatus) {
+                giftStatusSheet
+            }
+            .onDisappear {
+                hideTabBar()
+            }
+            .overlay(backButton, alignment: .topLeading)
+    }
+    
+    // 主要内容区域
+    private var mainContent: some View {
+        ZStack(alignment: .bottom) {
+            scrollContent
+            actionButtonArea
+        }
+    }
+    
+    // 滚动内容
+    private var scrollContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                // 顶部背景图
+                headerImage
+                
+                // 挑战内容区域
+                challengeContentArea
+                
+                // 底部间距
+                Spacer(minLength: 80)
+            }
+            .padding(.bottom, 16)
+        }
+    }
+    
+    // 挑战内容区域
+    private var challengeContentArea: some View {
+        VStack(spacing: 16) {
+            // 挑战标题和基本信息
+            challengeHeader
             
-            // 报名按钮
+            // 进度信息（仅在已报名时显示）
+            if isEnrolled, let _ = currentEnrollment {
+                progressSection
+            }
+
+            // 奖励信息
+            rewardSection
+
+            // 挑战要求和详细信息
+            challengeDetails
+        }
+        .padding(.horizontal, 20)
+    }
+    
+    // 操作按钮区域
+    private var actionButtonArea: some View {
+        VStack(spacing: 0) {
+            // 按钮内容
             actionButton
                 .padding(.horizontal, 20)
-                .padding(.bottom, 16)
-        }
-        .navigationBarHidden(true)
-        .background(Color(UIColor.systemGray6))
-        .onAppear {
-            // 加载挑战详情
-            viewModel.loadChallengeDetail(id: challengeId)
-            // 检查是否已报名
-            viewModel.loadEnrollments()
+                .padding(.top, 12)
+                .padding(.bottom, 8)
             
-            // 如果已报名，获取进度信息
-            if let enrollment = viewModel.getEnrollment(for: challengeId) {
-                isEnrolled = true
-                viewModel.loadProgress(enrollmentId: enrollment.id)
-            }
-            
-            // 隐藏底部TabBar
-            withAnimation(.easeInOut(duration: 0.25)) {
-                appState.hideTabBarForDrag = true
-            }
+            // 安全区域
+            Rectangle()
+                .fill(Color.clear)
+                .frame(height: max(0, (UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.keyWindow }.first?.safeAreaInsets.bottom ?? 0) - 8))
         }
-        .onChange(of: viewModel.enrolledChallenges) { _, newValue in
-            // 更新报名状态
-            isEnrolled = newValue.contains { $0.challenge.id == challengeId }
-            
-            // 如果已报名，获取进度信息
-            if isEnrolled, let enrollment = viewModel.getEnrollment(for: challengeId) {
-                viewModel.loadProgress(enrollmentId: enrollment.id)
-            }
+        .background(
+            // 磨砂玻璃效果
+            Rectangle()
+                .fill(.thinMaterial)
+                .ignoresSafeArea(.container, edges: .bottom)
+        )
+    }
+    
+    // 初始数据加载
+    private func loadInitialData() {
+        DRInfo("ChallengeDetailView loadInitialData: 开始加载挑战详情和相关数据")
+        
+        // 加载挑战详情
+        viewModel.loadChallengeDetail(id: challengeId)
+        
+        // 先确保已报名挑战数据是最新的
+        DRInfo("加载已报名挑战列表以确保状态同步")
+        viewModel.loadEnrollments()
+        
+        // 加载挑战进度（如果已报名）
+        viewModel.loadProgressByChallengeId(challengeId: challengeId)
+        
+        // 隐藏底部TabBar
+        withAnimation(.easeInOut(duration: 0.25)) {
+            appState.hideTabBarForDrag = true
         }
-        .onChange(of: viewModel.progressResponse?.enrollment.id) { _, newValue in
-            if isEnrolled && newValue != nil {
+    }
+    
+    // 更新报名状态
+    private func updateEnrollmentStatus(_ newValue: [EnrollmentWithChallengeDetail]) {
+        // 更新报名状态
+        let enrollment = newValue.first { $0.challenge.id == challengeId }
+        isEnrolled = enrollment != nil
+        
+        DRInfo("updateEnrollmentStatus: 挑战ID=\(challengeId.suffix(6)), 是否已报名=\(isEnrolled)")
+        
+        if let enrollment = enrollment {
+            DRInfo("报名详情: 状态=\(enrollment.enrollment.enrollmentStatus), ID=\(enrollment.enrollment.id.suffix(6))")
+        }
+        
+        // 如果用户已报名且状态为进行中，默认展开美食券面板
+        // 优先使用progressResponse中的状态，如果没有则使用enrolledChallenges中的状态
+        let shouldAutoExpand: Bool = {
+            if let progressResponse = viewModel.progressResponse {
+                let shouldExpand = progressResponse.enrollment.status.rawValue == "ongoing"
+                DRInfo("基于progressResponse判断自动展开: 状态=\(progressResponse.enrollment.status.rawValue), 展开=\(shouldExpand)")
+                return shouldExpand
+            } else if let enrollment = enrollment {
+                let shouldExpand = enrollment.enrollment.enrollmentStatus == .ongoing
+                DRInfo("基于enrolledChallenges判断自动展开: 状态=\(enrollment.enrollment.enrollmentStatus), 展开=\(shouldExpand)")
+                return shouldExpand
+            } else {
+                DRInfo("无报名数据，不自动展开")
+                return false
+            }
+        }()
+        
+        if shouldAutoExpand {
+            DRInfo("延迟0.5秒后自动展开美食券面板")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                DRInfo("执行自动展开美食券面板")
                 showProgress = true
             }
         }
-        .alert("确认报名", isPresented: $showingEnrollConfirmation) {
+    }
+    
+    // 更新报名状态从progressResponse
+    private func updateEnrollmentStatusFromProgress(_ newProgressResponse: ChallengeProgressResponse?) {
+        // 更新报名状态
+        isEnrolled = newProgressResponse != nil
+        
+        // 如果用户已报名且状态为进行中，默认展开美食券面板
+        let shouldAutoExpand: Bool = {
+            if let progressResponse = newProgressResponse {
+                return progressResponse.enrollment.status.rawValue == "ongoing"
+            } else {
+                return false
+            }
+        }()
+        
+        if shouldAutoExpand {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                showProgress = true
+            }
+        }
+    }
+    
+    // 报名确认弹窗
+    private var enrollmentAlert: some View {
+        Group {
             Button("取消", role: .cancel) {}
             Button("确认") {
                 // 执行报名操作
@@ -105,49 +220,124 @@ struct ChallengeDetailView: View {
                     }
                 }
             }
-        } message: {
+        }
+    }
+    
+    // 弹窗消息
+    private var alertMessage: some View {
+        Group {
             if let challenge = viewModel.selectedChallenge {
                 Text("您确定要报名参加\"\(challenge.name)\"吗？")
             } else {
                 Text("您确定要报名参加此挑战吗？")
             }
         }
-        .sheet(isPresented: $showProgress) {
-            if let progress = viewModel.progressResponse {
-                // 显示美食券列表
-                VStack(spacing: 16) {
-                    
-                    // 美食券列表
-                    BasicEnrollmentVoucherListView(sheetHeight: $voucherSheetHeight, enrollmentId: progress.enrollment.id)
-                        .environmentObject(appState)
-                    
-                    Spacer()
-                    
-                    // 关闭按钮
-                    Button("关闭") {
-                        showProgress = false
-                    }
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.white)
-                    .frame(height: 50)
-                    .frame(maxWidth: .infinity)
-                    .background(
-                        RoundedRectangle(cornerRadius: 25)
-                            .fill(Color(hex: "FE2D55"))
-                    )
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 20)
+    }
+    
+    // 进度展示页面
+    private var progressSheet: some View {
+        Group {
+            if let enrollment = currentEnrollment {
+                progressSheetContent(enrollment: enrollment)
+            }
+        }
+    }
+    
+    // 进度页面内容
+    private func progressSheetContent(enrollment: EnrollmentWithChallengeDetail) -> some View {
+        VStack(spacing: 16) {
+            // 美食券列表
+            BasicEnrollmentVoucherListView(sheetHeight: $voucherSheetHeight, enrollmentId: enrollment.enrollment.id)
+                .environmentObject(appState)
+            
+            Spacer()
+            
+            // 关闭按钮
+            progressCloseButton
+        }
+        .background(Color(UIColor.systemGray6))
+        .presentationDetents([.height(voucherSheetHeight)])
+    }
+    
+    // 进度页面关闭按钮
+    private var progressCloseButton: some View {
+        Button("关闭") {
+            showProgress = false
+        }
+        .font(.system(size: 16, weight: .medium))
+        .foregroundColor(.white)
+        .frame(height: 50)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 25)
+                .fill(Color(hex: "FE2D55"))
+        )
+        .padding(.horizontal, 20)
+        .padding(.bottom, 20)
+    }
+    
+    // 查看礼物状态页面
+    private var giftStatusSheet: some View {
+        VStack(spacing: 20) {
+            Text("礼物邮寄状态")
+                .font(.system(size: 20, weight: .bold))
+                .padding(.top)
+            
+            VStack(alignment: .leading, spacing: 16) {
+                HStack {
+                    Image(systemName: "gift.fill")
+                        .foregroundColor(Color(hex: "FE2D55"))
+                    Text("礼物状态：准备中")
+                        .font(.system(size: 16))
                 }
-                .background(Color(UIColor.systemGray6))
-                .presentationDetents([.height(voucherSheetHeight)])
+                
+                HStack {
+                    Image(systemName: "location.fill")
+                        .foregroundColor(Color(hex: "FE2D55"))
+                    Text("邮寄地址：北京市朝阳区...")
+                        .font(.system(size: 16))
+                }
+                
+                Button("修改地址") {
+                    // TODO: 实现修改地址功能
+                }
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(Color(hex: "FE2D55"))
+                .padding(.horizontal, 20)
+                .padding(.vertical, 8)
+                .background(Color(hex: "FE2D55").opacity(0.1))
+                .cornerRadius(8)
             }
-        }
-        .onDisappear {
-            withAnimation(.easeInOut(duration: 0.25)) {
-                appState.hideTabBarForDrag = false
+            .padding()
+            .background(Color(UIColor.systemGray6))
+            .cornerRadius(12)
+            .padding(.horizontal)
+            
+            Spacer()
+            
+            Button("关闭") {
+                showGiftStatus = false
             }
+            .font(.system(size: 16, weight: .medium))
+            .foregroundColor(.white)
+            .frame(height: 50)
+            .frame(maxWidth: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 25)
+                    .fill(Color(hex: "FE2D55"))
+            )
+            .padding(.horizontal, 20)
+            .padding(.bottom, 20)
         }
-        .overlay(backButton, alignment: .topLeading)
+        .background(Color.white)
+        .presentationDetents([.medium, .large])
+    }
+    
+    // 隐藏TabBar
+    private func hideTabBar() {
+        withAnimation(.easeInOut(duration: 0.25)) {
+            appState.hideTabBarForDrag = false
+        }
     }
     
     // 顶部背景图
@@ -232,14 +422,14 @@ struct ChallengeDetailView: View {
                         Spacer()
                         
                         // 状态标签
-                        Text(challenge.statusText)
+                        Text(getDisplayStatusText(challenge: challenge))
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(.white)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
                             .background(
                                 Capsule()
-                                    .fill(getStatusColor(status: challenge.statusText))
+                                    .fill(getStatusColor(status: getDisplayStatusText(challenge: challenge)))
                             )
                     }
                     
@@ -341,17 +531,17 @@ struct ChallengeDetailView: View {
     // 进度信息部分
     private var progressSection: some View {
         Group {
-            if let progress = viewModel.progressResponse {
+            if let enrollment = currentEnrollment {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("进度信息")
+                    Text("挑战进度")
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(.black)
                     
-                    Text("已完成：\(progress.enrollment.completedCheckins)/\(progress.challenge.requiredCheckins)")
+                    Text("已完成：\(enrollment.enrollment.completedCheckins)/\(enrollment.challenge.requiredCheckins)")
                         .font(.system(size: 16))
                         .foregroundColor(.black)
                     
-                    Text("剩余天数：\(progress.remainingDays)天")
+                    Text("剩余天数：\(enrollment.progress.remainingDays)天")
                         .font(.system(size: 16))
                         .foregroundColor(.gray)
                 }
@@ -602,20 +792,8 @@ struct ChallengeDetailView: View {
         VStack {
             if let challenge = viewModel.selectedChallenge {
                 if isEnrolled {
-                    // 已报名 - 显示去运动按钮
-                    Button(action: {
-                        showProgress = true
-                    }) {
-                        Text("去运动")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(height: 50)
-                            .frame(maxWidth: .infinity)
-                            .background(
-                                RoundedRectangle(cornerRadius: 25)
-                                    .fill(Color(hex: "FE2D55"))
-                            )
-                    }
+                    // 已报名 - 根据状态显示不同按钮
+                    enrolledActionButtons
                 } else if challenge.isInProgress {
                     // 未报名且活动进行中 - 显示报名按钮
                     Button(action: {
@@ -665,9 +843,112 @@ struct ChallengeDetailView: View {
                     )
             }
         }
-        .background(Color.white)
-        .cornerRadius(25)
-        .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
+    }
+    
+    // 已报名状态的按钮组合
+    @ViewBuilder
+    private var enrolledActionButtons: some View {
+        // 优先使用从progress API获取到的状态，如果没有则回退到enrolledChallenges中的状态
+        let statusString: String = {
+            if let progressResponse = viewModel.progressResponse {
+                return progressResponse.enrollment.status.rawValue
+            } else if let enrollment = currentEnrollment {
+                switch enrollment.enrollment.enrollmentStatus {
+                case .ongoing:
+                    return "ongoing"
+                case .completed:
+                    return "completed"
+                case .failed:
+                    return "failed"
+                }
+            } else {
+                return "ongoing" // 默认状态
+            }
+        }()
+        
+        switch statusString {
+        case "ongoing":
+            // 进行中 - 显示"去运动"按钮
+            Button(action: {
+                showProgress = true
+            }) {
+                Text("去运动")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(height: 50)
+                    .frame(maxWidth: .infinity)
+                    .background(
+                        RoundedRectangle(cornerRadius: 25)
+                            .fill(Color(hex: "FE2D55"))
+                    )
+            }
+            
+        case "completed":
+            // 已完成 - 显示"查看美食券"和"查看礼物"两个按钮
+            HStack(spacing: 12) {
+                Button(action: {
+                    showProgress = true
+                }) {
+                    Text("查看美食券")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(height: 50)
+                        .frame(maxWidth: .infinity)
+                        .background(
+                            RoundedRectangle(cornerRadius: 25)
+                                .fill(Color(hex: "FE2D55"))
+                        )
+                }
+                
+                Button(action: {
+                    showGiftStatus = true
+                }) {
+                    Text("查看礼物")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(Color(hex: "FE2D55"))
+                        .frame(height: 50)
+                        .frame(maxWidth: .infinity)
+                        .background(Color.white)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 25)
+                                .stroke(Color(hex: "FE2D55"), lineWidth: 2)
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 25))
+                }
+            }
+            
+        case "failed":
+            // 已失败 - 只显示"查看美食券"按钮
+            Button(action: {
+                showProgress = true
+            }) {
+                Text("查看美食券")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(height: 50)
+                    .frame(maxWidth: .infinity)
+                    .background(
+                        RoundedRectangle(cornerRadius: 25)
+                            .fill(Color(hex: "FE2D55"))
+                    )
+            }
+            
+        default:
+            // 默认情况：显示"去运动"按钮
+            Button(action: {
+                showProgress = true
+            }) {
+                Text("去运动")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(height: 50)
+                    .frame(maxWidth: .infinity)
+                    .background(
+                        RoundedRectangle(cornerRadius: 25)
+                            .fill(Color(hex: "FE2D55"))
+                    )
+            }
+        }
     }
     
     // 根据状态文本获取颜色
@@ -677,8 +958,14 @@ struct ChallengeDetailView: View {
             return Color.gray
         case "即将开始":
             return Color.blue
-        case "进行中":
+        case "进行中", "火热报名中":
             return Color(hex: "4CAF50") // 绿色
+        case "已报名":
+            return Color(hex: "4CAF50") // 绿色
+        case "已完成挑战!":
+            return Color(hex: "FFD700") // 金色
+        case "挑战失败":
+            return Color(hex: "FF6B6B") // 红色
         case "已结束":
             return Color.gray
         default:
@@ -719,6 +1006,55 @@ struct ChallengeDetailView: View {
         formatter.dateFormat = "yyyy年MM月dd日"
         return formatter.string(from: date)
     }
+    
+    // 根据挑战状态获取显示状态文本
+    private func getDisplayStatusText(challenge: ChallengeActivity) -> String {
+        // 如果已报名，显示报名状态
+        if isEnrolled {
+            // 优先使用progressResponse中的状态
+            if let progressResponse = viewModel.progressResponse {
+                switch progressResponse.enrollment.status.rawValue {
+                case "ongoing":
+                    return "已报名"
+                case "completed":
+                    return "已完成挑战!"
+                case "failed":
+                    return "挑战失败"
+                default:
+                    return "已报名"
+                }
+            }
+            // 如果没有progressResponse，使用enrolledChallenges中的状态
+            else if let enrollment = currentEnrollment {
+                switch enrollment.enrollment.enrollmentStatus {
+                case .ongoing:
+                    return "已报名"
+                case .completed:
+                    return "已完成挑战!"
+                case .failed:
+                    return "挑战失败"
+                }
+            }
+            else {
+                return "已报名"
+            }
+        }
+        // 如果未报名，根据挑战活动状态显示
+        else {
+            switch challenge.statusText {
+            case "未上线":
+                return "未上线"
+            case "即将开始":
+                return "即将开始"
+            case "进行中":
+                return "火热报名中"
+            case "已结束":
+                return "已结束"
+            default:
+                return challenge.statusText
+            }
+        }
+    }
 }
 
 // MARK: - 自定义返回按钮
@@ -741,7 +1077,7 @@ extension ChallengeDetailView {
 
 #Preview {
     NavigationView {
-        ChallengeDetailView(challengeId: "1")
+        ChallengeDetailView(challengeId: "1", viewModel: ChallengeViewModel(appState: AppState.shared))
             .environmentObject(AppState.shared)
     }
 } 

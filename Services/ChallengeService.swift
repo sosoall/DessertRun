@@ -73,11 +73,17 @@ class ChallengeService {
     
     /// 获取用户已报名挑战列表（新后端格式）
     /// 后端返回: { code,message,data:{ challenges:[...], pagination:{...} } }
-    func getEnrollments() -> AnyPublisher<[EnrollmentWithChallengeDetail], NetworkError> {
+    func getEnrollments(simple: Bool = true) -> AnyPublisher<[EnrollmentWithChallengeDetail], NetworkError> {
+        // 构建查询参数
+        var parameters: [String: Any] = [:]
+        if simple {
+            parameters["simple"] = true
+        }
+        
         return networkManager.requestRaw(
             endpoint: ChallengeEndpoints.enrollments,
             method: .get,
-            parameters: nil,
+            parameters: parameters.isEmpty ? nil : parameters,
             requiresAuth: true
         )
         .tryMap { data, _ -> [EnrollmentWithChallengeDetail] in
@@ -114,6 +120,12 @@ class ChallengeService {
         .eraseToAnyPublisher()
     }
     
+    /// 获取用户已报名挑战的详细列表（包含美食券信息）
+    /// 专门用于"我的挑战"页面显示完整信息
+    func getDetailedEnrollments() -> AnyPublisher<[EnrollmentWithChallengeDetail], NetworkError> {
+        return getEnrollments(simple: false)
+    }
+    
     /// 获取当前进行中挑战的进度
     /// - Parameter completion: 完成回调，返回结果包含挑战进度或错误
     func getCurrentProgress() -> AnyPublisher<ChallengeProgressResponse, NetworkError> {
@@ -131,7 +143,20 @@ class ChallengeService {
     ///   - completion: 完成回调，返回结果包含挑战进度或错误
     func getProgress(enrollmentId: String) -> AnyPublisher<ChallengeProgressResponse, NetworkError> {
         return networkManager.request(
-            endpoint: ChallengeEndpoints.progress + enrollmentId + "/progress",
+            endpoint: ChallengeEndpoints.base + "/" + enrollmentId + "/progress",
+            method: .get,
+            requiresAuth: true,
+            responseType: ChallengeProgressResponse.self
+        )
+    }
+    
+    /// 获取指定挑战的进度（通过挑战ID）
+    /// - Parameters:
+    ///   - challengeId: 挑战ID
+    ///   - completion: 完成回调，返回结果包含挑战进度或错误
+    func getProgressByChallengeId(challengeId: String) -> AnyPublisher<ChallengeProgressResponse, NetworkError> {
+        return networkManager.request(
+            endpoint: ChallengeEndpoints.base + "/" + challengeId + "/progress",
             method: .get,
             requiresAuth: true,
             responseType: ChallengeProgressResponse.self
@@ -144,7 +169,7 @@ class ChallengeService {
     ///   - completion: 完成回调，返回结果包含是否成功领取或错误
     func redeemReward(enrollmentId: String) -> AnyPublisher<EmptyResponse, NetworkError> {
         return networkManager.request(
-            endpoint: ChallengeEndpoints.progress + enrollmentId + "/redeem",
+            endpoint: ChallengeEndpoints.base + "/" + enrollmentId + "/redeem",
             method: .post,
             requiresAuth: true,
             responseType: EmptyResponse.self

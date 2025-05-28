@@ -688,6 +688,18 @@ struct DessertVoucherCardSimple: View {
         if iconImage == nil {
             let dessertId = voucher.dessertId ?? ""
             
+            // 如果dessertId为空或无效，跳过API请求
+            guard !dessertId.isEmpty && dessertId.trimmingCharacters(in: .whitespacesAndNewlines).count > 0 else {
+                DRDebug("[DessertVoucherCard-\(instanceId.prefix(6))] dessertId为空，跳过图标加载")
+                // 标记为已完成，避免重复尝试
+                DispatchQueue.main.async {
+                    if self.voucherImage != nil {
+                        self.hasLoadedImages = true
+                    }
+                }
+                return
+            }
+            
             // 优先尝试从URL缓存获取图标
             if let cachedIconURL = ImageCacheService.shared.getCachedImageURL(forId: "icon_\(dessertId)") {
                 DRDebug("[DessertVoucherCard-\(instanceId.prefix(6))] 使用缓存的图标URL: \(cachedIconURL)")
@@ -759,6 +771,18 @@ struct DessertVoucherCardSimple: View {
     // 加载美食券图片的备用方法
     private func loadVoucherImageFallback(imageId: String?) {
         let dessertId = voucher.dessertId ?? ""
+        
+        // 如果dessertId为空或无效，跳过API请求
+        guard !dessertId.isEmpty && dessertId.trimmingCharacters(in: .whitespacesAndNewlines).count > 0 else {
+            DRDebug("[DessertVoucherCard-\(instanceId.prefix(6))] dessertId为空，跳过美食券图片加载")
+            // 标记为已完成，避免重复尝试
+            DispatchQueue.main.async {
+                if self.iconImage != nil {
+                    self.hasLoadedImages = true
+                }
+            }
+            return
+        }
         
         // 从API获取图片URL
         let imageURL: URL?
@@ -872,7 +896,7 @@ struct DessertVoucherCardSimple: View {
                                         .opacity(animateExtraContent ? 1 : 0) // 第二阶段：额外文字内容
                                     
                                     // 美食数量和名称整合显示
-                                    Text("\(String(format: "%.1f", voucher.equivalentDessertCount))个\(voucher.dessertName)")
+                                    Text("\(String(format: "%.1f", voucher.equivalentDessertCount))个\(voucher.dessertName ?? "未知美食")")
                                         .font(.system(size: 24, weight: .semibold))
                                         .foregroundColor(Color.black)
                                         .lineLimit(3) // 最多3行
@@ -905,7 +929,7 @@ struct DessertVoucherCardSimple: View {
                                 // 左侧美食及消耗美食数量的文本信息
                                 VStack(alignment: .leading, spacing: 3) {
                                     // 整合美食数量和名称显示
-                                    Text("\(String(format: "%.1f", voucher.equivalentDessertCount))个\(voucher.dessertName)")
+                                    Text("\(String(format: "%.1f", voucher.equivalentDessertCount))个\(voucher.dessertName ?? "未知美食")")
                                         .font(.system(size: 16, weight: .semibold))
                                         .foregroundColor(Color.black)
                                         .lineLimit(2) // 限制最多2行

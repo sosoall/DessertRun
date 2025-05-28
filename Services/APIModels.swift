@@ -354,4 +354,9 @@ struct APIWeeklyWorkoutStatsResponse: Codable {
             }
         }
     }
-} 
+}
+
+// MARK: - 挑战相关模型
+
+// 注意：ChallengeProgressResponse等模型已在ChallengeEnrollment.swift中定义
+// 这里移除重复定义，使用现有的模型 

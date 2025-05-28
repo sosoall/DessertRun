@@ -5,74 +5,31 @@ struct EnrolledChallengeView: View {
     // 环境对象
     @EnvironmentObject var appState: AppState
     
-    // 视图模型
-    @StateObject private var viewModel = ChallengeViewModel(appState: AppState.shared)
+    // 视图模型 - 接受外部传入的共享实例
+    @ObservedObject var viewModel: ChallengeViewModel
     
     // 状态
     @Environment(\.presentationMode) var presentationMode
     
+    // 添加状态筛选
+    @State private var selectedStatus: EnrollmentStatus = .ongoing
+    
+    // 初始化 - 接受共享的viewModel
+    init(viewModel: ChallengeViewModel) {
+        self.viewModel = viewModel
+    }
+    
     var body: some View {
-        NavigationView {
+        return NavigationView {
             ZStack {
-                // 背景色
                 Color(hex: "F5F5F5")
                     .ignoresSafeArea()
-                
+
                 VStack(spacing: 0) {
-                    // 内容
-                    ScrollView {
-                        LazyVStack(spacing: 16) {
-                            // 判断是否有已报名的挑战
-                            if viewModel.enrolledChallenges.isEmpty {
-                                if viewModel.isLoading {
-                                    // 加载中
-                                    ProgressView()
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.top, 100)
-                                } else {
-                                    // 空状态
-                                    VStack(spacing: 16) {
-                                        Image(systemName: "trophy")
-                                            .font(.system(size: 50))
-                                            .foregroundColor(.gray)
-                                        
-                                        Text("暂无已报名的挑战")
-                                            .font(.headline)
-                                            .foregroundColor(.gray)
-                                        
-                                        Button("去报名") {
-                                            presentationMode.wrappedValue.dismiss()
-                                        }
-                                        .padding(.horizontal, 20)
-                                        .padding(.vertical, 8)
-                                        .background(Color.DessertRun.accent)
-                                        .foregroundColor(.white)
-                                        .cornerRadius(20)
-                                    }
-                                    .padding(.top, 100)
-                                }
-                            } else {
-                                // 已报名挑战列表
-                                ForEach(viewModel.enrolledChallenges, id: \.enrollment.id) { enrollment in
-                                    NavigationLink(destination: 
-                                        ChallengeDetailView(challengeId: enrollment.challenge.id)
-                                            .environmentObject(appState)
-                                    ) {
-                                        EnrollmentCard(enrollment: enrollment)
-                                    }
-                                    .buttonStyle(PlainButtonStyle())
-                                }
-                                .padding(.bottom, 20)
-                            }
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.top, 16)
-                    }
-                    .refreshable {
-                        viewModel.loadEnrollments()
-                    }
+                    filterHeader
+                    challengeContent
                 }
-                
+
                 // 加载中指示器
                 if viewModel.isLoading {
                     ProgressView()
@@ -81,51 +38,125 @@ struct EnrolledChallengeView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .background(Color.black.opacity(0.1))
                 }
-                
+
                 // 错误提示
                 if let errorMessage = viewModel.errorMessage {
-                    VStack {
-                        Text("出错了")
-                            .font(.headline)
-                            .padding(.bottom, 4)
-                        
-                        Text(errorMessage)
-                            .font(.subheadline)
-                            .multilineTextAlignment(.center)
-                        
-                        Button("重试") {
-                            viewModel.loadEnrollments()
-                        }
-                        .padding(.top, 12)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 8)
-                        .background(Color.DessertRun.accent)
-                        .foregroundColor(.white)
-                        .cornerRadius(20)
+                    ErrorOverlay(message: errorMessage) {
+                        viewModel.loadDetailedEnrollments()
                     }
-                    .padding()
-                    .background(Color.white)
-                    .cornerRadius(12)
-                    .shadow(color: Color.black.opacity(0.1), radius: 10)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color.black.opacity(0.1))
                 }
             }
             .navigationTitle("我的挑战")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: {
+            .onAppear {
+                viewModel.loadDetailedEnrollments()
+            }
+        }
+    }
+    
+    // MARK: - View Builders
+    @ViewBuilder
+    private var filterHeader: some View {
+        HStack {
+            Text("筛选:")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(.gray)
+
+            Picker("状态筛选", selection: $selectedStatus) {
+                Text("进行中").tag(EnrollmentStatus.ongoing)
+                Text("已完成").tag(EnrollmentStatus.completed)
+                Text("已失败").tag(EnrollmentStatus.failed)
+            }
+            .pickerStyle(SegmentedPickerStyle())
+
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+
+    @ViewBuilder
+    private var challengeContent: some View {
+        if viewModel.enrolledChallenges.isEmpty {
+            if viewModel.isLoading {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 100)
+            } else {
+                // 空状态
+                VStack(spacing: 16) {
+                    Image(systemName: "trophy")
+                        .font(.system(size: 50))
+                        .foregroundColor(.gray)
+
+                    Text("暂无已报名的挑战")
+                        .font(.headline)
+                        .foregroundColor(.gray)
+
+                    Button("去报名") {
                         presentationMode.wrappedValue.dismiss()
-                    }) {
-                        Image(systemName: "xmark")
-                            .foregroundColor(.black)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 8)
+                    .background(Color.DessertRun.accent)
+                    .foregroundColor(.white)
+                    .cornerRadius(20)
+                }
+                .padding(.top, 100)
+            }
+        } else if filteredEnrollments.isEmpty {
+            VStack {
+                Image(systemName: "questionmark.circle")
+                    .font(.system(size: 50))
+                    .foregroundColor(.gray)
+                    .padding(.bottom, 16)
+
+                Text("暂无\(getStatusText(selectedStatus))的挑战")
+                    .font(.headline)
+                    .padding(.bottom, 4)
+
+                Text("参加挑战，开始你的甜品运动之旅吧！")
+                    .font(.subheadline)
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(.gray)
+            }
+            .padding()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(UIColor.systemGray6))
+        } else {
+            ScrollView {
+                LazyVStack(spacing: 12) {
+                    ForEach(filteredEnrollments, id: \.enrollment.id) { enrollment in
+                        NavigationLink(destination: ChallengeDetailView(challengeId: enrollment.challenge.id, viewModel: viewModel)) {
+                            EnrollmentCard(enrollment: enrollment)
+                        }
+                        .buttonStyle(PlainButtonStyle())
                     }
                 }
             }
-            .onAppear {
-                viewModel.loadEnrollments()
-            }
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+        }
+    }
+    
+    // MARK: - Private Methods
+    
+    // 根据选择的状态筛选挑战
+    private var filteredEnrollments: [EnrollmentWithChallengeDetail] {
+        return viewModel.enrolledChallenges.filter { enrollment in
+            enrollment.enrollment.enrollmentStatus == selectedStatus
+        }
+    }
+    
+    // 获取状态文本
+    private func getStatusText(_ status: EnrollmentStatus) -> String {
+        switch status {
+        case .ongoing:
+            return "进行中"
+        case .completed:
+            return "已完成"
+        case .failed:
+            return "已失败"
         }
     }
 }
@@ -222,7 +253,7 @@ struct EnrollmentCard: View {
                     Spacer()
                     
                     // 奖励领取信息
-                    if let redemptionDate = enrollment.enrollment.redemptionDate {
+                    if enrollment.enrollment.redemptionDate != nil {
                         Text("已领取奖励")
                             .font(.system(size: 12))
                             .foregroundColor(Color.DessertRun.accent)
@@ -254,7 +285,7 @@ struct EnrollmentCard: View {
         return formatter.string(from: date)
     }
     
-    // 获取状态文本
+    // 获取状态文本 - EnrollmentCard内部的独立函数
     private func getStatusText(_ status: EnrollmentStatus) -> String {
         switch status {
         case .ongoing:
@@ -279,7 +310,41 @@ struct EnrollmentCard: View {
     }
 }
 
+// 新增错误覆盖视图
+struct ErrorOverlay: View {
+    let message: String
+    let retryAction: () -> Void
+
+    var body: some View {
+        VStack {
+            Text("出错了")
+                .font(.headline)
+                .padding(.bottom, 4)
+
+            Text(message)
+                .font(.subheadline)
+                .multilineTextAlignment(.center)
+
+            Button("重试") {
+                retryAction()
+            }
+            .padding(.top, 12)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 8)
+            .background(Color.DessertRun.accent)
+            .foregroundColor(.white)
+            .cornerRadius(20)
+        }
+        .padding()
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.1), radius: 10)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black.opacity(0.1))
+    }
+}
+
 #Preview {
-    EnrolledChallengeView()
+    EnrolledChallengeView(viewModel: ChallengeViewModel(appState: AppState.shared))
         .environmentObject(AppState.shared)
 } 

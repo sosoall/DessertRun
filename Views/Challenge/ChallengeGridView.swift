@@ -65,7 +65,7 @@ struct ChallengeGridView: View {
                             spacing: 12
                         ) { challenge in
                             NavigationLink(destination: 
-                                ChallengeDetailView(challengeId: challenge.id)
+                                ChallengeDetailView(challengeId: challenge.id, viewModel: viewModel)
                                     .environmentObject(appState)
                             ) {
                                 ChallengeCardView(
@@ -108,17 +108,23 @@ struct ChallengeGridView: View {
         }
         .navigationBarHidden(true)
         .sheet(isPresented: $showUserEnrollments) {
-            EnrolledChallengeView()
+            EnrolledChallengeView(viewModel: viewModel)
                 .environmentObject(appState)
         }
         .onAppear {
+            DRInfo("ChallengeGridView onAppear: 开始加载数据")
+            
             // 页面出现时加载数据
             if viewModel.challengeActivities.isEmpty {
+                DRInfo("挑战活动列表为空，开始加载挑战列表")
                 viewModel.loadChallenges()
             }
-            if viewModel.enrolledChallenges.isEmpty {
-                viewModel.loadEnrollments()
-            }
+            
+            // 每次进入都强制刷新enrollments状态，确保显示正确的报名状态
+            DRInfo("强制刷新已报名挑战状态")
+            // 清除缓存时间，强制重新请求
+            appState.lastEnrollmentLoadTime = nil
+            viewModel.loadEnrollments()
         }
     }
     

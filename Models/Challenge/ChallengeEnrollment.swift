@@ -136,7 +136,7 @@ struct EnrollmentWithChallenge: Codable, Equatable {
 }
 
 /// 挑战进度响应
-struct ChallengeProgressResponse: Codable {
+struct ChallengeProgressResponse: Codable, Equatable {
     let enrollment: ChallengeEnrollment
     let challenge: ChallengeActivity
     let completionPercent: Double
@@ -147,6 +147,10 @@ struct ChallengeProgressResponse: Codable {
         case challenge
         case completionPercent = "completion_percent"
         case remainingDays = "remaining_days"
+    }
+    
+    static func == (lhs: ChallengeProgressResponse, rhs: ChallengeProgressResponse) -> Bool {
+        return lhs.enrollment.id == rhs.enrollment.id
     }
 }
 

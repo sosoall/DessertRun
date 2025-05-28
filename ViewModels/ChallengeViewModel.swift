@@ -26,6 +26,23 @@ class ChallengeViewModel: ObservableObject {
     // 筛选条件
     @Published var selectedActivityType: String = "all" // "all", "free", "paid"
     
+    // 在属性区域顶部插入新的计数器和辅助方法
+    private var activeRequestCount: Int = 0
+    
+    private func beginRequest() {
+        activeRequestCount += 1
+        if activeRequestCount > 0 {
+            isLoading = true
+        }
+    }
+    
+    private func endRequest() {
+        activeRequestCount = max(0, activeRequestCount - 1)
+        if activeRequestCount == 0 {
+            isLoading = false
+        }
+    }
+    
     // 初始化
     init(appState: AppState) {
         self.appState = appState
@@ -41,26 +58,25 @@ class ChallengeViewModel: ObservableObject {
     // MARK: - 数据加载
     
     /// 加载挑战活动列表
-    func loadChallenges() {     
-        // 避免重复加载，减轻服务器压力
-        if isLoading || 
-           (!challengeActivities.isEmpty && 
-            appState.lastChallengeLoadTime != nil && 
-            Date().timeIntervalSince(appState.lastChallengeLoadTime!) < 30) {
-            // 如果已有数据且30秒内刚加载过，直接使用缓存
+    func loadChallenges() {
+        // 如果有缓存数据且30秒内刚加载过，直接使用缓存
+        if !appState.challengeActivities.isEmpty &&
+           appState.lastChallengeLoadTime != nil &&
+           Date().timeIntervalSince(appState.lastChallengeLoadTime!) < 30 {
             self.challengeActivities = appState.challengeActivities
             self.filterActivities(by: selectedActivityType)
             return
         }
         
-        isLoading = true
+        // 使用新的计数器
+        beginRequest()
         errorMessage = nil
         
         challengeService.getChallenges()
             .receive(on: DispatchQueue.main)
             .sink(
                 receiveCompletion: { [weak self] completion in
-                    self?.isLoading = false
+                    self?.endRequest()
                     
                     if case .failure(let error) = completion {
                         self?.errorMessage = "加载挑战失败: \(error.localizedDescription)"
@@ -86,20 +102,53 @@ class ChallengeViewModel: ObservableObject {
     
     /// 加载用户已报名的挑战列表
     func loadEnrollments() {
-        // 避免重复加载
-        if isLoading || 
-           (!enrolledChallenges.isEmpty && 
-            appState.lastEnrollmentLoadTime != nil && 
-            Date().timeIntervalSince(appState.lastEnrollmentLoadTime!) < 30) {
-            // 如果已有数据且30秒内刚加载过，直接使用缓存
+        // 如果有缓存数据且30秒内刚加载过，使用缓存（但enrolledChallenges为空时强制请求）
+        if !enrolledChallenges.isEmpty &&
+           appState.lastEnrollmentLoadTime != nil &&
+           Date().timeIntervalSince(appState.lastEnrollmentLoadTime!) < 30 {
+            // 使用缓存数据
             self.enrolledChallenges = appState.enrolledChallenges
+            DRInfo("使用缓存的已报名挑战数据: \(appState.enrolledChallenges.count) 个")
             return
         }
         
+        beginRequest()
+        errorMessage = nil
+        
+        DRInfo("开始请求已报名挑战列表...")
+        
+        challengeService.getEnrollments()
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { [weak self] completion in
+                    self?.endRequest()
+                    
+                    if case .failure(let error) = completion {
+                        self?.errorMessage = "加载已报名挑战失败: \(error.localizedDescription)"
+                        DRError("加载已报名挑战失败: \(error)")
+                    }
+                },
+                receiveValue: { [weak self] enrollments in
+                    guard let self = self else { return }
+                    
+                    self.enrolledChallenges = enrollments
+                    // 更新全局状态缓存
+                    self.appState.enrolledChallenges = enrollments
+                    self.appState.lastEnrollmentLoadTime = Date()
+                    
+                    DRInfo("成功加载 \(enrollments.count) 个已报名挑战")
+                }
+            )
+            .store(in: &cancellables)
+    }
+    
+    /// 加载用户已报名挑战的详细列表（包含美食券信息）
+    /// 专门用于"我的挑战"页面
+    func loadDetailedEnrollments() {
         isLoading = true
         errorMessage = nil
         
-        challengeService.getEnrollments()
+        challengeService.getDetailedEnrollments()
             .receive(on: DispatchQueue.main)
             .sink(
                 receiveCompletion: { [weak self] completion in
@@ -118,7 +167,7 @@ class ChallengeViewModel: ObservableObject {
                     self.appState.enrolledChallenges = enrollments
                     self.appState.lastEnrollmentLoadTime = Date()
                     
-                    DRInfo("成功加载 \(enrollments.count) 个已报名挑战")
+                    DRInfo("成功加载 \(enrollments.count) 个已报名挑战的详细信息")
                 }
             )
             .store(in: &cancellables)
@@ -155,6 +204,32 @@ class ChallengeViewModel: ObservableObject {
         errorMessage = nil
         
         challengeService.getProgress(enrollmentId: enrollmentId)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { [weak self] completion in
+                    self?.isLoading = false
+                    
+                    if case .failure(let error) = completion {
+                        self?.errorMessage = "加载挑战进度失败: \(error.localizedDescription)"
+                        DRError("加载挑战进度失败: \(error)")
+                    }
+                },
+                receiveValue: { [weak self] progress in
+                    self?.progressResponse = progress
+                    self?.selectedEnrollment = progress.enrollment
+                    self?.appState.selectedEnrollmentId = progress.enrollment.id
+                    DRInfo("成功加载挑战进度: 完成率 \(progress.completionPercent * 100)%")
+                }
+            )
+            .store(in: &cancellables)
+    }
+    
+    /// 加载挑战进度（通过挑战ID）
+    func loadProgressByChallengeId(challengeId: String) {
+        isLoading = true
+        errorMessage = nil
+        
+        challengeService.getProgressByChallengeId(challengeId: challengeId)
             .receive(on: DispatchQueue.main)
             .sink(
                 receiveCompletion: { [weak self] completion in

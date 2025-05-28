@@ -10,6 +10,10 @@ struct BasicEnrollmentVoucherListView: View {
     
     let enrollmentId: String
     
+    // 添加展开卡片相关状态
+    @State private var showExpandedCard: Bool = false
+    @State private var selectedVoucher: DessertVoucher? = nil
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             // 引导语
@@ -39,6 +43,23 @@ struct BasicEnrollmentVoucherListView: View {
         }
         .onAppear {
             viewModel.loadVouchers(enrollmentId: enrollmentId)
+            
+            // 监听美食券展开通知
+            NotificationCenter.default.addObserver(forName: NSNotification.Name("ShowExpandedCard"), object: nil, queue: .main) { notification in
+                if let voucher = notification.object as? DessertVoucher {
+                    selectedVoucher = voucher
+                    showExpandedCard = true
+                }
+            }
+        }
+        .onDisappear {
+            NotificationCenter.default.removeObserver(self, name: NSNotification.Name("ShowExpandedCard"), object: nil)
+        }
+        .sheet(isPresented: $showExpandedCard) {
+            if let voucher = selectedVoucher {
+                ExpandedCardView(voucher: voucher, isShowing: $showExpandedCard, preloadedImageInfo: nil)
+                    .environmentObject(appState)
+            }
         }
         .onChange(of: viewModel.vouchers) { _, _ in
             recalcHeight()
@@ -47,12 +68,12 @@ struct BasicEnrollmentVoucherListView: View {
     
     // MARK: - 动态高度计算
     private func recalcHeight() {
-        // 估算：卡片高度≈120，间距12；引导语 & 安全余量 70
-        let perCard: CGFloat = 140
-        let base: CGFloat = 70
+        // 估算：卡片高度≈120，间距12；引导语 & 安全余量 100
+        let perCard: CGFloat = 160  // 增加单个卡片的估算高度
+        let base: CGFloat = 100     // 增加基础高度
         let total = CGFloat(viewModel.vouchers.count) * perCard + base
         let screen = UIScreen.main.bounds.height
-        let clamped = min(max(total, screen * 0.3), screen * 0.9)
+        let clamped = min(max(total, screen * 0.4), screen * 0.8)  // 调整最小和最大比例
         DispatchQueue.main.async {
             sheetHeight = clamped
         }

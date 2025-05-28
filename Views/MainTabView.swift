@@ -28,6 +28,9 @@ struct MainTabView: View {
     // 运动流程协调器
     @StateObject private var workoutCoordinator = WorkoutFlowCoordinator.shared
     
+    // 挑战视图模型 - 用于"我的挑战"页面
+    @StateObject private var challengeViewModel = ChallengeViewModel(appState: AppState.shared)
+    
     // 标签项配置
     private let tabItems = [
         TabItem(title: "挑战活动", icon: "trophy", selectedIcon: "trophy.fill"),
@@ -82,8 +85,7 @@ struct MainTabView: View {
                 case 4:
                     // 我的挑战标签
                     NavigationStack {
-                        EnrolledChallengeView()
-                            .environmentObject(appState)
+                        EnrolledChallengeView(viewModel: challengeViewModel)
                     }
                     .id("myChallengeTab")
                 case 5:
