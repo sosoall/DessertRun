@@ -48,17 +48,25 @@ struct ExerciseHomeView: View {
                 VStack {
                     // 顶部标题区域（带白色背景的容器）
                     HStack {
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text("你好，soso")
-                                .font(.system(size: 24, weight: .bold))
+                        VStack(alignment: .leading, spacing: 6) {
+                            // 统一提示语
+                            Text("选择喜欢的美食&运动完成打卡，解锁美食券吧！")
+                                .font(.system(size: 18, weight: .semibold))
                                 .foregroundColor(Color(hex: "212121"))
-                            Text("选择一个美食开始运动吧！")
-                                .font(.system(size: 20, weight: .medium))
-                                .foregroundColor(Color(hex: "212121"))
+
+                            // 当前任务卡信息
+                            if let taskVoucher = appState.selectedTaskVoucher {
+                                Text("当前任务：\(taskVoucher.dessertName ?? "未知美食")")
+                                    .font(.system(size: 15))
+                                    .foregroundColor(Color(hex: "757575"))
+                            } else {
+                                Text("请先在任务卡页面选择任务")
+                                    .font(.system(size: 15))
+                                    .foregroundColor(Color(hex: "E53935"))
+                            }
                         }
                         Spacer()
-                        
-                        // 搜索按钮
+                        // 搜索按钮保持
                         Button(action: {}) {
                             Image(systemName: "magnifyingglass")
                                 .font(.title2)

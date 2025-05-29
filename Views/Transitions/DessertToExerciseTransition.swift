@@ -219,13 +219,19 @@ struct DessertToExerciseTransition: View {
             return
         }
         
+        // 必须存在任务卡
+        guard let taskVoucher = appState.selectedTaskVoucher else {
+            self.errorMessage = "未找到任务卡，请先选择"
+            return
+        }
+
         // 设置加载状态
         isLoading = true
         errorMessage = nil
-        
-        // 计算消耗的甜品数量
+
+        // 计算等效甜品数量（前端实时）
         var equivalentDessertCount: Double = 1.0
-        
+
         if exerciseType.usesDistance {
             // 基于距离计算比例
             if let baseDistance = calculatedDistances[exerciseType], baseDistance > 0 {
@@ -237,40 +243,27 @@ struct DessertToExerciseTransition: View {
                 equivalentDessertCount = exerciseDuration / baseDuration
             }
         }
-        
-        // 精确到小数点后两位
-        equivalentDessertCount = (equivalentDessertCount * 100).rounded() / 100
-        
-        // 构建API请求参数
-        var params: [String: Any] = [
-            // 直接使用原始dessert.id，现在它已经是String类型
+        // 保留两位小数
+        equivalentDessertCount = (equivalentDessertCount * 100).rounded()/100
+
+        // 构建 workout_data
+        var workoutData: [String: Any] = [
             "dessert_id": dessert.id,
-            "dessert_name": dessert.name,
-            "dessert_calories": Double(dessert.calories.replacingOccurrences(of: "kcal", with: "")) ?? 0,
-            "exercise_type": exerciseType.type,
-            "exercise_name": exerciseType.name,
-            "equivalent_dessert_count": Double(equivalentDessertCount), // 确保是Double类型
-            "note": ""
+            "exercise_type_id": exerciseType.type,
+            "calories_burned": calories,
+            "equivalent_dessert_count": equivalentDessertCount
         ]
         
         // 根据运动类型添加时长或距离
         if exerciseType.usesDistance {
-            // 确保距离是Double类型
-            let distanceInKm = Double(exerciseDistance) / 1000.0
-            params["distance"] = distanceInKm // 转换为公里
+            // 距离型，发送公里
+            workoutData["distance"] = Double(exerciseDistance) / 1000.0
         } else {
-            // 确保时长是Double类型
-            params["duration"] = Double(exerciseDuration)
+            workoutData["duration"] = Int(exerciseDuration) // 分钟
         }
-        
-        // 记录基本信息日志
-        DRInfo("[打卡] 提交运动记录: \(dessert.name), 类型: \(exerciseType.name), 等效甜品数量: \(equivalentDessertCount)")
-        
-        // 显示加载中视图
-        isLoading = true
-        
-        // 调用视图模型创建运动记录
-        viewModel.createWorkoutRecord(params: params)
+
+        // 调用activateVoucher
+        viewModel.activateVoucher(voucherId: taskVoucher.id, workoutData: workoutData)
             .receive(on: DispatchQueue.main)
             .sink(
                 receiveCompletion: { completion in
@@ -284,11 +277,10 @@ struct DessertToExerciseTransition: View {
                     }
                 },
                 receiveValue: { response in
-                    // 解包响应，提取运动记录和美食券
                     let (workoutRecord, dessertVoucher) = response
                     
                     // 等待后端返回数据后，再执行后续操作
-                    if let record = workoutRecord {
+                    let record = workoutRecord
                         // 设置加载状态为false
                         self.isLoading = false
                         
@@ -299,10 +291,12 @@ struct DessertToExerciseTransition: View {
                         appState.addWorkoutRecord(record)
                         DRInfo("成功创建运动记录: \(record.id)")
                         
-                        // 如果有美食券信息，也添加到应用状态
-                        if let voucher = dessertVoucher {
-                            appState.addDessertVoucher(voucher)
-                            DRInfo("成功创建美食券: \(voucher.id)")
+                        // 美食券信息，直接添加到应用状态
+                        appState.addDessertVoucher(dessertVoucher)
+                        DRInfo("成功激活美食券: \(dessertVoucher.id)")
+                        // 更新任务卡为已激活
+                        if appState.selectedTaskVoucher?.id == dessertVoucher.id {
+                            appState.selectedTaskVoucher = nil
                         }
                         
                         // 关闭面板
@@ -310,19 +304,8 @@ struct DessertToExerciseTransition: View {
                         
                         // 优化：等待0.5秒，让美食图片完成回到气泡的动画后再显示中间页
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            // 将美食券信息也传递给WorkoutFlowCoordinator
-                            if let voucher = dessertVoucher {
-                                WorkoutFlowCoordinator.shared.handleWorkoutCompletionWithVoucher(record: record, voucher: voucher)
-                            } else {
-                                WorkoutFlowCoordinator.shared.handleWorkoutCompletion(record: record)
-                            }
+                            WorkoutFlowCoordinator.shared.handleWorkoutCompletionWithVoucher(record: record, voucher: dessertVoucher)
                         }
-                    } else {
-                        // API返回为空，显示错误
-                        self.isLoading = false
-                        self.errorMessage = "服务器返回的数据为空，请重试"
-                        DRError("服务器返回的打卡数据为空")
-                    }
                 }
             )
             .store(in: &CancellableStorage.shared.cancellables)

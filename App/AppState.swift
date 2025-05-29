@@ -73,6 +73,9 @@ class AppState: ObservableObject {
     /// 美食券列表
     @Published var dessertVouchers: [DessertVoucher] = []
     
+    /// 当前选中的任务卡（未激活美食券）
+    @Published var selectedTaskVoucher: DessertVoucher? = nil
+    
     /// 全局运动记录加载状态锁，防止多处同时请求
     @Published var isLoadingWorkoutRecords: Bool = false
     
@@ -146,6 +149,18 @@ class AppState: ObservableObject {
             .sink { [weak self] _ in
                 DRInfo("收到认证状态变化通知")
                 self?.updateLoginStatus()
+            }
+            .store(in: &cancellables)
+        
+        // 监听任务卡去运动通知
+        NotificationCenter.default.publisher(for: NSNotification.Name("GoWorkoutFromTaskCard"))
+            .compactMap { $0.object as? DessertVoucher }
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] voucher in
+                self?.selectedTaskVoucher = voucher
+                // 切换到打卡Tab (索引2)
+                self?.selectedTabIndex = 2
+                DRInfo("[AppState] 接收到任务卡，跳转打卡，voucherId=\(voucher.id)")
             }
             .store(in: &cancellables)
     }

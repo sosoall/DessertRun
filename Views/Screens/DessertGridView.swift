@@ -90,6 +90,12 @@ struct DessertGridView: View {
                                         height: imageHeight
                                     )
                                     
+                                    // 需要先选择任务卡才能打卡
+                                    guard appState.selectedTaskVoucher != nil else {
+                                        // 可以在此添加提示，例如震动或Toast，这里先简单返回
+                                        return
+                                    }
+                                    
                                     animationState.selectDessert(
                                         dessert,
                                         originFrame: bubbleFrame,

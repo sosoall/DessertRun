@@ -1127,6 +1127,122 @@ extension APIService {
         }
         .eraseToAnyPublisher()
     }
+
+    // MARK: - 激活美食券（解锁任务卡）
+    /// 激活指定美食券并创建运动记录
+    /// - Parameters:
+    ///   - voucherId: 美食券ID（任务卡ID）
+    ///   - workoutData: 字典形式的 workout_data 参数
+    /// - Returns: 返回 (WorkoutRecord, DessertVoucher) 的发布者
+    func activateVoucher(voucherId: String,
+                         workoutData: [String: Any]) -> AnyPublisher<(WorkoutRecord, DessertVoucher), APIServiceError> {
+
+        // 构建端点
+        let endpoint = "/api/v1/vouchers/\(voucherId)/activate"
+
+        // 包装请求体
+        let params: [String: Any] = ["workout_data": workoutData]
+
+        DRDebug("[APIService] 激活美食券: \(endpoint)")
+
+        // 定义响应结构，仅解析我们需要的voucher和workout_record
+        struct ActivateVoucherResponse: Decodable {
+            let code: Int
+            let message: String
+            let data: ActivateVoucherData
+
+            struct ActivateVoucherData: Decodable {
+                let voucher: VoucherDTO
+                let workout_record: WorkoutRecordDTO
+            }
+
+            struct VoucherDTO: Decodable {
+                let id: String
+                let user_id: String
+                let challenge_enrollment_id: String?
+                let workout_record_id: String?
+                let dessert_id: String?
+                let dessert_name: String?
+                let equivalent_dessert_count: Double
+                let calories_value: Double
+                let status: String
+                let created_at: String
+                let expire_at: String?
+                let image_id: String?
+                let image_url: String?
+                let exercise_type: String?
+                let exercise_name: String?
+            }
+        }
+
+        return NetworkManager.shared.requestRaw(
+            endpoint: endpoint,
+            method: .put,
+            parameters: params,
+            requiresAuth: true
+        )
+        .tryMap { data, response -> (WorkoutRecord, DessertVoucher) in
+            if let jsonString = String(data: data, encoding: .utf8) {
+                DRDebug("[APIService] activateVoucher 响应: \(jsonString)")
+            }
+
+            let decoder = JSONDecoder()
+            let apiResp = try decoder.decode(ActivateVoucherResponse.self, from: data)
+
+            guard apiResp.code == 0 || apiResp.code == 200 else {
+                throw NetworkError.serverError(apiResp.code, apiResp.message)
+            }
+
+            let voucherDTO = apiResp.data.voucher
+            let workoutDTO = apiResp.data.workout_record
+
+            // 日期解析
+            let dateFormatter = ISO8601DateFormatter()
+            dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+            func parseDate(_ str: String?) -> Date? {
+                guard let s = str else { return nil }
+                if let d = dateFormatter.date(from: s) { return d }
+                let df = DateFormatter()
+                df.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZ"
+                return df.date(from: s)
+            }
+
+            // Voucher -> DessertVoucher
+            let dessertVoucher = DessertVoucher(
+                id: voucherDTO.id,
+                userId: voucherDTO.user_id,
+                dessertId: voucherDTO.dessert_id,
+                dessertName: voucherDTO.dessert_name,
+                equivalentDessertCount: voucherDTO.equivalent_dessert_count,
+                caloriesValue: voucherDTO.calories_value,
+                workoutRecordId: voucherDTO.workout_record_id,
+                status: voucherDTO.status,
+                createdAt: parseDate(voucherDTO.created_at) ?? Date(),
+                updatedAt: nil,
+                expireAt: parseDate(voucherDTO.expire_at),
+                imageId: voucherDTO.image_id,
+                imageURL: voucherDTO.image_url,
+                exerciseType: voucherDTO.exercise_type,
+                exerciseName: voucherDTO.exercise_name
+            )
+
+            // WorkoutRecordDTO 已在文件底部定义，直接调用转换方法
+            let workoutRecord = workoutDTO.toDomainModel()
+
+            return (workoutRecord, dessertVoucher)
+        }
+        .mapError { error -> APIServiceError in
+            if let networkError = error as? NetworkError {
+                return .networkError(APINetworkError(error: networkError))
+            } else if let decodingError = error as? DecodingError {
+                return .decodeError(decodingError.localizedDescription)
+            } else {
+                return .unknown
+            }
+        }
+        .eraseToAnyPublisher()
+    }
 }
 
 // MARK: - 运动打卡记录响应模型

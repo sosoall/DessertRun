@@ -60,4 +60,9 @@ class ExerciseViewModel: ObservableObject {
     func getWorkoutRecordsByIds(recordIds: String) -> AnyPublisher<[WorkoutRecord], APIServiceError> {
         return apiService.getWorkoutRecordsByIds(recordIds: recordIds)
     }
+    
+    /// 激活美食券并创建运动记录
+    func activateVoucher(voucherId: String, workoutData: [String: Any]) -> AnyPublisher<(WorkoutRecord, DessertVoucher), APIServiceError> {
+        return apiService.activateVoucher(voucherId: voucherId, workoutData: workoutData)
+    }
 } 
