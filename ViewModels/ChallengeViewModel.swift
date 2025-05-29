@@ -105,7 +105,7 @@ class ChallengeViewModel: ObservableObject {
         // 如果有缓存数据且30秒内刚加载过，使用缓存（但enrolledChallenges为空时强制请求）
         if !enrolledChallenges.isEmpty &&
            appState.lastEnrollmentLoadTime != nil &&
-           Date().timeIntervalSince(appState.lastEnrollmentLoadTime!) < 30 {
+           Date().timeIntervalSince(appState.lastEnrollmentLoadTime!) < 0 {
             // 使用缓存数据
             self.enrolledChallenges = appState.enrolledChallenges
             DRInfo("使用缓存的已报名挑战数据: \(appState.enrolledChallenges.count) 个")

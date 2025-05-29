@@ -183,11 +183,13 @@ struct ChallengeDetailView: View {
         // 加载挑战详情
         viewModel.loadChallengeDetail(id: challengeId)
         
-        // 先确保已报名挑战数据是最新的
-        DRInfo("加载已报名挑战列表以确保状态同步")
-        viewModel.loadEnrollments()
+        // // 先确保已报名挑战数据是最新的
+        // DRInfo("加载已报名挑战列表以确保状态同步")
+        // viewModel.loadEnrollments()
         
-        // 加载挑战进度（如果已报名）
+        // 先用已有数据同步 isEnrolled
+        updateEnrollmentStatusFromProgress(viewModel.progressResponse)
+        // 再发网络请求刷新
         viewModel.loadProgressByChallengeId(challengeId: challengeId)
         
         // 隐藏底部TabBar
@@ -199,7 +201,15 @@ struct ChallengeDetailView: View {
     // 更新报名状态
     private func updateEnrollmentStatus(_ newValue: [EnrollmentWithChallengeDetail]) {
         // 更新报名状态
-        let enrollment = newValue.first { $0.challenge.id == challengeId }
+        DRInfo("enrollments.count=\(newValue.count)")
+        for e in newValue {
+            DRInfo("   enrollment.activityId=\(e.enrollment.activityId) | challenge.id=\(e.challenge.id)")
+        }
+        DRInfo("Current challengeId=\(challengeId)")
+        let enrollment = newValue.first {
+            $0.enrollment.activityId == challengeId ||
+            $0.challenge.id == challengeId    // 有则再比
+        }
         isEnrolled = enrollment != nil
         
         DRInfo("updateEnrollmentStatus: 挑战ID=\(challengeId.suffix(6)), 是否已报名=\(isEnrolled)")
