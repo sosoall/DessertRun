@@ -90,54 +90,32 @@ struct DessertVoucherCardSimple: View {
                         startPoint: .leading,
                         endPoint: .trailing
                     )
-                    .clipShape(
-                        RoundedCorner(
-                            radius: 20,
-                            corners: [.topLeft, .topRight]
-                        )
-                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 20))
                     .frame(height: 220)
                     .opacity(animateGradientBackground ? 1 : 0)
                     .animation(.easeIn(duration: 0.3), value: animateGradientBackground)
                     
-                    // 完整卡片边缘勾边效果 - 第四阶段
-                    // 定义一个自定义形状，包含上半部分和下半部分
-                    ZStack {
-                        // 创建一个完整形状的边缘高亮，使用对角线渐变而不是勾边
-                        FullCardShape(
-                            topRadius: 20,
-                            bottomRadius: 10,
-                            topHeight: 220,
-                            bottomHeight: 68
+                    // 边缘高亮描边 - 第四阶段
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(
+                            LinearGradient(
+                                gradient: Gradient(stops: [
+                                    .init(color: Color.white.opacity(1), location: 0),
+                                    .init(color: Color.white.opacity(0.8), location: 0.3),
+                                    .init(color: Color.white.opacity(0.6), location: 0.7),
+                                    .init(color: Color.white.opacity(0.4), location: 1)
+                                ]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ), lineWidth: 2
                         )
-                        .stroke(LinearGradient(
-                            gradient: Gradient(stops: [
-                                .init(color: Color.white.opacity(1), location: 0),
-                                .init(color: Color.white.opacity(0.8), location: 0.3),
-                                .init(color: Color.white.opacity(0.6), location: 0.7),
-                                .init(color: Color.white.opacity(0.4), location: 1)
-                            ]),
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ), lineWidth: 2)
-                        .mask(
-                            // 使用遮罩实现从左上角到右下角的对角线渐显效果
-                            DiagonalGradientMask(progress: edgeProgress)
-                                .frame(width: UIScreen.main.bounds.width, height: 220 + 68)
-                        )
-                    }
-                    .opacity(animateEdgeHighlight ? 1 : 0)
+                        .opacity(animateEdgeHighlight ? 1 : 0)
                     
                     // 光韵效果层 - 第四阶段
                     ZStack {
                         Color.clear
                             .frame(height: 220)
-                            .clipShape(
-                                RoundedCorner(
-                                    radius: 20,
-                                    corners: [.topLeft, .topRight]
-                                )
-                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 20))
                             .overlay(
                                 // 白色光韵从左到右扫过
                                 LinearGradient(
@@ -155,24 +133,13 @@ struct DessertVoucherCardSimple: View {
                                 .offset(x: shineOffset)
                                 .opacity(animateBackgroundShine ? 1 : 0) // 控制整个光韵效果的显示
                             )
-                            .mask(
-                                // 确保只有卡片范围内才有光韵效果
-                                RoundedCorner(
-                                    radius: 20,
-                                    corners: [.topLeft, .topRight]
-                                ).fill(Color.black)
-                            )
+                            .mask(RoundedRectangle(cornerRadius: 20).fill(Color.black))
                     }
                     .frame(height: 220)
                 } else {
                     // 收起状态使用白色背景
                     Color.white
-                        .clipShape(
-                            RoundedCorner(
-                                radius: 20,
-                                corners: [.topLeft, .topRight]
-                            )
-                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 20))
                 }
                 
                 // 2. 图标和美食图像 - 第三阶段出现
@@ -745,48 +712,9 @@ struct DessertVoucherCardSimple: View {
     private var cardHeader: some View {
         GeometryReader { geometry in 
             ZStack(alignment: .leading) {
-                // 1. 白色边框 - 只在上边加圆角
-                // 注意：使用Path而不是clipShape以确保边框正确渲染
-                Path { path in
-                    // 上边的圆角边框路径
-                    let _ = CGRect(x: 0, y: 0, width: geometry.size.width, height: geometry.size.height)
-                    // 圆角大小
-                    let cornerRadius: CGFloat = 20
-                    
-                    // 从左上角开始，顺时针绘制
-                    path.move(to: CGPoint(x: 0, y: cornerRadius)) // 左上圆角起始点
-                    
-                    // 添加左上圆角
-                    path.addArc(
-                        center: CGPoint(x: cornerRadius, y: cornerRadius),
-                        radius: cornerRadius,
-                        startAngle: .degrees(180),
-                        endAngle: .degrees(270),
-                        clockwise: false
-                    )
-                    
-                    // 上边
-                    path.addLine(to: CGPoint(x: geometry.size.width - cornerRadius, y: 0))
-                    
-                    // 添加右上圆角
-                    path.addArc(
-                        center: CGPoint(x: geometry.size.width - cornerRadius, y: cornerRadius),
-                        radius: cornerRadius,
-                        startAngle: .degrees(270),
-                        endAngle: .degrees(0),
-                        clockwise: false
-                    )
-                    
-                    // 右边
-                    path.addLine(to: CGPoint(x: geometry.size.width, y: geometry.size.height))
-                    
-                    // 底部 - 无圆角
-                    path.addLine(to: CGPoint(x: 0, y: geometry.size.height))
-                    
-                    // 左边
-                    path.addLine(to: CGPoint(x: 0, y: cornerRadius))
-                }
-                .stroke(Color.gray.opacity(0.2), lineWidth: 1) // 边框颜色调整为浅灰色
+                // 重新使用完整圆角矩形描边
+                RoundedRectangle(cornerRadius: 20)
+                    .stroke(Color.gray.opacity(0.2), lineWidth: 1)
                 
                 // 3. 内容布局 - 三段式布局
                 HStack(spacing: 0) {
@@ -997,7 +925,7 @@ struct DessertVoucherCardSimple: View {
                     Spacer(minLength: 0)
                 }
                 .padding(.leading, 16) // 左侧留出空间
-                .padding(.top, forceExpanded ? 24 : 10) // 增加顶部间距，使内容下移
+                .padding(.top, forceExpanded ? 12 : 10) // 顶部间距
             }
             .frame(height: forceExpanded ? 220 : 75)
             .background(Color.clear) // 确保背景透明

@@ -551,7 +551,7 @@ struct ChallengeDetailView: View {
                         .font(.system(size: 28))
                         .scaleEffect(showConfetti ? 1.2 : 1.0)
                         .animation(.spring(response: 0.4, dampingFraction: 0.5), value: showConfetti)
-                    Text("恭喜你已报名成功！")
+                    Text("已报名成功！")
                         .font(.title3.bold())
                         .foregroundColor(.accentColor)
                 }
@@ -1136,9 +1136,25 @@ private struct ExpandedVoucherFullScreen: View {
                 .ignoresSafeArea()
                 .onTapGesture { isPresented = false }
 
+            // 顶部祝贺文案，悬浮于卡片之上
+            if voucher.voucherStatus == .active {
+                VStack {
+                    Spacer().frame(height: 180)
+                    Text("恭喜您已解锁美食券！")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .multilineTextAlignment(.center)
+                    Spacer()
+                }
+                .allowsHitTesting(false)
+                .zIndex(10)
+            }
+
             ExpandedCardView(voucher: voucher, isShowing: $isPresented, preloadedImageInfo: nil)
                 .environmentObject(appState)
                 .padding(.horizontal, 20)
+                .zIndex(20)
         }
     }
 }
