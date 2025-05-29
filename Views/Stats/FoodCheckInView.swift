@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// 这个页面暂时不用了，但是先别删除，不知道有没有其他地方用到了
 /// 甜品打卡标签页
 struct FoodCheckInView: View {
     @StateObject var viewModel = FoodCheckInViewModel.shared

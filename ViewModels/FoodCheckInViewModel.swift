@@ -2,6 +2,7 @@ import SwiftUI
 import Combine
 import Foundation
 
+/// 这个功能暂时不用了，但是先别删除，不知道有没有其他地方用到了
 /// 美食统计排行项
 struct StatTopDessertItem: Identifiable {
     /// ID

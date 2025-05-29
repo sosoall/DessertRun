@@ -131,6 +131,28 @@ struct MonthCalendarView: View {
             .padding(.horizontal, 16)
             .padding(.bottom, 12)
         }
+        .onAppear {
+            DRInfo("[MonthCalendarView] onAppear 触发，当前月份: \(monthYearString(from: selectedMonth))")
+            // 确保初次显示时有数据
+            let calendar = Calendar.current
+            let year = calendar.component(.year, from: selectedMonth)
+            let month = calendar.component(.month, from: selectedMonth)
+            
+            // 如果当前月份没有数据，重新加载
+            if viewModel.dailyStatsMap.isEmpty {
+                DRInfo("[MonthCalendarView] 日历数据为空，重新加载月份数据")
+                viewModel.loadMonthStats(year: year, month: month)
+            }
+        }
+        .onReceive(viewModel.$dailyStatsMap) { statsMap in
+            DRInfo("[MonthCalendarView] dailyStatsMap 更新，当前数据量: \(statsMap.count)")
+            // 当数据更新时，触发视图刷新
+            selectedMonth = viewModel.selectedMonth
+        }
+        .onChange(of: viewModel.selectedMonth) { oldMonth, newMonth in
+            DRInfo("[MonthCalendarView] selectedMonth 变化: \(monthYearString(from: oldMonth)) -> \(monthYearString(from: newMonth))")
+            selectedMonth = newMonth
+        }
     }
     
     // 计算日历需要的行数

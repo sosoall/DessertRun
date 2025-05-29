@@ -1,6 +1,9 @@
 import SwiftUI
 
-/// 打卡完成后展示美食券的页面
+/// 运动完成界面
+/// - Parameters:
+///   - record: 运动记录
+///   - isPresented: 是否展示
 struct WorkoutCompleteView: View {
     // 传入参数：运动记录
     let record: WorkoutRecord
@@ -20,7 +23,6 @@ struct WorkoutCompleteView: View {
     
     // 用于导航的状态
     @Binding var isPresented: Bool
-    @Binding var showFoodCheckInView: Bool
     
     // 获取当前美食券 - 首选使用coordinator中的美食券，如果没有再从appState查找
     private var dessertVoucher: DessertVoucher? {

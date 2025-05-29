@@ -31,12 +31,14 @@ struct MainTabView: View {
     // 挑战视图模型 - 用于"我的挑战"页面
     @StateObject private var challengeViewModel = ChallengeViewModel(appState: AppState.shared)
     
+    // 添加专门的运动记录视图模型 - 确保不被重复创建
+    @StateObject private var exerciseRecordViewModel = ExerciseRecordViewModel(appState: AppState.shared)
+    
     // 标签项配置
     private let tabItems = [
         TabItem(title: "挑战活动", icon: "trophy", selectedIcon: "trophy.fill"),
-        TabItem(title: "美食券", icon: "birthday.cake", selectedIcon: "birthday.cake"),
-        TabItem(title: "统计", icon: "chart.bar", selectedIcon: "chart.bar"),
         TabItem(title: "我的挑战", icon: "list.bullet.rectangle", selectedIcon: "list.bullet.rectangle"),
+        TabItem(title: "统计", icon: "chart.bar", selectedIcon: "chart.bar"),
         TabItem(title: "我的", icon: "person", selectedIcon: "person")
     ]
     
@@ -55,30 +57,19 @@ struct MainTabView: View {
                             .environmentObject(appState)
                     }
                 case 1:
-                    // 美食记录标签（甜品打卡）
-                    NavigationStack {
-                        // 使用LazyView包装FoodCheckInView，避免切换Tab时过早加载
-                        LazyView(
-                            FoodCheckInView(viewModel: FoodCheckInViewModel(appState: appState))
-                        )
-                    }
-                    .id("foodCheckInTab") // 使用固定ID，避免每次都重新创建
-                case 2:
-                    // 运动记录标签
-                    NavigationStack {
-                        // 使用LazyView包装ExerciseRecordView，避免切换Tab时过早加载 
-                        LazyView(
-                            ExerciseRecordView(viewModel: ExerciseRecordViewModel(appState: appState))
-                        )
-                    }
-                    .id("exerciseRecordTab") // 使用固定ID，避免每次都重新创建
-                case 3:
                     // 我的挑战标签
                     NavigationStack {
                         EnrolledChallengeView(viewModel: challengeViewModel)
                     }
                     .id("myChallengeTab")
-                case 4:
+                case 2:
+                    // 运动记录标签 - 移除LazyView包装，使用专门的视图模型
+                    NavigationStack {
+                        ExerciseRecordView(viewModel: exerciseRecordViewModel)
+                            .environmentObject(appState)
+                    }
+                    .id("exerciseRecordTab") // 使用固定ID，避免每次都重新创建
+                case 3:
                     // 个人信息标签
                     NavigationStack {
                         ProfileHomeView()
@@ -92,8 +83,7 @@ struct MainTabView: View {
             if workoutCoordinator.showCompletionView, let record = workoutCoordinator.latestWorkoutRecord {
                 WorkoutCompleteView(
                     record: record,
-                    isPresented: $workoutCoordinator.showCompletionView,
-                    showFoodCheckInView: $workoutCoordinator.shouldNavigateToFoodCheckIn
+                    isPresented: $workoutCoordinator.showCompletionView
                 )
                 .environmentObject(appState)
                 .environmentObject(workoutCoordinator)
@@ -119,12 +109,12 @@ struct MainTabView: View {
                 print("【调试】MainTabView已刷新导航状态")
             }
         }
-        // 监听美食券页面导航请求
+        // 监听美食券页面导航请求 - 已移除美食券tab，更改为导航到个人页面
         .onChange(of: workoutCoordinator.shouldNavigateToFoodCheckIn) { oldValue, shouldNavigate in
             if shouldNavigate {
-                // 切换到美食券标签页
+                // 切换到个人页面查看排行榜
                 DispatchQueue.main.async {
-                    appState.selectedTabIndex = 1 // 美食券标签现在是索引1
+                    appState.selectedTabIndex = 3 // 个人页面现在是索引3
                     // 重置导航标志
                     workoutCoordinator.shouldNavigateToFoodCheckIn = false
                 }

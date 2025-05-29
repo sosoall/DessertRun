@@ -52,6 +52,13 @@ struct ProfileHomeView: View {
                 // 用户资料卡片
                 userProfileCard
                 
+                // 美食排行榜模块 - 添加在用户信息上方
+                if authService.isLoggedIn {
+                    DessertLeaderboardView()
+                        .environmentObject(appState)
+                        .padding(.horizontal)
+                }
+                
                 // 用户信息部分
                 userInfoSection
                 

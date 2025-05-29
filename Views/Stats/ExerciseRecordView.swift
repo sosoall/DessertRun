@@ -123,31 +123,46 @@ struct ExerciseRecordView: View {
         }
         .background(Color(UIColor.systemGray6))
         .onAppear {
+            DRInfo("[ExerciseRecordView] onAppear 触发")
+            
             // 初始化时同步视图Model的年份和月份到本地状态
             selectedMonth = viewModel.selectedMonth
             selectedWeek = Date() // 默认显示当前周
             
             // 只在第一次显示视图时加载数据
             if !hasAppeared {
+                DRInfo("[ExerciseRecordView] 首次加载，开始获取数据...")
+                
                 // 确保使用当前日期初始化视图
                 let calendar = Calendar.current
-                // 使用下划线忽略未使用的变量
-                let _ = calendar.component(.year, from: Date())
-                let _ = calendar.component(.month, from: Date())
+                let year = calendar.component(.year, from: Date())
+                let month = calendar.component(.month, from: Date())
                 
-                // 直接加载数据（已优化数据加载顺序）
-                viewModel.loadData()
+                DRInfo("[ExerciseRecordView] 当前年月: \(year)年\(month)月")
                 
-                // 标记为已加载
-                hasAppeared = true
+                // 强制刷新视图状态，确保UI能正确更新
+                DispatchQueue.main.async {
+                    // 直接加载数据（已优化数据加载顺序）
+                    viewModel.loadData()
+                    
+                    // 标记为已加载
+                    hasAppeared = true
+                    DRInfo("[ExerciseRecordView] 数据加载完成，hasAppeared设置为true")
+                }
             } else {
+                DRInfo("[ExerciseRecordView] 非首次加载，刷新当前标签页数据...")
                 // 即使不是首次加载，也刷新当前视图的数据
                 refreshCurrentTabData()
             }
         }
         .onChange(of: selectedTab) { oldTab, newTab in
+            DRInfo("[ExerciseRecordView] 标签页切换: \(oldTab) -> \(newTab)")
             // 当切换标签页时，确保viewModel中的年份和月份是最新的
             refreshCurrentTabData()
+        }
+        .onReceive(viewModel.$dailyStatsMap) { _ in
+            // 当数据更新时强制刷新视图
+            DRInfo("[ExerciseRecordView] dailyStatsMap 数据已更新，总数: \(viewModel.dailyStatsMap.count)")
         }
     }
     
