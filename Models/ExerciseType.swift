@@ -3,16 +3,18 @@ import SwiftUI
 // 导入APIModels中定义的APIExerciseType
 // ExerciseType.swift仅保留类型别名定义
 
-// 兼容原有代码的类型别名，降低对现有代码的影响
-typealias ExerciseType = APIExerciseType 
+// 新增ExerciseType类型，直接使用APIExerciseType，并兼容id
+
+typealias ExerciseType = APIExerciseType
 
 // 扩展APIExerciseType添加fromString静态方法
 extension APIExerciseType {
     /// 根据类型字符串创建运动类型
-    static func fromString(_ typeStr: String, name: String? = nil) -> APIExerciseType {
+    static func fromString(_ typeStr: String, name: String? = nil, id: String? = nil) -> APIExerciseType {
         // 直接使用后端提供的名称，没有提供时才使用默认值
-            return APIExerciseType(
-                type: typeStr,
+        return APIExerciseType(
+            id: id,
+            type: typeStr,
             name: name ?? typeStr, // 优先使用后端提供的name，没有时直接使用typeStr
             description: "运动类型",
             iconName: getIconName(for: typeStr),

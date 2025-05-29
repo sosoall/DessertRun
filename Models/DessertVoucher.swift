@@ -62,6 +62,9 @@ struct DessertVoucher: Identifiable, Codable, Equatable {
     /// 运动名称
     let exerciseName: String?
     
+    /// 挑战报名ID（可选）
+    let challengeEnrollmentId: String?
+    
     /// 获取格式化的卡路里价值
     var formattedCalories: String {
         return String(format: "%.0f卡路里", caloriesValue)
@@ -135,7 +138,8 @@ struct DessertVoucher: Identifiable, Codable, Equatable {
             imageId: nil,
             imageURL: nil,
             exerciseType: nil,
-            exerciseName: nil
+            exerciseName: nil,
+            challengeEnrollmentId: nil
         )
     }
     
@@ -160,7 +164,8 @@ struct DessertVoucher: Identifiable, Codable, Equatable {
             imageId: nil,
             imageURL: "https://example.com/cake.jpg",
             exerciseType: "running",
-            exerciseName: "跑步"
+            exerciseName: "跑步",
+            challengeEnrollmentId: UUID().uuidString
         )
     }
     
@@ -181,6 +186,7 @@ struct DessertVoucher: Identifiable, Codable, Equatable {
         case imageURL = "image_url"
         case exerciseType = "exercise_type"
         case exerciseName = "exercise_name"
+        case challengeEnrollmentId = "challenge_enrollment_id"
     }
 }
 
@@ -241,6 +247,9 @@ extension DessertVoucher {
         // exercise type/name
         exerciseType = try? container.decodeIfPresent(String.self, forKey: .exerciseType)
         exerciseName = try? container.decodeIfPresent(String.self, forKey: .exerciseName)
+
+        // challenge enrollment id
+        challengeEnrollmentId = try? container.decodeIfPresent(String.self, forKey: .challengeEnrollmentId)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -269,5 +278,7 @@ extension DessertVoucher {
         try container.encodeIfPresent(imageURL, forKey: .imageURL)
         try container.encodeIfPresent(exerciseType, forKey: .exerciseType)
         try container.encodeIfPresent(exerciseName, forKey: .exerciseName)
+
+        try container.encodeIfPresent(challengeEnrollmentId, forKey: .challengeEnrollmentId)
     }
 } 

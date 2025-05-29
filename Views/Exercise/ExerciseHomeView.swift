@@ -19,11 +19,15 @@ struct ExerciseHomeView: View {
     @State private var isDragging: Bool = false
     
     // 拖动状态回调
-    var onDraggingChanged: ((Bool) -> Void)?
+    let onDraggingChanged: ((Bool) -> Void)?
+    
+    // 退出回调
+    let onExit: (() -> Void)?
     
     // 初始化函数
-    init(onDraggingChanged: ((Bool) -> Void)? = nil) {
+    init(onDraggingChanged: ((Bool) -> Void)? = nil, onExit: (() -> Void)? = nil) {
         self.onDraggingChanged = onDraggingChanged
+        self.onExit = onExit
     }
     
     var body: some View {
@@ -48,6 +52,19 @@ struct ExerciseHomeView: View {
                 VStack {
                     // 顶部标题区域（带白色背景的容器）
                     HStack {
+                        // 退出按钮（仅在独立模式下显示）
+                        if onExit != nil {
+                            Button(action: {
+                                onExit?()
+                            }) {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 20))
+                                    .foregroundColor(Color(hex: "212121"))
+                                    .frame(width: 36, height: 36)
+                                    .background(Circle().fill(Color.gray.opacity(0.1)))
+                            }
+                        }
+                        
                         VStack(alignment: .leading, spacing: 6) {
                             // 统一提示语
                             Text("选择喜欢的美食&运动完成打卡，解锁美食券吧！")
@@ -55,8 +72,8 @@ struct ExerciseHomeView: View {
                                 .foregroundColor(Color(hex: "212121"))
 
                             // 当前任务卡信息
-                            if let taskVoucher = appState.selectedTaskVoucher {
-                                Text("当前任务：\(taskVoucher.dessertName ?? "未知美食")")
+                            if appState.selectedTaskVoucher != nil {
+                                Text("已选择任务卡，完成一次运动即可解锁美食券")
                                     .font(.system(size: 15))
                                     .foregroundColor(Color(hex: "757575"))
                             } else {
@@ -108,5 +125,26 @@ struct ExerciseHomeView: View {
     NavigationView {
         ExerciseHomeView()
             .environmentObject(AppState.shared)
+    }
+}
+
+// MARK: - 独立的运动打卡会话视图
+struct WorkoutSessionView: View {
+    @EnvironmentObject var appState: AppState
+    
+    var body: some View {
+        ZStack {
+            // 背景
+            Color.black.opacity(0.3)
+                .ignoresSafeArea()
+            
+            // 运动打卡视图
+            ExerciseHomeView(onExit: {
+                // 退出运动打卡会话
+                appState.showWorkoutView = false
+                appState.selectedTaskVoucher = nil
+            })
+            .environmentObject(appState)
+        }
     }
 } 

@@ -165,39 +165,39 @@ struct WorkoutRecord: Identifiable, Equatable {
     }
 }
 
-// MARK: - 扩展功能
+// // MARK: - 扩展功能
 
-extension WorkoutRecord {
-    /// 创建测试用运动记录
-    static func createSample(date: Date = Date()) -> WorkoutRecord {
-        let dessert = DessertData.getSampleDesserts().randomElement()!
-        // 使用固定的测试运动类型
-        let exerciseType = ExerciseType(
-            type: "running",
-            name: "跑步",
-            description: "跑步是一种有氧运动，可以有效燃烧卡路里",
-            iconName: "figure.run",
-            usesDistance: true,
-            backgroundColor: "#FF6B6B",
-            caloriesPerMinPerKg: 0.1,
-            caloriesPerKmPerKg: 0.8,
-            displayOrder: 1
-        )
+// extension WorkoutRecord {
+//     /// 创建测试用运动记录
+//     static func createSample(date: Date = Date()) -> WorkoutRecord {
+//         let dessert = DessertData.getSampleDesserts().randomElement()!
+//         // 使用固定的测试运动类型
+//         let exerciseType = ExerciseType(
+//             type: "running",
+//             name: "跑步",
+//             description: "跑步是一种有氧运动，可以有效燃烧卡路里",
+//             iconName: "figure.run",
+//             usesDistance: true,
+//             backgroundColor: "#FF6B6B",
+//             caloriesPerMinPerKg: 0.1,
+//             caloriesPerKmPerKg: 0.8,
+//             displayOrder: 1
+//         )
         
-        let caloriesBurned = Double(dessert.calories)! * Double.random(in: 0.8...1.2)
-        let isAchieved = caloriesBurned >= Double(dessert.calories)!
+//         let caloriesBurned = Double(dessert.calories)! * Double.random(in: 0.8...1.2)
+//         let isAchieved = caloriesBurned >= Double(dessert.calories)!
         
-        return WorkoutRecord(
-            id: UUID().uuidString,
-            userId: UUID().uuidString,
-            exerciseType: exerciseType,
-            duration: Double.random(in: 20...60),
-            distance: exerciseType.usesDistance ? Double.random(in: 1000...5000) : nil,
-            caloriesBurned: caloriesBurned,
-            dessert: dessert,
-            date: date,
-            workoutTag: isAchieved ? "运动量super!" : "已运动",
-            equivalentDessertCount: 1.0
-        )
-    }
-} 
+//         return WorkoutRecord(
+//             id: UUID().uuidString,
+//             userId: UUID().uuidString,
+//             exerciseType: exerciseType,
+//             duration: Double.random(in: 20...60),
+//             distance: exerciseType.usesDistance ? Double.random(in: 1000...5000) : nil,
+//             caloriesBurned: caloriesBurned,
+//             dessert: dessert,
+//             date: date,
+//             workoutTag: isAchieved ? "运动量super!" : "已运动",
+//             equivalentDessertCount: 1.0
+//         )
+//     }
+// } 

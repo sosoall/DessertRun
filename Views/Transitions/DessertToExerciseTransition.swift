@@ -249,7 +249,7 @@ struct DessertToExerciseTransition: View {
         // 构建 workout_data
         var workoutData: [String: Any] = [
             "dessert_id": dessert.id,
-            "exercise_type_id": exerciseType.type,
+            "exercise_type_id": exerciseType.exerciseTypeId,
             "calories_burned": calories,
             "equivalent_dessert_count": equivalentDessertCount
         ]
@@ -269,9 +269,14 @@ struct DessertToExerciseTransition: View {
                 receiveCompletion: { completion in
                     self.isLoading = false
                     if case .failure(let error) = completion {
-                        self.errorMessage = error.errorMessage
-                        DRError("创建运动记录失败: \(error.errorMessage)")
-                        
+                        // 优先显示后端返回的error详细信息
+                        if let apiError = error as? APIServiceError {
+                            self.errorMessage = apiError.errorMessage
+                            DRError("创建运动记录失败: \(apiError.errorMessage)")
+                        } else {
+                            self.errorMessage = error.errorMessage
+                            DRError("创建运动记录失败: \(error.errorMessage)")
+                        }
                         // 增加更详细的错误信息
                         DRError("API错误详情: \(error)")
                     }
@@ -298,6 +303,9 @@ struct DessertToExerciseTransition: View {
                         if appState.selectedTaskVoucher?.id == dessertVoucher.id {
                             appState.selectedTaskVoucher = nil
                         }
+                        
+                        // 关闭运动打卡视图
+                        appState.showWorkoutView = false
                         
                         // 关闭面板
                         animationState.dismissPanel()
@@ -549,7 +557,7 @@ struct DessertToExerciseTransition: View {
                     
                     // 右侧按钮文本
                     if expandedExerciseID == exerciseType.type {
-                        Image(systemName: "chevron.up")
+                        Image(systemName: "chevron.right")
                             .font(.system(size: 16, weight: .medium))
                             .foregroundColor(.gray)
                             .padding(.trailing, 20)

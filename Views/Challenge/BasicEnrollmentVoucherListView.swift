@@ -97,7 +97,7 @@ struct TaskCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // 标题
+            // 标题 - 显示挑战名称
             Text("任务卡")
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundColor(.gray)

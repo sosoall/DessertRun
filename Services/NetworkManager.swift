@@ -257,11 +257,11 @@ public class NetworkManager {
                     if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                         // 打印完整的错误响应以便调试
                         DRError("[NetworkManager] 400错误详细信息: \(json)")
-                        
-                        if let message = json["message"] as? String {
-                            throw NetworkError.badRequest(message)
-                        } else if let error = json["error"] as? String {
+                        // 优先取error字段
+                        if let error = json["error"] as? String {
                             throw NetworkError.badRequest(error)
+                        } else if let message = json["message"] as? String {
+                            throw NetworkError.badRequest(message)
                         } else if let errors = json["errors"] as? [[String: Any]], !errors.isEmpty {
                             // 处理错误数组
                             let errorMessages = errors.compactMap { error -> String? in
@@ -271,12 +271,10 @@ public class NetworkManager {
                                 }
                                 return nil
                             }.joined(separator: ", ")
-                            
                             if !errorMessages.isEmpty {
                                 throw NetworkError.badRequest(errorMessages)
                             }
                         }
-                        
                         // 如果没有标准的错误字段，返回整个JSON字符串
                         if let jsonString = String(data: data, encoding: .utf8) {
                             throw NetworkError.badRequest("请求参数错误: \(jsonString)")
@@ -293,36 +291,40 @@ public class NetworkManager {
                     // 清除过期令牌
                     UserDefaults.standard.removeObject(forKey: Config.UserData.tokenKey)
                     UserDefaults.standard.removeObject(forKey: Config.UserData.userIdKey)
-                    
                     // 通知认证服务处理token过期
                     DispatchQueue.main.async {
                         AuthService.shared.handleTokenExpired()
                     }
-                    
                     // 提取具体的401错误信息
-                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                       let message = json["message"] as? String {
-                        throw NetworkError.unauthorized(message)
-                    } else {
-                        throw NetworkError.unauthorized("未授权访问")
+                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                        if let error = json["error"] as? String {
+                            throw NetworkError.unauthorized(error)
+                        } else if let message = json["message"] as? String {
+                            throw NetworkError.unauthorized(message)
+                        }
                     }
+                    throw NetworkError.unauthorized("未授权访问")
                 case 404:
                     // 提取具体的404错误信息
-                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                       let message = json["message"] as? String {
-                        throw NetworkError.notFound(message)
-                    } else {
-                        throw NetworkError.notFound("请求的资源不存在")
+                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                        if let error = json["error"] as? String {
+                            throw NetworkError.notFound(error)
+                        } else if let message = json["message"] as? String {
+                            throw NetworkError.notFound(message)
+                        }
                     }
+                    throw NetworkError.notFound("请求的资源不存在")
                 default:
                     // 尝试解析服务器错误消息
                     do {
-                        if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                           let message = json["message"] as? String {
-                            throw NetworkError.serverError(httpResponse.statusCode, message)
-                        } else {
-                            throw NetworkError.serverError(httpResponse.statusCode, "未知服务器错误")
+                        if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                            if let error = json["error"] as? String {
+                                throw NetworkError.serverError(httpResponse.statusCode, error)
+                            } else if let message = json["message"] as? String {
+                                throw NetworkError.serverError(httpResponse.statusCode, message)
+                            }
                         }
+                        throw NetworkError.serverError(httpResponse.statusCode, "未知服务器错误")
                     } catch {
                         if let networkError = error as? NetworkError {
                             throw networkError
@@ -901,11 +903,36 @@ public class NetworkManager {
                     return (data, response)
                 case 400:
                     // 提取具体的400错误信息
-                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                       let message = json["message"] as? String {
-                        throw NetworkError.badRequest(message)
+                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                        // 打印完整的错误响应以便调试
+                        DRError("[NetworkManager] 400错误详细信息: \(json)")
+                        // 优先取error字段
+                        if let error = json["error"] as? String {
+                            throw NetworkError.badRequest(error)
+                        } else if let message = json["message"] as? String {
+                            throw NetworkError.badRequest(message)
+                        } else if let errors = json["errors"] as? [[String: Any]], !errors.isEmpty {
+                            // 处理错误数组
+                            let errorMessages = errors.compactMap { error -> String? in
+                                if let field = error["field"] as? String, 
+                                   let message = error["message"] as? String {
+                                    return "\(field): \(message)"
+                                }
+                                return nil
+                            }.joined(separator: ", ")
+                            if !errorMessages.isEmpty {
+                                throw NetworkError.badRequest(errorMessages)
+                            }
+                        }
+                        // 如果没有标准的错误字段，返回整个JSON字符串
+                        if let jsonString = String(data: data, encoding: .utf8) {
+                            throw NetworkError.badRequest("请求参数错误: \(jsonString)")
+                        } else {
+                            throw NetworkError.badRequest("请求参数错误: 无法解析错误详情")
+                        }
                     } else if let jsonString = String(data: data, encoding: .utf8) {
-                        throw NetworkError.badRequest(jsonString)
+                        DRError("[NetworkManager] 400错误原始响应: \(jsonString)")
+                        throw NetworkError.badRequest("请求参数错误: \(jsonString)")
                     } else {
                         throw NetworkError.badRequest("请求参数错误")
                     }
@@ -913,34 +940,46 @@ public class NetworkManager {
                     // 清除过期令牌
                     UserDefaults.standard.removeObject(forKey: Config.UserData.tokenKey)
                     UserDefaults.standard.removeObject(forKey: Config.UserData.userIdKey)
-                    
                     // 通知认证服务处理token过期
                     DispatchQueue.main.async {
                         AuthService.shared.handleTokenExpired()
                     }
-                    
                     // 提取具体的401错误信息
-                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                       let message = json["message"] as? String {
-                        throw NetworkError.unauthorized(message)
-                    } else {
-                        throw NetworkError.unauthorized("未授权访问")
+                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                        if let error = json["error"] as? String {
+                            throw NetworkError.unauthorized(error)
+                        } else if let message = json["message"] as? String {
+                            throw NetworkError.unauthorized(message)
+                        }
                     }
+                    throw NetworkError.unauthorized("未授权访问")
                 case 404:
                     // 提取具体的404错误信息
-                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                       let message = json["message"] as? String {
-                        throw NetworkError.notFound(message)
-                    } else {
-                        throw NetworkError.notFound("请求的资源不存在")
+                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                        if let error = json["error"] as? String {
+                            throw NetworkError.notFound(error)
+                        } else if let message = json["message"] as? String {
+                            throw NetworkError.notFound(message)
+                        }
                     }
+                    throw NetworkError.notFound("请求的资源不存在")
                 default:
                     // 尝试解析服务器错误消息
-                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                       let message = json["message"] as? String {
-                        throw NetworkError.serverError(httpResponse.statusCode, message)
-                    } else {
+                    do {
+                        if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                            if let error = json["error"] as? String {
+                                throw NetworkError.serverError(httpResponse.statusCode, error)
+                            } else if let message = json["message"] as? String {
+                                throw NetworkError.serverError(httpResponse.statusCode, message)
+                            }
+                        }
                         throw NetworkError.serverError(httpResponse.statusCode, "未知服务器错误")
+                    } catch {
+                        if let networkError = error as? NetworkError {
+                            throw networkError
+                        } else {
+                            throw NetworkError.serverError(httpResponse.statusCode, "未知服务器错误")
+                        }
                     }
                 }
             }

@@ -26,6 +26,9 @@ struct ChallengeDetailView: View {
     @State private var selectedVoucherForPopup: DessertVoucher? = nil
     @State private var reopenVoucherSheetAfterFullScreen = false
     
+    // 跟踪是否因为运动打卡而隐藏了美食券列表
+    @State private var wasVoucherSheetOpenBeforeWorkout = false
+    
     // 挑战ID
     let challengeId: String
     
@@ -63,6 +66,21 @@ struct ChallengeDetailView: View {
             }
             .onChange(of: viewModel.progressResponse) { _, newProgressResponse in
                 updateEnrollmentStatusFromProgress(newProgressResponse)
+            }
+            .onChange(of: appState.showWorkoutView) { _, showingWorkout in
+                // 当开始运动打卡会话时，自动收起美食券列表
+                if showingWorkout && showProgress {
+                    DRInfo("[ChallengeDetailView] 检测到运动打卡会话开始，收起美食券列表")
+                    wasVoucherSheetOpenBeforeWorkout = true
+                    showProgress = false
+                } else if !showingWorkout && wasVoucherSheetOpenBeforeWorkout {
+                    // 运动打卡会话结束，重新展开美食券列表
+                    DRInfo("[ChallengeDetailView] 运动打卡会话结束，重新展开美食券列表")
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        showProgress = true
+                        wasVoucherSheetOpenBeforeWorkout = false
+                    }
+                }
             }
             .alert("确认报名", isPresented: $showingEnrollConfirmation) {
                 enrollmentAlert

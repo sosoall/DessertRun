@@ -86,67 +86,63 @@ extension APIService {
     func calculateExerciseTime(exerciseType: String, calories: Double) -> AnyPublisher<ExerciseTimeResponse?, APIServiceError> {
         let endpoint = ApiEndpoints.Exercise.calculateTime
         
-        return NetworkManager.shared.request(
+        return NetworkManager.shared.requestRaw(
             endpoint: endpoint,
             method: .get,
             parameters: [
                 "type": exerciseType,
                 "calories": "\(calories)"
             ],
-            requiresAuth: true,
-            responseType: ExerciseTimeResponse.self
+            requiresAuth: true
         )
-        .map { response -> ExerciseTimeResponse? in
-            return response
-        }
-        .catch { error -> AnyPublisher<ExerciseTimeResponse?, APIServiceError> in
-            DRError("[APIService] 计算运动时间API错误: \(error)")
-            
-            // 如果标准格式解析失败，尝试解析直接返回的数据
-            if case let NetworkError.decodingFailed(decodingError) = error {
-                DRWarning("[APIService] 尝试直接解析ExerciseTimeResponse")
-                
-                // 通过原始网络请求尝试获取响应
-                return NetworkManager.shared.requestRaw(
-                    endpoint: endpoint,
-                    method: .get,
-                    parameters: [
-                        "type": exerciseType,
-                        "calories": "\(calories)"
-                    ],
-                    requiresAuth: true
-                )
-                .tryMap { data, _ -> ExerciseTimeResponse? in
-                    let decoder = JSONDecoder()
-                    
-                    // 尝试解析不同格式
-                    do {
-                        // 首先尝试直接解析
-                        let directResponse = try decoder.decode(ExerciseTimeResponse.self, from: data)
-                        DRInfo("[APIService] 成功直接解析ExerciseTimeResponse")
-                        return directResponse
-                    } catch {
-                        // 尝试从APIResponse中解析data字段
-                        if let json = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
-                           let dataObj = json["data"] as? [String: Any] {
-                            let dataData = try JSONSerialization.data(withJSONObject: dataObj, options: [])
-                            let response = try decoder.decode(ExerciseTimeResponse.self, from: dataData)
-                            DRInfo("[APIService] 成功从APIResponse.data解析ExerciseTimeResponse")
-                            return response
-                        }
-                        
-                        // 都失败则抛出错误
-                        throw error
-                    }
-                }
-                .mapError { error -> APIServiceError in
-                    DRError("[APIService] 二次尝试解析ExerciseTimeResponse失败: \(error)")
-                    return .networkError(APINetworkError(error: NetworkError.decodingFailed(error)))
-                }
-                .eraseToAnyPublisher()
+        .tryMap { data, _ -> ExerciseTimeResponse? in
+            // 打印原始响应数据，用于调试
+            if let jsonString = String(data: data, encoding: .utf8) {
+                DRDebug("[APIService] calculateExerciseTime 原始响应: \(jsonString)")
             }
             
-            return Fail(error: .networkError(APINetworkError(error: error))).eraseToAnyPublisher()
+            // 解析JSON为字典
+            guard let json = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] else {
+                throw NetworkError.decodingFailed(NSError(domain: "JSON解析错误", code: -1, userInfo: nil))
+            }
+            
+            // 检查响应状态
+            guard let code = json["code"] as? Int, (code == 0 || code == 200) else {
+                let message = json["message"] as? String ?? "未知错误"
+                throw NetworkError.badRequest(message)
+            }
+            
+            // 解析data字段
+            guard let dataObj = json["data"] as? [String: Any] else {
+                DRError("[APIService] calculateExerciseTime 响应缺少data字段")
+                throw NetworkError.decodingFailed(NSError(domain: "缺少data字段", code: -1, userInfo: nil))
+            }
+            
+            // 提取各个字段
+            guard let exerciseTypeStr = dataObj["exercise_type"] as? String,
+                  let caloriesValue = dataObj["calories"] as? Double,
+                  let durationValue = dataObj["duration"] as? Double,
+                  let weightValue = dataObj["weight"] as? Double else {
+                DRError("[APIService] calculateExerciseTime data字段格式不正确: \(dataObj)")
+                throw NetworkError.decodingFailed(NSError(domain: "data字段格式错误", code: -1, userInfo: nil))
+            }
+            
+            // 创建响应对象
+            return ExerciseTimeResponse(
+                exerciseType: exerciseTypeStr,
+                calories: caloriesValue,
+                duration: durationValue,
+                weight: weightValue
+            )
+        }
+        .mapError { error -> APIServiceError in
+            DRError("[APIService] 计算运动时间API错误: \(error)")
+            
+            if let networkError = error as? NetworkError {
+                return .networkError(APINetworkError(error: networkError))
+            } else {
+                return .unknown
+            }
         }
         .eraseToAnyPublisher()
     }
@@ -158,68 +154,64 @@ extension APIService {
     /// - Returns: 包含计算结果的发布者
     func calculateExerciseDistance(exerciseType: String, calories: Double) -> AnyPublisher<ExerciseDistanceResponse?, APIServiceError> {
         let endpoint = ApiEndpoints.Exercise.calculateDistance
-        
-        return NetworkManager.shared.request(
+
+        return NetworkManager.shared.requestRaw(
             endpoint: endpoint,
             method: .get,
             parameters: [
                 "type": exerciseType,
                 "calories": "\(calories)"
             ],
-            requiresAuth: true,
-            responseType: ExerciseDistanceResponse.self
+            requiresAuth: true
         )
-        .map { response -> ExerciseDistanceResponse? in
-            return response
-        }
-        .catch { error -> AnyPublisher<ExerciseDistanceResponse?, APIServiceError> in
-            DRError("[APIService] 计算运动距离API错误: \(error)")
-            
-            // 如果标准格式解析失败，尝试解析直接返回的数据
-            if case let NetworkError.decodingFailed(decodingError) = error {
-                DRWarning("[APIService] 尝试直接解析ExerciseDistanceResponse")
-                
-                // 通过原始网络请求尝试获取响应
-                return NetworkManager.shared.requestRaw(
-                    endpoint: endpoint,
-                    method: .get,
-                    parameters: [
-                        "type": exerciseType,
-                        "calories": "\(calories)"
-                    ],
-                    requiresAuth: true
-                )
-                .tryMap { data, _ -> ExerciseDistanceResponse? in
-                    let decoder = JSONDecoder()
-                    
-                    // 尝试解析不同格式
-                    do {
-                        // 首先尝试直接解析
-                        let directResponse = try decoder.decode(ExerciseDistanceResponse.self, from: data)
-                        DRInfo("[APIService] 成功直接解析ExerciseDistanceResponse")
-                        return directResponse
-                    } catch {
-                        // 尝试从APIResponse中解析data字段
-                        if let json = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
-                           let dataObj = json["data"] as? [String: Any] {
-                            let dataData = try JSONSerialization.data(withJSONObject: dataObj, options: [])
-                            let response = try decoder.decode(ExerciseDistanceResponse.self, from: dataData)
-                            DRInfo("[APIService] 成功从APIResponse.data解析ExerciseDistanceResponse")
-                            return response
-                        }
-                        
-                        // 都失败则抛出错误
-                        throw error
-                    }
-                }
-                .mapError { error -> APIServiceError in
-                    DRError("[APIService] 二次尝试解析ExerciseDistanceResponse失败: \(error)")
-                    return .networkError(APINetworkError(error: NetworkError.decodingFailed(error)))
-                }
-                .eraseToAnyPublisher()
+        .tryMap { data, _ -> ExerciseDistanceResponse? in
+            // 打印原始响应数据，用于调试
+            if let jsonString = String(data: data, encoding: .utf8) {
+                DRDebug("[APIService] calculateExerciseDistance 原始响应: \(jsonString)")
             }
             
-            return Fail(error: .networkError(APINetworkError(error: error))).eraseToAnyPublisher()
+            // 解析JSON为字典
+            guard let json = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] else {
+                throw NetworkError.decodingFailed(NSError(domain: "JSON解析错误", code: -1, userInfo: nil))
+            }
+            
+            // 检查响应状态
+            guard let code = json["code"] as? Int, (code == 0 || code == 200) else {
+                let message = json["message"] as? String ?? "未知错误"
+                throw NetworkError.badRequest(message)
+            }
+            
+            // 解析data字段
+            guard let dataObj = json["data"] as? [String: Any] else {
+                DRError("[APIService] calculateExerciseDistance 响应缺少data字段")
+                throw NetworkError.decodingFailed(NSError(domain: "缺少data字段", code: -1, userInfo: nil))
+            }
+            
+            // 提取各个字段
+            guard let exerciseTypeStr = dataObj["exercise_type"] as? String,
+                  let caloriesValue = dataObj["calories"] as? Double,
+                  let distanceValue = dataObj["distance"] as? Double,
+                  let weightValue = dataObj["weight"] as? Double else {
+                DRError("[APIService] calculateExerciseDistance data字段格式不正确: \(dataObj)")
+                throw NetworkError.decodingFailed(NSError(domain: "data字段格式错误", code: -1, userInfo: nil))
+            }
+            
+            // 创建响应对象
+            return ExerciseDistanceResponse(
+                exerciseType: exerciseTypeStr,
+                calories: caloriesValue,
+                distance: distanceValue,
+                weight: weightValue
+            )
+        }
+        .mapError { error -> APIServiceError in
+            DRError("[APIService] 计算运动距离API错误: \(error)")
+            
+            if let networkError = error as? NetworkError {
+                return .networkError(APINetworkError(error: networkError))
+            } else {
+                return .unknown
+            }
         }
         .eraseToAnyPublisher()
     }

@@ -189,7 +189,8 @@ struct VoucherWithImages: Codable, Identifiable {
             imageId: imageID,
             imageURL: imageURL,
             exerciseType: exerciseType,
-            exerciseName: exerciseName
+            exerciseName: exerciseName,
+            challengeEnrollmentId: nil
         )
     }
 }

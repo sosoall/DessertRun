@@ -95,6 +95,7 @@ public struct APIUser: Decodable, Identifiable {
 
 /// API返回的运动类型
 struct APIExerciseType: Codable, Identifiable, Hashable {
+    let id: String?  // 真实的UUID字段，从后端接收
     let type: String
     let name: String
     let description: String
@@ -105,10 +106,18 @@ struct APIExerciseType: Codable, Identifiable, Hashable {
     let caloriesPerKmPerKg: Double?
     let displayOrder: Int
     
-    var id: String { type }
+    // 为了Identifiable协议，提供一个计算属性
+    var identifiableId: String { 
+        return id ?? type 
+    }
+    
+    // 添加一个计算属性来获取用于API调用的exerciseTypeId
+    var exerciseTypeId: String {
+        return id ?? type // 优先使用UUID，如果没有则使用type作为fallback
+    }
     
     enum CodingKeys: String, CodingKey {
-        case type, name, description
+        case id, type, name, description
         case iconName = "icon_name"
         case usesDistance = "uses_distance"
         case backgroundColor = "background_color"
@@ -119,12 +128,12 @@ struct APIExerciseType: Codable, Identifiable, Hashable {
     
     // 添加Hashable协议所需的函数
     func hash(into hasher: inout Hasher) {
-        hasher.combine(type)
+        hasher.combine(identifiableId)
     }
     
     // 添加Equatable协议所需的函数
     static func == (lhs: APIExerciseType, rhs: APIExerciseType) -> Bool {
-        return lhs.type == rhs.type
+        return lhs.identifiableId == rhs.identifiableId
     }
     
     // 添加颜色转换计算属性

@@ -504,7 +504,7 @@ extension APIService {
             }
             
             // 创建美食券对象
-            let voucher = DessertVoucher(
+            let dessertVoucher = DessertVoucher(
                 id: voucherDTO.id,
                 userId: voucherDTO.user_id,
                 dessertId: voucherDTO.dessert_id,
@@ -519,10 +519,11 @@ extension APIService {
                 imageId: voucherDTO.image_id,
                 imageURL: voucherDTO.image_url,
                 exerciseType: workoutDTO.exercise_type,
-                exerciseName: workoutDTO.exercise_name
+                exerciseName: workoutDTO.exercise_name,
+                challengeEnrollmentId: nil
             )
             
-            return (workoutRecord, voucher)
+            return (workoutRecord, dessertVoucher)
         }
         .mapError { error -> APIServiceError in
             if let networkError = error as? NetworkError {
@@ -778,7 +779,8 @@ extension APIService {
                         imageId: dto.image_id,
                         imageURL: dto.image_url,
                         exerciseType: nil,
-                        exerciseName: nil
+                        exerciseName: nil,
+                        challengeEnrollmentId: nil
                     )
                 }
             }
@@ -1021,7 +1023,8 @@ extension APIService {
                 imageId: dto.image_id,
                 imageURL: dto.image_url,
                 exerciseType: nil,
-                exerciseName: nil
+                exerciseName: nil,
+                challengeEnrollmentId: nil
             )
         }
         .mapError { error -> APIError in
@@ -1224,7 +1227,8 @@ extension APIService {
                 imageId: voucherDTO.image_id,
                 imageURL: voucherDTO.image_url,
                 exerciseType: voucherDTO.exercise_type,
-                exerciseName: voucherDTO.exercise_name
+                exerciseName: voucherDTO.exercise_name,
+                challengeEnrollmentId: voucherDTO.challenge_enrollment_id
             )
 
             // WorkoutRecordDTO 已在文件底部定义，直接调用转换方法

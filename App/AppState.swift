@@ -124,6 +124,9 @@ class AppState: ObservableObject {
     /// 最后一次加载报名列表的时间
     @Published var lastEnrollmentLoadTime: Date? = nil
     
+    /// 是否显示独立的运动打卡视图
+    @Published var showWorkoutView: Bool = false
+    
     /// 初始化
     private init() {
         // 登录状态应由AuthService确定，不应在这里强制设置
@@ -139,6 +142,9 @@ class AppState: ObservableObject {
         
         // 监听登录状态变化通知
         setupNotificationObservers()
+        
+        // 预加载美食数据
+        preloadDessertData()
     }
     
     /// 设置通知观察者
@@ -158,9 +164,9 @@ class AppState: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] voucher in
                 self?.selectedTaskVoucher = voucher
-                // 切换到打卡Tab (索引2)
-                self?.selectedTabIndex = 2
-                DRInfo("[AppState] 接收到任务卡，跳转打卡，voucherId=\(voucher.id)")
+                // 不再跳转Tab，改为显示独立的运动打卡视图
+                self?.showWorkoutView = true
+                DRInfo("[AppState] 接收到任务卡，开始运动打卡，voucherId=\(voucher.id)")
             }
             .store(in: &cancellables)
     }
@@ -288,6 +294,16 @@ class AppState: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             self.selectedTabIndex = 0
             DRInfo("AppState - 退出登录处理完成")
+        }
+    }
+    
+    /// 预加载美食数据
+    func preloadDessertData() {
+        DRInfo("[AppState] 开始预加载美食数据")
+        DessertData.getAllDesserts { desserts in
+            DispatchQueue.main.async {
+                DRInfo("[AppState] 美食数据预加载完成，共\(desserts.count)项")
+            }
         }
     }
 }

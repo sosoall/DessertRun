@@ -35,7 +35,6 @@ struct MainTabView: View {
     private let tabItems = [
         TabItem(title: "挑战活动", icon: "trophy", selectedIcon: "trophy.fill"),
         TabItem(title: "美食券", icon: "birthday.cake", selectedIcon: "birthday.cake"),
-        TabItem(title: "打卡", icon: "figure.run", selectedIcon: "figure.run"),
         TabItem(title: "统计", icon: "chart.bar", selectedIcon: "chart.bar"),
         TabItem(title: "我的挑战", icon: "list.bullet.rectangle", selectedIcon: "list.bullet.rectangle"),
         TabItem(title: "我的", icon: "person", selectedIcon: "person")
@@ -65,15 +64,6 @@ struct MainTabView: View {
                     }
                     .id("foodCheckInTab") // 使用固定ID，避免每次都重新创建
                 case 2:
-                    // 运动标签
-                    NavigationStack {
-                        ExerciseHomeView(onDraggingChanged: { isDragging in
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                appState.hideTabBarForDrag = isDragging
-                            }
-                        })
-                    }
-                case 3:
                     // 运动记录标签
                     NavigationStack {
                         // 使用LazyView包装ExerciseRecordView，避免切换Tab时过早加载 
@@ -82,13 +72,13 @@ struct MainTabView: View {
                         )
                     }
                     .id("exerciseRecordTab") // 使用固定ID，避免每次都重新创建
-                case 4:
+                case 3:
                     // 我的挑战标签
                     NavigationStack {
                         EnrolledChallengeView(viewModel: challengeViewModel)
                     }
                     .id("myChallengeTab")
-                case 5:
+                case 4:
                     // 个人信息标签
                     NavigationStack {
                         ProfileHomeView()
@@ -110,6 +100,14 @@ struct MainTabView: View {
                 .transition(.opacity)
                 .zIndex(100) // 确保在所有内容之上
             }
+            
+            // 独立的运动打卡视图覆盖层
+            if appState.showWorkoutView {
+                WorkoutSessionView()
+                    .environmentObject(appState)
+                    .transition(.opacity)
+                    .zIndex(200) // 确保在打卡完成视图之上
+            }
         }
         .onChange(of: appState.shouldResetNavigation) { oldValue, shouldReset in
             if shouldReset {
@@ -126,7 +124,7 @@ struct MainTabView: View {
             if shouldNavigate {
                 // 切换到美食券标签页
                 DispatchQueue.main.async {
-                    appState.selectedTabIndex = 1 // 更新为第二个标签(索引1)
+                    appState.selectedTabIndex = 1 // 美食券标签现在是索引1
                     // 重置导航标志
                     workoutCoordinator.shouldNavigateToFoodCheckIn = false
                 }
