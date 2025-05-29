@@ -53,17 +53,10 @@ struct WorkoutCompleteView: View {
                             // 关闭当前页面
                             isPresented = false
                             
-                            // 修改为使用WorkoutFlowCoordinator控制导航
-                            // 确保中间页完全关闭后再跳转到美食打卡页
+                            // 修改为使用新的回调方法，先关闭完成页面，然后触发美食券面板显示
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                // 设置TabBar索引，切换到美食打卡页
-                                appState.selectedTabIndex = 1
-                                
-                                // 延迟加载美食打卡页数据，确保页面转场完成后再加载
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                                    WorkoutFlowCoordinator.shared.completeAndNavigateToFoodCheckIn()
-                                    DRInfo("[WorkoutCompleteView] 中间页关闭后打开美食打卡页")
-                                }
+                                WorkoutFlowCoordinator.shared.completeAndShowVoucherPanel()
+                                DRInfo("[WorkoutCompleteView] 完成页面关闭，触发美食券面板显示")
                             }
                         }) {
                             Image(systemName: "xmark.circle.fill")

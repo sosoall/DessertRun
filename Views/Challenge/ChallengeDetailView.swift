@@ -73,14 +73,9 @@ struct ChallengeDetailView: View {
                     DRInfo("[ChallengeDetailView] 检测到运动打卡会话开始，收起美食券列表")
                     wasVoucherSheetOpenBeforeWorkout = true
                     showProgress = false
-                } else if !showingWorkout && wasVoucherSheetOpenBeforeWorkout {
-                    // 运动打卡会话结束，重新展开美食券列表
-                    DRInfo("[ChallengeDetailView] 运动打卡会话结束，重新展开美食券列表")
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        showProgress = true
-                        wasVoucherSheetOpenBeforeWorkout = false
-                    }
                 }
+                // 移除运动打卡会话结束后自动展开美食券列表的逻辑
+                // 现在改为监听WorkoutFlowCoordinator的通知来控制
             }
             .alert("确认报名", isPresented: $showingEnrollConfirmation) {
                 enrollmentAlert
@@ -126,6 +121,17 @@ struct ChallengeDetailView: View {
                     self.selectedVoucherForPopup = voucher
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                         self.showExpandedVoucher = true
+                    }
+                }
+            }
+            // 监听显示美食券面板通知
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowVoucherPanel"))) { _ in
+                // 确保只在已报名且状态为进行中时显示面板
+                if isEnrolled {
+                    DRInfo("[ChallengeDetailView] 收到显示美食券面板通知，准备显示面板")
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        showProgress = true
+                        wasVoucherSheetOpenBeforeWorkout = false
                     }
                 }
             }

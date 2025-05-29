@@ -11,6 +11,7 @@ class WorkoutFlowCoordinator: ObservableObject {
     @Published var latestDessertVoucher: DessertVoucher? = nil
     @Published var showCompletionView: Bool = false
     @Published var shouldNavigateToFoodCheckIn: Bool = false
+    @Published var shouldShowVoucherPanel: Bool = false // 新增：控制美食券面板显示
     
     // 用于存储取消订阅
     private var cancellables = Set<AnyCancellable>()
@@ -51,6 +52,7 @@ class WorkoutFlowCoordinator: ObservableObject {
             
             // 重置导航标志
             self.shouldNavigateToFoodCheckIn = false
+            self.shouldShowVoucherPanel = false
             
             DRInfo("[WorkoutFlowCoordinator] 显示打卡完成页面，记录ID: \(record.id)")
         }
@@ -71,12 +73,32 @@ class WorkoutFlowCoordinator: ObservableObject {
             
             // 重置导航标志
             self.shouldNavigateToFoodCheckIn = false
+            self.shouldShowVoucherPanel = false
             
             DRInfo("[WorkoutFlowCoordinator] 显示打卡完成页面，记录ID: \(record.id)，美食券ID: \(voucher.id)")
         }
     }
     
-    // 关闭完成视图并导航到美食券页面
+    // 关闭完成视图并触发美食券面板显示
+    func completeAndShowVoucherPanel() {
+        DispatchQueue.main.async {
+            self.showCompletionView = false
+            
+            // 延迟触发美食券面板显示，等待完成页面完全关闭
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                self.shouldShowVoucherPanel = true
+                DRInfo("[WorkoutFlowCoordinator] 触发美食券面板显示")
+                
+                // 发送通知告诉ChallengeDetailView显示美食券面板
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("ShowVoucherPanel"), 
+                    object: nil
+                )
+            }
+        }
+    }
+    
+    // 关闭完成视图并导航到美食券页面（保留原逻辑以备用）
     func completeAndNavigateToFoodCheckIn() {
         DispatchQueue.main.async {
             self.showCompletionView = false
@@ -110,5 +132,6 @@ class WorkoutFlowCoordinator: ObservableObject {
         latestDessertVoucher = nil
         showCompletionView = false
         shouldNavigateToFoodCheckIn = false
+        shouldShowVoucherPanel = false
     }
 } 

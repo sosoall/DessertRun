@@ -1231,8 +1231,37 @@ extension APIService {
                 challengeEnrollmentId: voucherDTO.challenge_enrollment_id
             )
 
-            // WorkoutRecordDTO 已在文件底部定义，直接调用转换方法
-            let workoutRecord = workoutDTO.toDomainModel()
+            // 从voucher信息创建完整的WorkoutRecord，而不是使用不完整的WorkoutRecordDTO
+            let exerciseType = APIExerciseType.fromString("unknown", name: voucherDTO.exercise_name, id: voucherDTO.exercise_type)
+            
+            let dessert = DessertItem(
+                id: voucherDTO.dessert_id ?? "unknown",
+                name: voucherDTO.dessert_name ?? "甜品",
+                imageName: voucherDTO.dessert_id ?? "unknown",
+                calories: "\(Int(voucherDTO.calories_value))",
+                category: .dessert,
+                description: "",
+                backgroundColor: nil,
+                isFeatured: false,
+                relatedItems: [],
+                categoryId: "0",
+                categoryName: "默认分类",
+                displayOrder: 0,
+                images: []
+            )
+            
+            let workoutRecord = WorkoutRecord(
+                id: workoutDTO.id,
+                userId: workoutDTO.user_id,
+                exerciseType: exerciseType,
+                duration: workoutDTO.duration.map { TimeInterval($0) },
+                distance: workoutDTO.distance,
+                caloriesBurned: workoutDTO.calories_burned,
+                dessert: dessert,
+                date: parseDate(workoutDTO.completion_date) ?? Date(),
+                workoutTag: workoutDTO.workout_tag ?? "",
+                equivalentDessertCount: voucherDTO.equivalent_dessert_count
+            )
 
             return (workoutRecord, dessertVoucher)
         }
@@ -1353,30 +1382,28 @@ struct APIWorkoutRecord: Codable {
 struct WorkoutRecordDTO: Decodable {
     let id: String
     let user_id: String
-    let exercise_type: String
-    let exercise_name: String?
+    let exercise_type_id: String  // 修正：后端返回的是exercise_type_id，不是exercise_type
     let duration: Int?
     let distance: Double?
     let calories_burned: Double
     let completion_date: String
-    let dessert_id: String
-    let dessert_name: String
-    let dessert_calories: Double
-    let equivalent_dessert_count: Double
     let workout_tag: String?
     let created_at: String
+    let notes: String?
+    let screenshot_url: String?
     
     /// 将DTO转换为领域模型
     func toDomainModel() -> WorkoutRecord {
-        // 1. 处理运动类型
-        let exerciseType = APIExerciseType.fromString(exercise_type, name: exercise_name)
+        // 1. 处理运动类型 - 使用exercise_type_id创建APIExerciseType
+        let exerciseType = APIExerciseType.fromString("unknown", name: "运动", id: exercise_type_id)
         
-        // 2. 创建甜品对象
+        // 2. 创建临时甜品对象（因为后端workout_record没有返回dessert信息）
+        // 这些信息应该从voucher中获取
         let dessert = DessertItem(
-            id: dessert_id,
-            name: dessert_name,
-            imageName: dessert_id,
-            calories: "\(dessert_calories)",
+            id: "temp-dessert-id",
+            name: "甜品",
+            imageName: "temp-dessert-id",
+            calories: "0",
             category: .dessert,
             description: "",
             backgroundColor: nil,
@@ -1432,7 +1459,7 @@ struct WorkoutRecordDTO: Decodable {
             dessert: dessert,
             date: recordDate ?? Date(),
             workoutTag: workout_tag ?? "",
-            equivalentDessertCount: equivalent_dessert_count
+            equivalentDessertCount: 1.0  // 暂时硬编码，应该从voucher中获取
         )
     }
 }
