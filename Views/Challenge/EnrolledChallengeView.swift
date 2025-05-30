@@ -20,37 +20,35 @@ struct EnrolledChallengeView: View {
     }
     
     var body: some View {
-        return NavigationView {
-            ZStack {
-                Color(hex: "F5F5F5")
-                    .ignoresSafeArea()
+        ZStack {
+            Color(hex: "F5F5F5")
+                .ignoresSafeArea()
 
-                VStack(spacing: 0) {
-                    filterHeader
-                    challengeContent
-                }
+            VStack(spacing: 0) {
+                filterHeader
+                challengeContent
+            }
 
-                // 加载中指示器
-                if viewModel.isLoading {
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle())
-                        .scaleEffect(1.5)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color.black.opacity(0.1))
-                }
+            // 加载中指示器
+            if viewModel.isLoading {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle())
+                    .scaleEffect(1.5)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.black.opacity(0.1))
+            }
 
-                // 错误提示
-                if let errorMessage = viewModel.errorMessage {
-                    ErrorOverlay(message: errorMessage) {
-                        viewModel.loadDetailedEnrollments()
-                    }
+            // 错误提示
+            if let errorMessage = viewModel.errorMessage {
+                ErrorOverlay(message: errorMessage) {
+                    viewModel.loadDetailedEnrollments()
                 }
             }
-            .navigationTitle("我的挑战")
-            .navigationBarTitleDisplayMode(.inline)
-            .onAppear {
-                viewModel.loadDetailedEnrollments()
-            }
+        }
+        .navigationTitle("我的挑战")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            viewModel.loadDetailedEnrollments()
         }
     }
     
