@@ -24,9 +24,12 @@ struct BasicEnrollmentVoucherListView: View {
     
     // 根据状态生成引导文案
     private var guideText: String {
+        // 实时计算已激活的美食券数量，而不是依赖传入的completedCheckins
+        let activatedCount = viewModel.vouchers.filter { $0.voucherStatus == .active }.count
+        
         switch challengeStatus.lowercased() {
         case "ongoing":
-            if completedCheckins == 0 {
+            if activatedCount == 0 {
                 return "开始第一次运动吧！"
             } else {
                 return "继续完成任务卡吧，加油！"
@@ -96,9 +99,16 @@ struct BasicEnrollmentVoucherListView: View {
             viewModel.loadVouchers(enrollmentId: enrollmentId)
         }
         .onDisappear {}
-        .onChange(of: viewModel.vouchers) { _, _ in
-            DRInfo("[BasicEnrollmentVoucherListView] 美食券列表数据发生变化，重新计算高度，当前数量: \(viewModel.vouchers.count)")
+        .onChange(of: viewModel.vouchers) { _, newVouchers in
+            DRInfo("[BasicEnrollmentVoucherListView] 美食券列表数据发生变化，重新计算高度，当前数量: \(newVouchers.count)")
             recalcHeight()
+            
+            // 实时更新completedCheckins为已激活的美食券数量
+            let activatedCount = newVouchers.filter { $0.voucherStatus == .active }.count
+            if activatedCount != completedCheckins {
+                DRInfo("[BasicEnrollmentVoucherListView] 检测到已激活美食券数量变化: \(completedCheckins) -> \(activatedCount)")
+                self.completedCheckins = activatedCount
+            }
         }
         // 监听挑战进度更新通知
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ChallengeProgressUpdated"))) { notification in
@@ -120,6 +130,18 @@ struct BasicEnrollmentVoucherListView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("VoucherActivated"))) { _ in
             DRInfo("[BasicEnrollmentVoucherListView] 收到美食券激活通知，重新加载美食券列表")
             viewModel.loadVouchers(enrollmentId: enrollmentId)
+            
+            // 激活美食券后，重新计算挑战状态
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                let activatedCount = viewModel.vouchers.filter { $0.voucherStatus == .active }.count
+                DRInfo("[BasicEnrollmentVoucherListView] 美食券激活后更新本地状态，已激活数量: \(activatedCount)")
+                
+                // 更新completedCheckins为实际激活的美食券数量
+                self.completedCheckins = activatedCount
+                
+                // 如果有总的挑战要求数，可以判断是否完成
+                // 这里暂时保持现有逻辑，只更新completedCheckins
+            }
         }
     }
     

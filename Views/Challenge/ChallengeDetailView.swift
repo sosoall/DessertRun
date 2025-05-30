@@ -88,9 +88,47 @@ struct ChallengeDetailView: View {
             // 系统 sheet 显示进度面板
             .sheet(isPresented: $showProgress) {
                 if let enrollment = currentEnrollment {
-                    challengeVoucherContent(enrollment: enrollment)
-                        .presentationDetents([.height(voucherSheetHeight)])
-                        .presentationCornerRadius(25)
+                    // 使用最新的progressResponse数据，如果没有则回退到enrollment数据
+                    let latestCompletedCheckins: Int = {
+                        if let progressResponse = viewModel.progressResponse {
+                            return progressResponse.enrollment.completedCheckins
+                        } else {
+                            return enrollment.enrollment.completedCheckins
+                        }
+                    }()
+                    
+                    let latestStatus: String = {
+                        if let progressResponse = viewModel.progressResponse {
+                            return progressResponse.enrollment.status.rawValue
+                        } else {
+                            return enrollment.enrollment.status
+                        }
+                    }()
+                    
+                    VStack(spacing: 16) {
+                        BasicEnrollmentVoucherListView(
+                            sheetHeight: $voucherSheetHeight, 
+                            enrollmentId: enrollment.enrollment.id,
+                            challengeStatus: latestStatus,
+                            completedCheckins: latestCompletedCheckins
+                        )
+                            .environmentObject(appState)
+
+                        Button("关闭") { showProgress = false }
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(Color(hex: "FE2D55"))
+                            .frame(height: 50)
+                            .frame(maxWidth: .infinity)
+                            .background(
+                                RoundedRectangle(cornerRadius: 25)
+                                    .fill(Color.white)
+                            )
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 32)
+                    }
+                    .background(Color(UIColor.systemBackground))
+                    .presentationDetents([.height(voucherSheetHeight)])
+                    .presentationCornerRadius(25)
                 }
             }
             // 展开美食券 - 全屏覆盖
@@ -1191,32 +1229,6 @@ struct ChallengeDetailView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "MM-dd"
         return formatter.string(from: date)
-    }
-    
-    // MARK: - 进度面板内容（系统 sheet 使用）
-    private func challengeVoucherContent(enrollment: EnrollmentWithChallengeDetail) -> some View {
-        VStack(spacing: 16) {
-            BasicEnrollmentVoucherListView(
-                sheetHeight: $voucherSheetHeight, 
-                enrollmentId: enrollment.enrollment.id,
-                challengeStatus: enrollment.enrollment.status,
-                completedCheckins: enrollment.enrollment.completedCheckins
-            )
-                .environmentObject(appState)
-
-            Button("关闭") { showProgress = false }
-                .font(.system(size: 16, weight: .medium))
-                .foregroundColor(Color(hex: "FE2D55"))
-                .frame(height: 50)
-                .frame(maxWidth: .infinity)
-                .background(
-                    RoundedRectangle(cornerRadius: 25)
-                        .fill(Color.white)
-                )
-                .padding(.horizontal, 20)
-                .padding(.bottom, 32)
-        }
-        .background(Color(UIColor.systemBackground))
     }
 }
 
