@@ -34,8 +34,12 @@ class EnrollmentVoucherViewModel: ObservableObject {
     /// 加载美食券列表
     func loadVouchers(enrollmentId: String, filter: RecordFilter = .all) {
         // 如果正在加载，忽略
-        guard !isLoading else { return }
+        guard !isLoading else { 
+            DRInfo("[EnrollmentVoucherViewModel] loadVouchers: 正在加载中，忽略重复请求，报名ID: \(enrollmentId)")
+            return 
+        }
 
+        DRInfo("[EnrollmentVoucherViewModel] loadVouchers: 开始加载美食券列表，报名ID: \(enrollmentId), 筛选条件: \(filter)")
         isLoading = true
         errorMessage = nil
 
@@ -43,9 +47,11 @@ class EnrollmentVoucherViewModel: ObservableObject {
         var params: [String: Any] = [:]
         if let status = statusParam(from: filter) {
             params["status"] = status
+            DRInfo("[EnrollmentVoucherViewModel] loadVouchers: 添加状态筛选条件: \(status)")
         }
 
         let endpoint = "/api/v1/challenges/enrollments/\(enrollmentId)/vouchers"
+        DRInfo("[EnrollmentVoucherViewModel] loadVouchers: 请求API端点: \(endpoint), 参数: \(params)")
 
         NetworkManager.shared.requestRaw(
             endpoint: endpoint,
@@ -68,6 +74,7 @@ class EnrollmentVoucherViewModel: ObservableObject {
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
             let resp = try decoder.decode(Response.self, from: data)
+            DRInfo("[EnrollmentVoucherViewModel] loadVouchers: 成功解析API响应，美食券数量: \(resp.data.vouchers.count)")
             return resp.data.vouchers
         }
         .receive(on: DispatchQueue.main)
@@ -77,11 +84,13 @@ class EnrollmentVoucherViewModel: ObservableObject {
             
             if case .failure(let error) = completion {
                 self.errorMessage = error.localizedDescription
+                DRInfo("[EnrollmentVoucherViewModel] loadVouchers: 加载失败，报名ID: \(enrollmentId), 错误: \(error)")
                 print("❌ 加载美食券失败: \(error)")
             }
         } receiveValue: { [weak self] vouchers in
             guard let self = self else { return }
             self.vouchers = vouchers
+            DRInfo("[EnrollmentVoucherViewModel] loadVouchers: 加载成功，报名ID: \(enrollmentId), 美食券数量: \(vouchers.count)")
             print("✅ 成功加载 \(vouchers.count) 张美食券")
         }
         .store(in: &cancellables)

@@ -282,7 +282,17 @@ struct DessertToExerciseTransition: View {
                     }
                 },
                 receiveValue: { response in
-                    let (workoutRecord, dessertVoucher) = response
+                    let (workoutRecord, dessertVoucher, challengeProgressInfo) = response
+                    
+                    // 处理挑战进度信息 - 改为通过通知传递，而不是保存到全局状态
+                    if let progressInfo = challengeProgressInfo {
+                        // 发送通知，包含挑战进度信息
+                        NotificationCenter.default.post(
+                            name: NSNotification.Name("ChallengeProgressUpdated"),
+                            object: progressInfo
+                        )
+                        DRInfo("挑战进度更新通知已发送: \(progressInfo.challengeName ?? "挑战") \(progressInfo.completedCheckins)/\(progressInfo.requiredCheckins)")
+                    }
                     
                     // 等待后端返回数据后，再执行后续操作
                     let record = workoutRecord
@@ -310,9 +320,14 @@ struct DessertToExerciseTransition: View {
                         // 关闭面板
                         animationState.dismissPanel()
                         
-                        // 优化：等待0.5秒，让美食图片完成回到气泡的动画后再显示中间页
+                        // 优化：等待0.5秒，让美食图片完成回到气泡的动画后再显示运动完成页
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            WorkoutFlowCoordinator.shared.handleWorkoutCompletionWithVoucher(record: record, voucher: dessertVoucher)
+                            // 使用新的带有挑战进度信息的方法，只显示运动完成页
+                            WorkoutFlowCoordinator.shared.handleWorkoutCompletionWithVoucherAndProgress(
+                                record: record, 
+                                voucher: dessertVoucher, 
+                                challengeProgress: challengeProgressInfo
+                            )
                         }
                 }
             )
@@ -407,40 +422,43 @@ struct DessertToExerciseTransition: View {
         VStack(spacing: 0) {
             // 顶部区域包含关闭按钮
             HStack {
-            // 顶部拖动条
-                Spacer()
-            RoundedRectangle(cornerRadius: 2.5)
-                .fill(Color.gray.opacity(0.5))
-                .frame(width: 60, height: 5)
-                .padding(.top, 12)
-                .padding(.bottom, 8)
-                Spacer()
-                
-                // 右上角关闭按钮
+                // 左上角退出按钮
                 Button(action: {
                     animationState.dismissPanel()
                 }) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 20))
+                    Text("退出")
+                        .font(.system(size: 16, weight: .medium))
                         .foregroundColor(.black)
-                        .frame(width: 36, height: 36)
-                        .background(Circle().fill(Color.gray.opacity(0.1)))
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 20)
+                                .fill(Color.gray.opacity(0.1))
+                        )
                 }
-                .padding(.trailing, 16)
+                .padding(.leading, 16)
                 .padding(.top, 10)
+                
+                Spacer()
+                
+                // 顶部拖动条
+                RoundedRectangle(cornerRadius: 2.5)
+                    .fill(Color.gray.opacity(0.5))
+                    .frame(width: 60, height: 5)
+                    .padding(.top, 12)
+                    .padding(.bottom, 8)
+                
+                Spacer()
             }
             
             // 标题区域
             titleView
             
-            // 请选择运动类型标题
-            Text("请选择运动")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundColor(Color(hex: "757575"))
-                .frame(maxWidth: .infinity, alignment: .leading)
+            // 运动打卡引导进度条
+            WorkoutProgressIndicator(currentStep: 2)
                 .padding(.horizontal, 20)
                 .padding(.bottom, 16)
-            
+                        
             // 分隔线
             Divider()
                 .padding(.horizontal, 20)

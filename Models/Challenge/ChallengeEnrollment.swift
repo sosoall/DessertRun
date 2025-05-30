@@ -158,7 +158,7 @@ struct ChallengeProgressResponse: Codable, Equatable {
 
 /// 报名挑战详情（新后端格式）
 struct EnrollmentWithChallengeDetail: Codable, Equatable {
-    let enrollment: ChallengeEnrollmentDetail
+    var enrollment: ChallengeEnrollmentDetail
     let challenge: ChallengeDetail
     let voucherList: VoucherList
     let progress: ProgressInfo
@@ -182,7 +182,7 @@ struct ChallengeEnrollmentDetail: Codable, Equatable {
     let activityId: String
     let enrolledAt: Date
     let deadline: Date
-    let completedCheckins: Int
+    var completedCheckins: Int
     let status: String
     let completedAt: Date?
     let redeemedAt: Date?

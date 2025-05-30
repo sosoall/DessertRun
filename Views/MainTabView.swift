@@ -83,6 +83,7 @@ struct MainTabView: View {
             if workoutCoordinator.showCompletionView, let record = workoutCoordinator.latestWorkoutRecord {
                 WorkoutCompleteView(
                     record: record,
+                    challengeProgress: workoutCoordinator.latestChallengeProgress, // 使用coordinator中的挑战进度
                     isPresented: $workoutCoordinator.showCompletionView
                 )
                 .environmentObject(appState)

@@ -14,6 +14,9 @@ struct ChallengeProgressView: View {
     let selectedChallenge: ChallengeActivity?
     let currentEnrollment: EnrollmentWithChallengeDetail?
     
+    // 添加刷新状态
+    @State private var refreshTrigger = UUID()
+    
     var body: some View {
         VStack(spacing: 16) {
             HStack {
@@ -38,6 +41,12 @@ struct ChallengeProgressView: View {
         .background(Color.white)
         .cornerRadius(16)
         .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ChallengeProgressUpdated"))) { _ in
+            // 收到更新通知时触发重新渲染
+            refreshTrigger = UUID()
+            DRInfo("[ChallengeProgressView] 收到挑战进度更新通知，刷新显示")
+        }
+        .id(refreshTrigger) // 添加id以确保重新渲染
     }
     
     // MARK: - 辅助方法
@@ -289,11 +298,7 @@ struct ChallengeProgressView: View {
         
         switch statusString {
         case "ongoing":
-            if completedCheckins == 0 {
-                return "剩余天数：\(remainingDays)天"
-            } else {
-                return "已完成\(completedCheckins)个任务（\(completedCheckins)/\(requiredCheckins)） · 剩余天数：\(remainingDays)天"
-            }
+            return "剩余天数：\(remainingDays)天"            
         case "completed":
             return "已获得所有奖励"
         case "failed":

@@ -61,8 +61,8 @@ class ExerciseViewModel: ObservableObject {
         return apiService.getWorkoutRecordsByIds(recordIds: recordIds)
     }
     
-    /// 激活美食券并创建运动记录
-    func activateVoucher(voucherId: String, workoutData: [String: Any]) -> AnyPublisher<(WorkoutRecord, DessertVoucher), APIServiceError> {
+    /// 激活美食券（创建运动记录）
+    func activateVoucher(voucherId: String, workoutData: [String: Any]) -> AnyPublisher<(WorkoutRecord, DessertVoucher, ChallengeProgressInfo?), APIServiceError> {
         return apiService.activateVoucher(voucherId: voucherId, workoutData: workoutData)
     }
 } 

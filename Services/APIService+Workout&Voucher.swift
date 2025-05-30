@@ -1,6 +1,17 @@
 import Foundation
 import Combine
 
+/// 挑战进度信息
+struct ChallengeProgressInfo {
+    let enrollmentId: String
+    let challengeId: String
+    let challengeName: String?
+    let completedCheckins: Int
+    let requiredCheckins: Int
+    let status: String
+    let isCompleted: Bool
+}
+
 // MARK: - 运动打卡与美食券相关API扩展，包括运动统计数据、运动打卡历史记录（单个、批量、列表获取等）、美食券的创建/获取等
 extension APIService {
     
@@ -1136,9 +1147,9 @@ extension APIService {
     /// - Parameters:
     ///   - voucherId: 美食券ID（任务卡ID）
     ///   - workoutData: 字典形式的 workout_data 参数
-    /// - Returns: 返回 (WorkoutRecord, DessertVoucher) 的发布者
+    /// - Returns: 返回包含更新后的运动记录、美食券和挑战进度的发布者
     func activateVoucher(voucherId: String,
-                         workoutData: [String: Any]) -> AnyPublisher<(WorkoutRecord, DessertVoucher), APIServiceError> {
+                         workoutData: [String: Any]) -> AnyPublisher<(WorkoutRecord, DessertVoucher, ChallengeProgressInfo?), APIServiceError> {
 
         // 构建端点
         let endpoint = "/api/v1/vouchers/\(voucherId)/activate"
@@ -1148,7 +1159,7 @@ extension APIService {
 
         DRDebug("[APIService] 激活美食券: \(endpoint)")
 
-        // 定义响应结构，仅解析我们需要的voucher和workout_record
+        // 定义响应结构，解析voucher、workout_record和challenge_progress
         struct ActivateVoucherResponse: Decodable {
             let code: Int
             let message: String
@@ -1157,6 +1168,19 @@ extension APIService {
             struct ActivateVoucherData: Decodable {
                 let voucher: VoucherDTO
                 let workout_record: WorkoutRecordDTO
+                let challenge_progress: ChallengeProgressDTO?
+                let dessert_icon_url: String? // 新增字段
+            }
+            
+            struct ChallengeProgressDTO: Decodable {
+                let enrollment_id: String
+                let challenge_id: String
+                let completed_checkins: Int
+                let required_checkins: Int
+                let status: String
+                let is_completed: Bool? // 新增字段
+                let progress_percent: Double? // 新增字段
+                // 移除challenge_name字段，后端没有返回
             }
 
             struct VoucherDTO: Decodable {
@@ -1166,13 +1190,15 @@ extension APIService {
                 let workout_record_id: String?
                 let dessert_id: String?
                 let dessert_name: String?
+                let allowed_category_ids: [String]? // 新增字段
+                let image_id: String?
+                let image_url: String?
                 let equivalent_dessert_count: Double
                 let calories_value: Double
                 let status: String
+                let activated_at: String? // 新增字段
                 let created_at: String
                 let expire_at: String?
-                let image_id: String?
-                let image_url: String?
                 let exercise_type: String?
                 let exercise_name: String?
             }
@@ -1184,13 +1210,62 @@ extension APIService {
             parameters: params,
             requiresAuth: true
         )
-        .tryMap { data, response -> (WorkoutRecord, DessertVoucher) in
+        .tryMap { data, response -> (WorkoutRecord, DessertVoucher, ChallengeProgressInfo?) in
             if let jsonString = String(data: data, encoding: .utf8) {
                 DRDebug("[APIService] activateVoucher 响应: \(jsonString)")
             }
 
+            // 先尝试解析为基本JSON以检查结构
+            do {
+                if let jsonObj = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    DRDebug("[APIService] JSON根级字段: \(jsonObj.keys)")
+                    
+                    if let dataObj = jsonObj["data"] as? [String: Any] {
+                        DRDebug("[APIService] data字段包含: \(dataObj.keys)")
+                        
+                        if let challengeProgressObj = dataObj["challenge_progress"] as? [String: Any] {
+                            DRDebug("[APIService] challenge_progress字段包含: \(challengeProgressObj.keys)")
+                        }
+                        
+                        if let voucherObj = dataObj["voucher"] as? [String: Any] {
+                            DRDebug("[APIService] voucher字段包含: \(voucherObj.keys)")
+                        }
+                        
+                        if let workoutObj = dataObj["workout_record"] as? [String: Any] {
+                            DRDebug("[APIService] workout_record字段包含: \(workoutObj.keys)")
+                        }
+                    }
+                }
+            } catch {
+                DRError("[APIService] JSON解析预检失败: \(error)")
+            }
+
             let decoder = JSONDecoder()
-            let apiResp = try decoder.decode(ActivateVoucherResponse.self, from: data)
+            let apiResp: ActivateVoucherResponse
+            
+            do {
+                apiResp = try decoder.decode(ActivateVoucherResponse.self, from: data)
+                DRDebug("[APIService] 成功解析ActivateVoucherResponse")
+            } catch {
+                DRError("[APIService] 解析ActivateVoucherResponse失败: \(error)")
+                
+                // 提供更详细的解码错误信息
+                if let decodingError = error as? DecodingError {
+                    switch decodingError {
+                    case .keyNotFound(let key, let context):
+                        DRError("[APIService] 找不到键: \(key.stringValue), 路径: \(context.codingPath.map { $0.stringValue })")
+                    case .valueNotFound(let type, let context):
+                        DRError("[APIService] 找不到\(type)类型的值, 路径: \(context.codingPath.map { $0.stringValue })")
+                    case .typeMismatch(let type, let context):
+                        DRError("[APIService] 类型不匹配: 期望\(type), 路径: \(context.codingPath.map { $0.stringValue })")
+                    case .dataCorrupted(let context):
+                        DRError("[APIService] 数据损坏: \(context.debugDescription)")
+                    @unknown default:
+                        DRError("[APIService] 未知解码错误: \(decodingError)")
+                    }
+                }
+                throw error
+            }
 
             guard apiResp.code == 0 || apiResp.code == 200 else {
                 throw NetworkError.serverError(apiResp.code, apiResp.message)
@@ -1199,7 +1274,7 @@ extension APIService {
             let voucherDTO = apiResp.data.voucher
             let workoutDTO = apiResp.data.workout_record
 
-            // 日期解析
+            // 解析日期
             let dateFormatter = ISO8601DateFormatter()
             dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
 
@@ -1263,7 +1338,23 @@ extension APIService {
                 equivalentDessertCount: voucherDTO.equivalent_dessert_count
             )
 
-            return (workoutRecord, dessertVoucher)
+            // 解析挑战进度
+            let challengeProgressInfo: ChallengeProgressInfo?
+            if let progressDTO = apiResp.data.challenge_progress {
+                challengeProgressInfo = ChallengeProgressInfo(
+                    enrollmentId: progressDTO.enrollment_id,
+                    challengeId: progressDTO.challenge_id,
+                    challengeName: nil,
+                    completedCheckins: progressDTO.completed_checkins,
+                    requiredCheckins: progressDTO.required_checkins,
+                    status: progressDTO.status,
+                    isCompleted: progressDTO.is_completed ?? false
+                )
+            } else {
+                challengeProgressInfo = nil
+            }
+
+            return (workoutRecord, dessertVoucher, challengeProgressInfo)
         }
         .mapError { error -> APIServiceError in
             if let networkError = error as? NetworkError {

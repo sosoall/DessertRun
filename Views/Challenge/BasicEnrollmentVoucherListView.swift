@@ -10,6 +10,34 @@ struct BasicEnrollmentVoucherListView: View {
     
     let enrollmentId: String
     
+    // 添加挑战状态和完成次数参数 - 改为@State以支持动态更新
+    @State private var challengeStatus: String
+    @State private var completedCheckins: Int
+    
+    // 初始化时接收参数
+    init(sheetHeight: Binding<CGFloat>, enrollmentId: String, challengeStatus: String, completedCheckins: Int) {
+        self._sheetHeight = sheetHeight
+        self.enrollmentId = enrollmentId
+        self._challengeStatus = State(initialValue: challengeStatus)
+        self._completedCheckins = State(initialValue: completedCheckins)
+    }
+    
+    // 根据状态生成引导文案
+    private var guideText: String {
+        switch challengeStatus.lowercased() {
+        case "ongoing":
+            if completedCheckins == 0 {
+                return "开始第一次运动吧！"
+            } else {
+                return "继续完成任务卡吧，加油！"
+            }
+        case "completed", "failed":
+            return "恭喜你已解锁全部美食券，完成挑战！"
+        default:
+            return "请完成任务卡上的运动吧！"
+        }
+    }
+    
     // MARK: - 主视图
     var body: some View {
         ZStack {
@@ -17,7 +45,7 @@ struct BasicEnrollmentVoucherListView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Spacer().frame(height: 20)
                 // 引导语
-                Text("请完成任务卡上的运动吧！")
+                Text(guideText)
                     .font(.headline)
                     .foregroundColor(.black)
                     .bold()
@@ -64,11 +92,34 @@ struct BasicEnrollmentVoucherListView: View {
             // 无需局部 blur，交由上层弹窗处理
         }
         .onAppear {
+            DRInfo("[BasicEnrollmentVoucherListView] onAppear: 视图显示，开始加载美食券列表，报名ID: \(enrollmentId)")
             viewModel.loadVouchers(enrollmentId: enrollmentId)
         }
         .onDisappear {}
         .onChange(of: viewModel.vouchers) { _, _ in
+            DRInfo("[BasicEnrollmentVoucherListView] 美食券列表数据发生变化，重新计算高度，当前数量: \(viewModel.vouchers.count)")
             recalcHeight()
+        }
+        // 监听挑战进度更新通知
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ChallengeProgressUpdated"))) { notification in
+            if let progressInfo = notification.object as? ChallengeProgressInfo,
+               progressInfo.enrollmentId == enrollmentId {
+                DRInfo("[BasicEnrollmentVoucherListView] 收到挑战进度更新通知，更新本地状态: \(progressInfo.completedCheckins)/\(progressInfo.requiredCheckins), 是否完成: \(progressInfo.isCompleted)")
+                
+                DispatchQueue.main.async {
+                    // 更新本地状态
+                    self.completedCheckins = progressInfo.completedCheckins
+                    self.challengeStatus = progressInfo.isCompleted ? "completed" : "ongoing"
+                    
+                    // 重新加载美食券列表
+                    DRInfo("[BasicEnrollmentVoucherListView] 重新加载美食券列表以获取最新状态")
+                    viewModel.loadVouchers(enrollmentId: enrollmentId)
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("VoucherActivated"))) { _ in
+            DRInfo("[BasicEnrollmentVoucherListView] 收到美食券激活通知，重新加载美食券列表")
+            viewModel.loadVouchers(enrollmentId: enrollmentId)
         }
     }
     
@@ -113,7 +164,7 @@ struct TaskCardView: View {
                     .foregroundColor(.gray)
                 Spacer()
                 Button(action: goWorkout) {
-                    Text("去运动")
+                    Text("去打卡")
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(.white)
                         .padding(.vertical, 6)
@@ -151,6 +202,6 @@ struct SectionHeaderView: View {
 }
 
 #Preview {
-    BasicEnrollmentVoucherListView(sheetHeight: .constant(400), enrollmentId: "demo-id")
+    BasicEnrollmentVoucherListView(sheetHeight: .constant(400), enrollmentId: "demo-id", challengeStatus: "ongoing", completedCheckins: 0)
         .environmentObject(AppState.shared)
 } 

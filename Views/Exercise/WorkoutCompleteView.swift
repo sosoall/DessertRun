@@ -3,10 +3,14 @@ import SwiftUI
 /// 运动完成界面
 /// - Parameters:
 ///   - record: 运动记录
+///   - challengeProgress: 挑战进度信息（可选）
 ///   - isPresented: 是否展示
 struct WorkoutCompleteView: View {
     // 传入参数：运动记录
     let record: WorkoutRecord
+    
+    // 传入参数：挑战进度信息（可选）
+    let challengeProgress: ChallengeProgressInfo?
     
     // 环境对象
     @EnvironmentObject var appState: AppState
@@ -55,11 +59,12 @@ struct WorkoutCompleteView: View {
                             // 关闭当前页面
                             isPresented = false
                             
-                            // 修改为使用新的回调方法，先关闭完成页面，然后触发美食券面板显示
+                            // 延迟触发美食券面板显示
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                WorkoutFlowCoordinator.shared.completeAndShowVoucherPanel()
-                                DRInfo("[WorkoutCompleteView] 完成页面关闭，触发美食券面板显示")
+                                coordinator.completeAndShowVoucherPanel()
                             }
+                            
+                            DRInfo("[WorkoutCompleteView] 运动完成页面关闭，准备显示美食券面板")
                         }) {
                             Image(systemName: "xmark.circle.fill")
                                 .font(.system(size: 28))
@@ -78,10 +83,31 @@ struct WorkoutCompleteView: View {
                         .foregroundColor(.white) // 修改为白色以适应深色背景
                         .padding(.bottom, 20)
                     
-                    Text("恭喜获得美食券一张")
-                        .font(.system(size: 18))
-                        .foregroundColor(.white.opacity(0.9)) // 修改为白色以适应深色背景
-                        .padding(.bottom, 40)
+                    // 根据是否有挑战进度信息显示不同内容
+                    if let challengeProgress = challengeProgress {
+                        if challengeProgress.isCompleted {
+                            // 挑战已完成
+                            Text("恭喜！美食券激活成功，挑战已完成！")
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundColor(.white.opacity(0.9))
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 20)
+                                .padding(.bottom, 20)
+                        } else {
+                            // 挑战未完成
+                            Text("恭喜！美食券激活成功！已完成\(challengeProgress.completedCheckins)张任务卡！")
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundColor(.white.opacity(0.9))
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 20)
+                                .padding(.bottom, 20)
+                        }
+                    } else {
+                        Text("恭喜获得美食券一张")
+                            .font(.system(size: 18))
+                            .foregroundColor(.white.opacity(0.9))
+                            .padding(.bottom, 20)
+                    }
                 }
                 
                 // 美食券 - 设置为强制展开状态

@@ -26,9 +26,6 @@ struct ChallengeDetailView: View {
     @State private var selectedVoucherForPopup: DessertVoucher? = nil
     @State private var reopenVoucherSheetAfterFullScreen = false
     
-    // 跟踪是否因为运动打卡而隐藏了美食券列表
-    @State private var wasVoucherSheetOpenBeforeWorkout = false
-    
     // 挑战ID
     let challengeId: String
     
@@ -71,7 +68,6 @@ struct ChallengeDetailView: View {
                 // 当开始运动打卡会话时，自动收起美食券列表
                 if showingWorkout && showProgress {
                     DRInfo("[ChallengeDetailView] 检测到运动打卡会话开始，收起美食券列表")
-                    wasVoucherSheetOpenBeforeWorkout = true
                     showProgress = false
                 }
                 // 移除运动打卡会话结束后自动展开美食券列表的逻辑
@@ -124,15 +120,35 @@ struct ChallengeDetailView: View {
                     }
                 }
             }
-            // 监听显示美食券面板通知
+            // 监听WorkoutFlowCoordinator发送的显示美食券面板通知
             .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowVoucherPanel"))) { _ in
-                // 确保只在已报名且状态为进行中时显示面板
-                if isEnrolled {
-                    DRInfo("[ChallengeDetailView] 收到显示美食券面板通知，准备显示面板")
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        showProgress = true
-                        wasVoucherSheetOpenBeforeWorkout = false
+                DRInfo("[ChallengeDetailView] 收到ShowVoucherPanel通知，先更新进度数据再展开美食券面板")
+                
+                // 先更新挑战进度数据，确保获取到激活美食券后的最新状态
+                viewModel.loadProgressByChallengeId(challengeId: challengeId)
+                
+                // 延迟展开美食券面板，等待API调用完成
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    // 只有当用户已报名且状态为进行中时才展开
+                    if self.isEnrolled,
+                       let progressResponse = self.viewModel.progressResponse,
+                       progressResponse.enrollment.status.rawValue == "ongoing" {
+                        DRInfo("[ChallengeDetailView] 执行展开美食券面板")
+                        self.showProgress = true
+                    } else {
+                        DRInfo("[ChallengeDetailView] 不展开美食券面板：未报名或状态不符合")
                     }
+                }
+            }
+            // 监听挑战进度更新通知 - 移除自动进度更新逻辑
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ChallengeProgressUpdated"))) { notification in
+                if let progressInfo = notification.object as? ChallengeProgressInfo,
+                   progressInfo.challengeId == challengeId {
+                    DRInfo("[ChallengeDetailView] 收到挑战进度更新通知: \(progressInfo.challengeName ?? "挑战") \(progressInfo.completedCheckins)/\(progressInfo.requiredCheckins), 是否完成: \(progressInfo.isCompleted)")
+                    
+                    // 移除自动更新进度数据的逻辑，改为由WorkoutFlowCoordinator控制更新时机
+                    // 这样避免在运动流程进行中触发美食券面板的自动展开
+                    DRInfo("[ChallengeDetailView] 跳过自动进度更新，等待WorkoutFlowCoordinator控制更新时机")
                 }
             }
     }
@@ -257,14 +273,18 @@ struct ChallengeDetailView: View {
         // 进度百分比直接显示100%
         // 如果用户已报名且状态为进行中，默认展开美食券面板
         // 优先使用progressResponse中的状态，如果没有则使用enrolledChallenges中的状态
+        // 但是需要避免在运动完成流程进行中时自动展开
         let shouldAutoExpand: Bool = {
+            // 检查是否正在显示运动相关页面
+            let isWorkoutFlowActive = appState.showWorkoutView
+            
             if let progressResponse = viewModel.progressResponse {
-                let shouldExpand = progressResponse.enrollment.status.rawValue == "ongoing"
-                DRInfo("基于progressResponse判断自动展开: 状态=\(progressResponse.enrollment.status.rawValue), 展开=\(shouldExpand)")
+                let shouldExpand = progressResponse.enrollment.status.rawValue == "ongoing" && !isWorkoutFlowActive
+                DRInfo("基于progressResponse判断自动展开: 状态=\(progressResponse.enrollment.status.rawValue), 运动流程活跃=\(isWorkoutFlowActive), 展开=\(shouldExpand)")
                 return shouldExpand
             } else if let enrollment = enrollment {
-                let shouldExpand = enrollment.enrollment.enrollmentStatus == .ongoing
-                DRInfo("基于enrolledChallenges判断自动展开: 状态=\(enrollment.enrollment.enrollmentStatus), 展开=\(shouldExpand)")
+                let shouldExpand = enrollment.enrollment.enrollmentStatus == .ongoing && !isWorkoutFlowActive
+                DRInfo("基于enrolledChallenges判断自动展开: 状态=\(enrollment.enrollment.enrollmentStatus), 运动流程活跃=\(isWorkoutFlowActive), 展开=\(shouldExpand)")
                 return shouldExpand
             } else {
                 DRInfo("无报名数据，不自动展开")
@@ -278,26 +298,40 @@ struct ChallengeDetailView: View {
                 DRInfo("执行自动展开美食券面板")
                 showProgress = true
             }
+        } else if isEnrolled {
+            DRInfo("跳过自动展开：运动流程正在进行中或状态不符合条件")
         }
     }
     
     // 更新报名状态从progressResponse
     private func updateEnrollmentStatusFromProgress(_ newProgressResponse: ChallengeProgressResponse?) {
+        DRInfo("[ChallengeDetailView] updateEnrollmentStatusFromProgress: 开始更新报名状态")
+        
+        if let progressResponse = newProgressResponse {
+            DRInfo("[ChallengeDetailView] updateEnrollmentStatusFromProgress: 收到进度数据 - 状态=\(progressResponse.enrollment.status.rawValue), 完成度=\(progressResponse.enrollment.completedCheckins)/\(progressResponse.challenge.requiredCheckins)")
+        } else {
+            DRInfo("[ChallengeDetailView] updateEnrollmentStatusFromProgress: 收到空的进度数据")
+        }
+        
         // 更新报名状态
         isEnrolled = newProgressResponse != nil
-        
-        // 如果用户已报名且状态为进行中，默认展开美食券面板
-        let shouldAutoExpand: Bool = {
-            if let progressResponse = newProgressResponse {
-                return progressResponse.enrollment.status.rawValue == "ongoing"
-            } else {
-                return false
-            }
-        }()
-        
-        if shouldAutoExpand {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                showProgress = true
+
+        // 恢复自动展开逻辑：如果用户已报名且状态为进行中，自动展开美食券面板
+        // 但需要避免在运动流程进行中时自动展开
+        if let progressResponse = newProgressResponse {
+            let isWorkoutFlowActive = appState.showWorkoutView
+            let shouldAutoExpand = progressResponse.enrollment.status.rawValue == "ongoing" && !isWorkoutFlowActive
+            
+            DRInfo("[ChallengeDetailView] updateEnrollmentStatusFromProgress: 状态=\(progressResponse.enrollment.status.rawValue), 运动流程活跃=\(isWorkoutFlowActive), 是否自动展开=\(shouldAutoExpand)")
+            
+            if shouldAutoExpand {
+                DRInfo("[ChallengeDetailView] updateEnrollmentStatusFromProgress: 延迟0.5秒后自动展开美食券面板")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    DRInfo("[ChallengeDetailView] updateEnrollmentStatusFromProgress: 执行自动展开美食券面板")
+                    self.showProgress = true
+                }
+            } else if isEnrolled {
+                DRInfo("[ChallengeDetailView] updateEnrollmentStatusFromProgress: 跳过自动展开：运动流程正在进行中或状态不符合条件")
             }
         }
     }
@@ -1162,7 +1196,12 @@ struct ChallengeDetailView: View {
     // MARK: - 进度面板内容（系统 sheet 使用）
     private func challengeVoucherContent(enrollment: EnrollmentWithChallengeDetail) -> some View {
         VStack(spacing: 16) {
-            BasicEnrollmentVoucherListView(sheetHeight: $voucherSheetHeight, enrollmentId: enrollment.enrollment.id)
+            BasicEnrollmentVoucherListView(
+                sheetHeight: $voucherSheetHeight, 
+                enrollmentId: enrollment.enrollment.id,
+                challengeStatus: enrollment.enrollment.status,
+                completedCheckins: enrollment.enrollment.completedCheckins
+            )
                 .environmentObject(appState)
 
             Button("关闭") { showProgress = false }

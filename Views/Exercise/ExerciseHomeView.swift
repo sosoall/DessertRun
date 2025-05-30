@@ -51,51 +51,77 @@ struct ExerciseHomeView: View {
                 // 顶部和底部覆盖层（确保在气泡上方）
                 VStack {
                     // 顶部标题区域（带白色背景的容器）
-                    HStack {
-                        // 退出按钮（仅在独立模式下显示）
-                        if onExit != nil {
-                            Button(action: {
-                                onExit?()
-                            }) {
-                                Image(systemName: "xmark")
-                                    .font(.system(size: 20))
-                                    .foregroundColor(Color(hex: "212121"))
-                                    .frame(width: 36, height: 36)
-                                    .background(Circle().fill(Color.gray.opacity(0.1)))
+                    VStack(spacing: 0) {
+                        // 标题和退出按钮
+                        HStack {
+                            // 退出按钮（仅在独立模式下显示）
+                            if onExit != nil {
+                                Button(action: {
+                                    onExit?()
+                                }) {
+                                    Text("退出")
+                                        .font(.system(size: 16, weight: .medium))
+                                        .foregroundColor(Color(hex: "212121"))
+                                        .padding(.vertical, 8)
+                                        .padding(.horizontal, 16)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 20)
+                                                .fill(Color.white)
+                                                .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+                                        )
+                                }
                             }
+                            
+                            // 左侧间距
+                            Spacer()
+                                .frame(width: onExit != nil ? 16 : 0)
+                            
+                            // 标题和副标题 - 左对齐
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack {
+                                    Text("运动打卡中...")
+                                        .font(.system(size: 20, weight: .bold))
+                                        .foregroundColor(Color(hex: "212121"))
+                                    Spacer()
+                                }
+                                
+                                // 副标题 - 显示任务卡要求
+                                HStack {
+                                    if let taskVoucher = appState.selectedTaskVoucher {
+                                        Text("按照任务卡要求完成运动即可解锁美食券")
+                                            .font(.system(size: 12, weight: .regular))
+                                            .foregroundColor(Color(hex: "999999"))
+                                    } else {
+                                        Text("选择你喜欢的美食")
+                                            .font(.system(size: 12, weight: .regular))
+                                            .foregroundColor(Color(hex: "999999"))
+                                    }
+                                    Spacer()
+                                }
+                            }
+                            
+                            Spacer()
                         }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 12)
+                        .padding(.bottom, 12)
                         
-                        VStack(alignment: .leading, spacing: 6) {
-                            // 统一提示语
-                            Text("选择喜欢的美食&运动完成打卡，解锁美食券吧！")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(Color(hex: "212121"))
-
-                            // 当前任务卡信息
-                            if appState.selectedTaskVoucher != nil {
-                                Text("已选择任务卡，完成一次运动即可解锁美食券")
-                                    .font(.system(size: 15))
-                                    .foregroundColor(Color(hex: "757575"))
-                            } else {
-                                Text("请先在任务卡页面选择任务")
-                                    .font(.system(size: 15))
-                                    .foregroundColor(Color(hex: "E53935"))
-                            }
-                        }
-                        Spacer()
-                        // 搜索按钮保持
-                        Button(action: {}) {
-                            Image(systemName: "magnifyingglass")
-                                .font(.title2)
-                                .foregroundColor(Color(hex: "212121"))
-                        }
+                        // 分隔线
+                        Rectangle()
+                            .fill(Color.gray.opacity(0.2))
+                            .frame(height: 1)
+                            .padding(.horizontal, 20)
+                        
+                        // 进度条
+                        WorkoutProgressIndicator(currentStep: 1)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 12)
+                            .padding(.bottom, 16)
                     }
-                    .padding(.horizontal, 15)
-                    .padding(.vertical, 15)
                     .background(
-                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        RoundedRectangle(cornerRadius: 16)
                             .fill(Color.white)
-                            .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
+                            .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
                     )
                     .padding(.horizontal, 15)
                     .padding(.top, 10)
