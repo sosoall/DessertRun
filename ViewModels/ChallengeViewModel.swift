@@ -236,6 +236,12 @@ class ChallengeViewModel: ObservableObject {
                     self?.isLoading = false
                     
                     if case .failure(let error) = completion {
+                        // 当加载进度失败时，清理之前的进度状态
+                        // 特别是404错误（未报名）时，避免显示之前挑战的进度
+                        self?.progressResponse = nil
+                        self?.selectedEnrollment = nil
+                        self?.appState.selectedEnrollmentId = nil
+                        
                         self?.errorMessage = "加载挑战进度失败: \(error.localizedDescription)"
                         DRError("加载挑战进度失败: \(error)")
                     }

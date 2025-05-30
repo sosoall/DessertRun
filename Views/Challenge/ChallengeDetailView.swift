@@ -204,6 +204,13 @@ struct ChallengeDetailView: View {
     private func loadInitialData() {
         DRInfo("ChallengeDetailView loadInitialData: 开始加载挑战详情和相关数据")
         
+        // 先清理之前的状态，避免显示错误的进度信息
+        viewModel.progressResponse = nil
+        viewModel.selectedEnrollment = nil
+        appState.selectedEnrollmentId = nil
+        isEnrolled = false
+        showProgress = false
+        
         // 加载挑战详情
         viewModel.loadChallengeDetail(id: challengeId)
         
@@ -681,7 +688,7 @@ struct ChallengeDetailView: View {
                     
                     if hasPerCheckinRequirements {
                         VStack(alignment: .leading, spacing: 10) {
-                            Text("运动要求")
+                            Text("有效运动打卡要求")
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundColor(.black)
                                 .padding(.top, 8)
@@ -721,7 +728,7 @@ struct ChallengeDetailView: View {
                                             .foregroundColor(Color(hex: "FE2D55"))
                                             .frame(width: 24)
                                         
-                                        Text("消耗美食\(String(format: "%.1f", minDessert))个")
+                                        Text("运动量 > \(String(format: "%.1f", minDessert))个美食")
                                             .font(.system(size: 16))
                                             .foregroundColor(.black)
                                     }
@@ -770,7 +777,7 @@ struct ChallengeDetailView: View {
                                                 }
                                             }()
                                             
-                                            Text("\(categoryNames)")
+                                            Text("美食种类：\(categoryNames)")
                                                 .font(.system(size: 16))
                                                 .foregroundColor(.black)
                                         } else if challenge.foodRestrictionType == "specific", let foodIds = challenge.requiredFoodIds, !foodIds.isEmpty {
@@ -783,7 +790,7 @@ struct ChallengeDetailView: View {
                                                 }
                                             }()
                                             
-                                            Text("\(foodNames)")
+                                            Text("美食种类：\(foodNames)")
                                                 .font(.system(size: 16))
                                                 .foregroundColor(.black)
                                         } else if challenge.requiredDifferentFoodTypes {
@@ -1034,9 +1041,9 @@ struct ChallengeDetailView: View {
         if daysLimit == 0 {
             let formatter = DateFormatter()
             formatter.dateFormat = "yyyy年MM月dd日"
-            return "完成期限：\(formatter.string(from: challenge.endDate))"
+            return "期限：\(formatter.string(from: challenge.endDate))"
         } else {
-            return "完成期限：\(daysLimit)天内"
+            return "期限：\(daysLimit)天内"
         }
     }
     
