@@ -36,7 +36,7 @@ struct MainTabView: View {
     
     // 标签项配置
     private let tabItems = [
-        TabItem(title: "挑战活动", icon: "trophy", selectedIcon: "trophy.fill"),
+        TabItem(title: "挑战广场", icon: "trophy", selectedIcon: "trophy.fill"),
         TabItem(title: "我的挑战", icon: "list.bullet.rectangle", selectedIcon: "list.bullet.rectangle"),
         TabItem(title: "统计", icon: "chart.bar", selectedIcon: "chart.bar"),
         TabItem(title: "我的", icon: "person", selectedIcon: "person")

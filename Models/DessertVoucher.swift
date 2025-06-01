@@ -56,6 +56,12 @@ struct DessertVoucher: Identifiable, Codable, Equatable {
     /// 图片URL（API直接返回的URL）
     let imageURL: String?
     
+    /// 美食券图片URL（voucher_image_url）
+    var voucherImageURL: String? = nil
+    
+    /// 甜品Icon图片URL（dessert_icon_url）
+    var dessertIconURL: String? = nil
+    
     /// 运动类型
     let exerciseType: String?
     
@@ -184,6 +190,8 @@ struct DessertVoucher: Identifiable, Codable, Equatable {
         case expireAt = "expire_at"
         case imageId = "image_id"
         case imageURL = "image_url"
+        case voucherImageURL = "voucher_image_url"
+        case dessertIconURL = "dessert_icon_url"
         case exerciseType = "exercise_type"
         case exerciseName = "exercise_name"
         case challengeEnrollmentId = "challenge_enrollment_id"
@@ -227,22 +235,12 @@ extension DessertVoucher {
         if let img = try? container.decodeIfPresent(String.self, forKey: .imageURL) {
             imageURL = img
         } else {
-            // 动态尝试 voucher_image_url 字段
-            struct DynamicKey: CodingKey {
-                var stringValue: String
-                init?(stringValue: String) { self.stringValue = stringValue }
-                var intValue: Int?
-                init?(intValue: Int) { return nil }
-            }
-
-            let altKey = DynamicKey(stringValue: "voucher_image_url")!
-            let altContainer = try decoder.container(keyedBy: DynamicKey.self)
-            if let altImg = try? altContainer.decodeIfPresent(String.self, forKey: altKey) {
-                imageURL = altImg
-            } else {
-                imageURL = nil
-            }
+            imageURL = nil
         }
+        
+        // 直接解码 voucher_image_url 与 dessert_icon_url 字段
+        voucherImageURL = try? container.decodeIfPresent(String.self, forKey: .voucherImageURL)
+        dessertIconURL  = try? container.decodeIfPresent(String.self, forKey: .dessertIconURL)
 
         // exercise type/name
         exerciseType = try? container.decodeIfPresent(String.self, forKey: .exerciseType)
@@ -276,6 +274,8 @@ extension DessertVoucher {
 
         try container.encodeIfPresent(imageId, forKey: .imageId)
         try container.encodeIfPresent(imageURL, forKey: .imageURL)
+        try container.encodeIfPresent(voucherImageURL, forKey: .voucherImageURL)
+        try container.encodeIfPresent(dessertIconURL, forKey: .dessertIconURL)
         try container.encodeIfPresent(exerciseType, forKey: .exerciseType)
         try container.encodeIfPresent(exerciseName, forKey: .exerciseName)
 

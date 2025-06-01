@@ -18,8 +18,8 @@ struct ChallengeGridView: View {
     // 安全边距 - 初始使用较小值
     @State private var safetyMargin: CGFloat = 20
     
-    // 固定高度值
-    private let fixedTopHeight: CGFloat = 65
+    // 固定高度值 - 更新后的紧凑值
+    private let fixedTopHeight: CGFloat = 48  // 更新为新的更紧凑高度
     private let fixedFilterHeight: CGFloat = 57
     private let fixedSafeAreaTop: CGFloat = 59
     
@@ -43,8 +43,17 @@ struct ChallengeGridView: View {
     
     var body: some View {
         ZStack(alignment: .top) {
-            // 背景色
-            Color(hex: 0xF2F2F2).ignoresSafeArea()
+            // 清新简洁的渐变背景
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color.white,              // 纯白色顶部
+                    Color(hex: "FAFAFA"),     // 极淡灰色
+                    Color(hex: "F8F9FA")      // 微蓝灰色
+                ]), 
+                startPoint: .top, 
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
             
             // 使用常规ScrollView
             ScrollView {
@@ -93,7 +102,16 @@ struct ChallengeGridView: View {
                 // 筛选器区域
                 filterArea
             }
-            .background(Color.white)
+            .background(
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color.white,
+                        Color.white.opacity(0.95)
+                    ]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
             .zIndex(10)
             
             // 加载中指示器
@@ -128,31 +146,19 @@ struct ChallengeGridView: View {
         }
     }
     
-    // 顶部导航区域
+    // 顶部导航区域 - 更紧凑的设计
     private var topNavigationArea: some View {
         HStack {
-            Text("挑战活动")
+            Text("挑战广场")
                 .font(.system(size: 24, weight: .bold))
                 .foregroundColor(.black)
             
             Spacer()
-            
-            Button(action: {
-                // 显示用户已报名的挑战
-                showUserEnrollments = true
-            }) {
-                Image(systemName: "person.crop.circle")
-                    .font(.system(size: 22))
-                    .foregroundColor(.black)
-                    .padding(8)
-                    .background(Circle().fill(Color.white))
-            }
         }
         .padding(.horizontal, 16)
-        .padding(.top, 16)
-        .padding(.bottom, 8)
-        .background(Color.white)
-        .frame(height: fixedTopHeight)
+        .padding(.top, 10)
+        .padding(.bottom, 4)
+        .frame(height: 48) // 更紧凑的高度
     }
     
     // 筛选器区域
@@ -340,7 +346,7 @@ struct SimplifiedWaterfallGrid<Item: Identifiable, Content: View>: View {
     }
 }
 
-/// 筛选按钮组件
+/// 筛选按钮组件 - 重新设计为简洁的下划线样式
 struct FilterButton: View {
     let title: String
     let isSelected: Bool
@@ -348,16 +354,21 @@ struct FilterButton: View {
     
     var body: some View {
         Button(action: action) {
-            Text(title)
-                .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: 20)
-                        .fill(isSelected ? Color.DessertRun.accent : Color.gray.opacity(0.1))
-                )
-                .foregroundColor(isSelected ? .white : .black)
+            VStack(spacing: 6) {
+                Text(title)
+                    .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
+                    .foregroundColor(isSelected ? .black : Color.gray)
+                
+                // 下划线指示器
+                Rectangle()
+                    .fill(isSelected ? Color.pink : Color.clear)
+                    .frame(height: 2)
+                    .frame(width: isSelected ? nil : 0)
+                    .animation(.easeInOut(duration: 0.2), value: isSelected)
+            }
+            .padding(.horizontal, 8)
         }
+        .buttonStyle(PlainButtonStyle())
     }
 }
 

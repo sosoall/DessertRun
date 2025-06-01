@@ -30,25 +30,42 @@ struct ExerciseRecordView: View {
             VStack(spacing: 24) {
                 // 顶部标题和视图切换
                 HStack {
-                    Text("运动记录")
-                        .font(.system(size: 22, weight: .semibold))
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("运动记录")
+                            .font(.system(size: 24, weight: .bold))
+                        
+                        Text("追踪你的运动成就")
+                            .font(.system(size: 16))
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.leading, 16) // 增加左边距
                     
                     Spacer()
                     
-                    // 视图切换按钮
-                    HStack(spacing: 16) {
+                    // 视图切换按钮 - 重新设计为简洁样式
+                    HStack(spacing: 20) {
                         ForEach(StatTab.allCases) { tab in
                             Button(action: {
                                 selectedTab = tab
                             }) {
-                                Image(systemName: tab.iconName)
-                                    .foregroundColor(selectedTab == tab ? Color(hex: "FE2D55") : .gray)
-                                    .font(.system(size: 20))
+                                VStack(spacing: 4) {
+                                    Text(tab.rawValue)
+                                        .font(.system(size: 14, weight: selectedTab == tab ? .semibold : .regular))
+                                        .foregroundColor(selectedTab == tab ? .primary : Color.gray)
+                                    
+                                    // 下划线指示器
+                                    Rectangle()
+                                        .fill(selectedTab == tab ? Color(hex: "8E8E93") : Color.clear)
+                                        .frame(height: 2)
+                                        .frame(width: selectedTab == tab ? 20 : 0)
+                                        .animation(.easeInOut(duration: 0.2), value: selectedTab)
+                                }
                             }
+                            .buttonStyle(PlainButtonStyle())
                         }
                     }
+                    .padding(.trailing, 16)
                 }
-                .padding(.horizontal)
                 
                 // 根据选择的Tab显示不同内容
                 if selectedTab == .month {

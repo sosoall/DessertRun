@@ -192,8 +192,9 @@ struct ProfileHomeView: View {
             }
             .padding(.top, 16)
         }
-        .background(Color(hex: "fae8c8").ignoresSafeArea())
-        .navigationBarHidden(true)
+        .background(Color(UIColor.systemGray6).ignoresSafeArea())
+        .navigationTitle("我的")
+        .navigationBarTitleDisplayMode(.inline)
         .fullScreenCover(isPresented: $showLoginView) {
             LoginView()
         }
