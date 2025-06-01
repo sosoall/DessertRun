@@ -148,11 +148,11 @@ struct BasicEnrollmentVoucherListView: View {
     // MARK: - 动态高度计算
     private func recalcHeight() {
         // 估算：卡片高度≈120，间距12；引导语 & 安全余量 100
-        let perCard: CGFloat = 160  // 增加单个卡片的估算高度
-        let base: CGFloat = 100     // 增加基础高度
+        let perCard: CGFloat = 180  // 调高单个卡片的估算高度
+        let base: CGFloat = 140     // 调高基础高度
         let total = CGFloat(viewModel.vouchers.count) * perCard + base
         let screen = UIScreen.main.bounds.height
-        let clamped = min(max(total, screen * 0.4), screen * 0.8)  // 调整最小和最大比例
+        let clamped = min(max(total, screen * 0.5), screen * 0.9)  // 提高最小占屏比例并放宽最大值
         DispatchQueue.main.async {
             sheetHeight = clamped
         }

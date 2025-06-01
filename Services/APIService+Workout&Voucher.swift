@@ -416,6 +416,7 @@ extension APIService {
                 let status: String
                 let created_at: String
                 let expire_at: String?
+                let voucher_image_url: String?
             }
         }
         
@@ -515,7 +516,7 @@ extension APIService {
             }
             
             // 创建美食券对象
-            let dessertVoucher = DessertVoucher(
+            var dessertVoucher = DessertVoucher(
                 id: voucherDTO.id,
                 userId: voucherDTO.user_id,
                 dessertId: voucherDTO.dessert_id,
@@ -534,6 +535,13 @@ extension APIService {
                 challengeEnrollmentId: nil
             )
             
+            // 统一图片字段：优先voucher_image_url，其次image_url
+            if let vURL = voucherDTO.voucher_image_url, !vURL.isEmpty {
+                dessertVoucher.voucherImageURL = vURL
+            } else if let imgURL = voucherDTO.image_url, !imgURL.isEmpty {
+                dessertVoucher.voucherImageURL = imgURL
+            }
+
             return (workoutRecord, dessertVoucher)
         }
         .mapError { error -> APIServiceError in
@@ -596,6 +604,7 @@ extension APIService {
                 let expire_at: String?
                 let image_id: String?
                 let image_url: String?
+                let voucher_image_url: String?
             }
         }
         
@@ -945,6 +954,7 @@ extension APIService {
                 let expire_at: String?
                 let image_id: String?
                 let image_url: String?
+                let voucher_image_url: String?
             }
         }
         
@@ -1201,6 +1211,7 @@ extension APIService {
                 let expire_at: String?
                 let exercise_type: String?
                 let exercise_name: String?
+                let voucher_image_url: String?
             }
         }
 
@@ -1287,7 +1298,7 @@ extension APIService {
             }
 
             // Voucher -> DessertVoucher
-            let dessertVoucher = DessertVoucher(
+            var dessertVoucher = DessertVoucher(
                 id: voucherDTO.id,
                 userId: voucherDTO.user_id,
                 dessertId: voucherDTO.dessert_id,
@@ -1305,6 +1316,18 @@ extension APIService {
                 exerciseName: voucherDTO.exercise_name,
                 challengeEnrollmentId: voucherDTO.challenge_enrollment_id
             )
+
+            // 统一图片字段：优先voucher_image_url，其次image_url
+            if let vURL = voucherDTO.voucher_image_url, !vURL.isEmpty {
+                dessertVoucher.voucherImageURL = vURL
+            } else if let imgURL = voucherDTO.image_url, !imgURL.isEmpty {
+                dessertVoucher.voucherImageURL = imgURL
+            }
+
+            // 记录根级甜品icon
+            if dessertVoucher.dessertIconURL == nil {
+                dessertVoucher.dessertIconURL = apiResp.data.dessert_icon_url
+            }
 
             // 从voucher信息创建完整的WorkoutRecord，而不是使用不完整的WorkoutRecordDTO
             let exerciseType = APIExerciseType.fromString("unknown", name: voucherDTO.exercise_name, id: voucherDTO.exercise_type)

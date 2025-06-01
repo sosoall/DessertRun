@@ -71,13 +71,26 @@ struct DessertLeaderboardView: View {
                                     VStack {
                                         Spacer()
                                         
-                                        // 使用CachedImage加载图片
-                                        CachedImage(url: dessert.imageName, dessertId: dessert.dessertId)
-                                            .scaledToFit()
-                                            .frame(height: index == 0 ? 100 : 80)
-                                            .cornerRadius(12)
+                                        AsyncImage(url: URL(string: dessert.imageName)) { phase in
+                                            switch phase {
+                                            case .success(let image):
+                                                image
+                                                    .resizable()
+                                                    .scaledToFit()
+                                            default:
+                                                RoundedRectangle(cornerRadius: 12)
+                                                    .fill(Color.gray.opacity(0.1))
+                                                    .overlay(
+                                                        Image(systemName: "cup.and.saucer")
+                                                            .font(.system(size: 24))
+                                                            .foregroundColor(.gray)
+                                                    )
+                                            }
+                                        }
+                                        .frame(height: index == 0 ? 110 : 90)
+                                        .cornerRadius(12)
                                     }
-                                    .frame(height: 100)
+                                    .frame(height: index == 0 ? 120 : 100)
                                     
                                     // 第一名显示皇冠
                                     if index == 0 {
@@ -115,7 +128,7 @@ struct DessertLeaderboardView: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
                 }
-                .frame(height: 140)
+                .frame(height: 160)
             }
         }
         .background(Color.white)

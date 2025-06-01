@@ -137,7 +137,7 @@ struct EnrolledChallengeView: View {
             }
             
             VStack(alignment: .leading, spacing: 2) {
-                Text(hasTodayWorkout() ? "已消灭热量！" : "该吃吃，该喝喝，热量别往肚里搁")
+                Text(hasTodayWorkout() ? "今日已消灭热量！" : "该吃吃，该喝喝，热量别往肚里搁")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(.primary)
             }
@@ -170,6 +170,7 @@ struct EnrolledChallengeView: View {
                 isSelected: selectedStatus == .ongoing,
                 action: { selectedStatus = .ongoing }
             )
+            .frame(maxWidth: .infinity)
             
             FilterButtonWithStats(
                 title: "已完成 \(completedCount)",
@@ -178,6 +179,7 @@ struct EnrolledChallengeView: View {
                 isSelected: selectedStatus == .completed,
                 action: { selectedStatus = .completed }
             )
+            .frame(maxWidth: .infinity)
             
             FilterButtonWithStats(
                 title: "已失败 \(failedCount)",
@@ -186,6 +188,7 @@ struct EnrolledChallengeView: View {
                 isSelected: selectedStatus == .failed,
                 action: { selectedStatus = .failed }
             )
+            .frame(maxWidth: .infinity)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -467,9 +470,12 @@ struct FilterButtonWithStats: View {
                     Text(title)
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(isSelected ? .primary : Color.gray)
+                        .lineLimit(1)
+                        .fixedSize()
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
+                .frame(maxWidth: .infinity)
                 
                 // 下划线指示器
                 Rectangle()
@@ -580,19 +586,10 @@ struct FeaturedChallengeCard: View {
                     }
                     
                     HStack {
-                        Image(systemName: "target")
-                            .foregroundColor(.green)
-                        
-                        Text("\(enrollment.enrollment.completedCheckins)/\(enrollment.challenge.requiredCheckins)次打卡")
-                            .font(.system(size: 14))
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    HStack {
                         Image(systemName: "gift.fill")
                             .foregroundColor(.orange)
                         
-                        Text("美食盲盒")
+                        Text(enrollment.challenge.formattedReward)
                             .font(.system(size: 14))
                             .foregroundColor(.secondary)
                     }
@@ -727,7 +724,7 @@ struct EnhancedEnrollmentCard: View {
                         .foregroundColor(.orange)
                         .font(.system(size: 12))
                     
-                    Text("美食盲盒")
+                    Text(enrollment.challenge.formattedReward)
                         .font(.system(size: 14))
                         .foregroundColor(.secondary)
                 }
@@ -759,60 +756,23 @@ struct EnhancedEnrollmentCard: View {
     // 已完成挑战的内容
     @ViewBuilder
     private var completedChallengeContent: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // 完成信息 - 简化版
-            HStack {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 16))
-                    .foregroundColor(.orange)
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    if let completionDate = enrollment.enrollment.completionDate {
-                        Text("完成于：\(formatDate(completionDate))")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.primary)
-                    } else {
-                        Text("已完成挑战")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.primary)
-                    }
-                    
-                    // 奖励状态
-                    if enrollment.enrollment.redemptionDate != nil {
-                        Text("✅ 已领取奖励")
-                            .font(.system(size: 12))
-                            .foregroundColor(.orange)
-                    } else {
-                        Text("🎁 待领取奖励")
-                            .font(.system(size: 12))
-                            .foregroundColor(.orange)
-                    }
-                }
-                
-                Spacer()
-            }
-            
-            // Voucher展示区域 - 使用真实的voucher图片
+        ZStack(alignment: .bottomTrailing) {
+            // 主内容：Voucher 图片水平列表
             if !enrollment.voucherList.vouchers.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        ForEach(enrollment.voucherList.vouchers, id: \.id) { voucher in
+                        ForEach(enrollment.voucherList.vouchers, id: \.id) { (voucher: ChallengeVoucherDetail) in
                             VStack(spacing: 4) {
-                                AsyncImage(url: URL(string: voucher.voucherImageURL)) { image in
-                                    image
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fill)
-                                        .frame(width: 50, height: 35)
-                                        .clipped()
-                                        .cornerRadius(8)
+                                let imgURL = voucher.voucherImageURL
+                                AsyncImage(url: URL(string: imgURL)) { image in
+                                    image.resizable()
+                                         .scaledToFit()
+                                         .frame(height: 50)
+                                         .cornerRadius(8)
                                 } placeholder: {
                                     RoundedRectangle(cornerRadius: 8)
                                         .fill(Color.orange.opacity(0.2))
-                                        .frame(width: 50, height: 35)
-                                        .overlay(
-                                            Text("🍰")
-                                                .font(.system(size: 16))
-                                        )
+                                        .frame(height: 50)
                                 }
                                 
                                 Text(voucher.dessertName)
@@ -824,6 +784,18 @@ struct EnhancedEnrollmentCard: View {
                     }
                     .padding(.horizontal, 4)
                 }
+            }
+            // 右下角完成日期标识
+            if let completionDate = enrollment.enrollment.completionDate {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(.orange)
+                    Text("完成于：\(formatDate(completionDate))")
+                        .font(.system(size: 12))
+                        .foregroundColor(.gray)
+                }
+                .padding(4)
             }
         }
     }

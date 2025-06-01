@@ -120,6 +120,16 @@ struct DessertVoucher: Identifiable, Codable, Equatable {
         return max(0, days)
     }
     
+    /// 最终用于展示的美食券大图URL（优先voucherImageURL，其次imageURL）
+    var displayVoucherImageURL: String? {
+        return voucherImageURL ?? imageURL
+    }
+    
+    /// 最终用于展示的甜品Icon URL
+    var displayDessertIconURL: String? {
+        return dessertIconURL
+    }
+    
     /// 实现Equatable协议的静态==方法
     static func == (lhs: DessertVoucher, rhs: DessertVoucher) -> Bool {
         return lhs.id == rhs.id && 

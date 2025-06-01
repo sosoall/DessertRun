@@ -146,7 +146,8 @@ struct DessertVoucherCardSimple: View {
                 if forceExpanded {
                     // 展开状态下的图片
                     Group {
-                        AsyncImage(url: URL(string: voucher.voucherImageURL ?? "")) { phase in
+                        let imgURL = voucher.displayVoucherImageURL
+                        AsyncImage(url: URL(string: imgURL ?? "")) { phase in
                             if let image = phase.image {
                                 image.resizable()
                                      .scaledToFit()
@@ -168,7 +169,7 @@ struct DessertVoucherCardSimple: View {
                     
                     // 展开状态下的左侧图标
                     Group {
-                        AsyncImage(url: URL(string: voucher.dessertIconURL ?? "")) { phase in
+                        AsyncImage(url: URL(string: voucher.displayDessertIconURL ?? "")) { phase in
                             if let image = phase.image {
                                 image.resizable()
                                      .scaledToFit()
@@ -190,7 +191,8 @@ struct DessertVoucherCardSimple: View {
                 } else {
                     // 收起状态下的图片
                     Group {
-                        AsyncImage(url: URL(string: voucher.voucherImageURL ?? "")) { phase in
+                        let imgURL = voucher.displayVoucherImageURL
+                        AsyncImage(url: URL(string: imgURL ?? "")) { phase in
                             if let image = phase.image {
                                 image.resizable()
                                      .scaledToFit()
@@ -209,7 +211,7 @@ struct DessertVoucherCardSimple: View {
                     
                     // 收起状态下的左侧图标
                     Group {
-                        AsyncImage(url: URL(string: voucher.dessertIconURL ?? "")) { phase in
+                        AsyncImage(url: URL(string: voucher.displayDessertIconURL ?? "")) { phase in
                             if let image = phase.image {
                                 image.resizable()
                                      .scaledToFit()
