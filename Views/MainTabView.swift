@@ -28,18 +28,14 @@ struct MainTabView: View {
     // 运动流程协调器
     @StateObject private var workoutCoordinator = WorkoutFlowCoordinator.shared
     
-    // 挑战视图模型 - 用于"我的挑战"页面
-    @StateObject private var challengeViewModel = ChallengeViewModel(appState: AppState.shared)
-    
-    // 添加专门的运动记录视图模型 - 确保不被重复创建
+    // 运动统计视图模型 - 供首页内部复用
     @StateObject private var exerciseRecordViewModel = ExerciseRecordViewModel(appState: AppState.shared)
     
-    // 标签项配置
+    // 标签项配置（新版：首页、打卡、我的）。打卡为主按钮，视觉高亮由CustomTabViewContainer处理。
     private let tabItems = [
-        TabItem(title: "挑战广场", icon: "trophy", selectedIcon: "trophy.fill"),
-        TabItem(title: "我的挑战", icon: "list.bullet.rectangle", selectedIcon: "list.bullet.rectangle"),
-        TabItem(title: "统计", icon: "chart.bar", selectedIcon: "chart.bar"),
-        TabItem(title: "我的", icon: "person", selectedIcon: "person")
+        TabItem(title: "首页", icon: "house", selectedIcon: "house.fill"),
+        TabItem(title: "打卡", icon: "figure.walk", selectedIcon: "figure.walk.circle.fill"),
+        TabItem(title: "我的", icon: "person", selectedIcon: "person.fill")
     ]
     
     var body: some View {
@@ -51,25 +47,23 @@ struct MainTabView: View {
             ) {
                 switch appState.selectedTabIndex {
                 case 0:
-                    // 挑战标签 - 使用新的优化版界面
+                    // 首页：问候 + 美食券 + 统计
                     NavigationStack {
-                        ChallengeGridView()
+                        HomeView(viewModel: exerciseRecordViewModel)
                             .environmentObject(appState)
                     }
+                    .id("homeTab")
                 case 1:
-                    // 我的挑战标签
-                    NavigationStack {
-                        EnrolledChallengeView(viewModel: challengeViewModel)
-                    }
-                    .id("myChallengeTab")
+                    // 打卡标签 - 自动进入运动打卡会话
+                    Color.clear
+                        .onAppear {
+                            // 若尚未显示打卡视图，则显示
+                            if !appState.showWorkoutView {
+                                appState.showWorkoutView = true
+                            }
+                        }
+                        .id("workoutTab")
                 case 2:
-                    // 运动记录标签 - 移除LazyView包装，使用专门的视图模型
-                    NavigationStack {
-                        ExerciseRecordView(viewModel: exerciseRecordViewModel)
-                            .environmentObject(appState)
-                    }
-                    .id("exerciseRecordTab") // 使用固定ID，避免每次都重新创建
-                case 3:
                     // 个人信息标签
                     NavigationStack {
                         ProfileHomeView()
@@ -110,13 +104,11 @@ struct MainTabView: View {
                 print("【调试】MainTabView已刷新导航状态")
             }
         }
-        // 监听美食券页面导航请求 - 已移除美食券tab，更改为导航到个人页面
+        // 监听美食券页面导航请求 - 新版切换到首页（索引0）
         .onChange(of: workoutCoordinator.shouldNavigateToFoodCheckIn) { oldValue, shouldNavigate in
             if shouldNavigate {
-                // 切换到个人页面查看排行榜
                 DispatchQueue.main.async {
-                    appState.selectedTabIndex = 3 // 个人页面现在是索引3
-                    // 重置导航标志
+                    appState.selectedTabIndex = 0 //到首页索引
                     workoutCoordinator.shouldNavigateToFoodCheckIn = false
                 }
             }

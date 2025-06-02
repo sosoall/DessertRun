@@ -219,12 +219,6 @@ struct DessertToExerciseTransition: View {
             return
         }
         
-        // 必须存在任务卡
-        guard let taskVoucher = appState.selectedTaskVoucher else {
-            self.errorMessage = "未找到任务卡，请先选择"
-            return
-        }
-
         // 设置加载状态
         isLoading = true
         errorMessage = nil
@@ -262,8 +256,8 @@ struct DessertToExerciseTransition: View {
             workoutData["duration"] = Int(exerciseDuration) // 分钟
         }
 
-        // 调用activateVoucher
-        viewModel.activateVoucher(voucherId: taskVoucher.id, workoutData: workoutData)
+        // 直接调用创建运动记录接口（新版逻辑）
+        viewModel.createWorkoutRecord(params: workoutData)
             .receive(on: DispatchQueue.main)
             .sink(
                 receiveCompletion: { completion in
@@ -282,53 +276,36 @@ struct DessertToExerciseTransition: View {
                     }
                 },
                 receiveValue: { response in
-                    let (workoutRecord, dessertVoucher, challengeProgressInfo) = response
+                    let (workoutRecord, dessertVoucher) = response
+                    // 接口成功返回
+                    self.isLoading = false
                     
-                    // 处理挑战进度信息 - 改为通过通知传递，而不是保存到全局状态
-                    if let progressInfo = challengeProgressInfo {
-                        // 发送通知，包含挑战进度信息
-                        NotificationCenter.default.post(
-                            name: NSNotification.Name("ChallengeProgressUpdated"),
-                            object: progressInfo
-                        )
-                        DRInfo("挑战进度更新通知已发送: \(progressInfo.challengeName ?? "挑战") \(progressInfo.completedCheckins)/\(progressInfo.requiredCheckins)")
+                    guard let record = workoutRecord else {
+                        self.errorMessage = "服务器未返回运动记录"
+                        return
                     }
-                    
-                    // 等待后端返回数据后，再执行后续操作
-                    let record = workoutRecord
-                        // 设置加载状态为false
-                        self.isLoading = false
-                        
-                        // 设置刚完成打卡标记，用于触发动画
-                        appState.justCompletedWorkout = true
-                        
-                        // 将记录添加到本地状态
-                        appState.addWorkoutRecord(record)
-                        DRInfo("成功创建运动记录: \(record.id)")
-                        
-                        // 美食券信息，直接添加到应用状态
-                        appState.addDessertVoucher(dessertVoucher)
-                        DRInfo("成功激活美食券: \(dessertVoucher.id)")
-                        // 更新任务卡为已激活
-                        if appState.selectedTaskVoucher?.id == dessertVoucher.id {
-                            appState.selectedTaskVoucher = nil
+
+                    // 添加到应用状态
+                    appState.justCompletedWorkout = true
+                    appState.addWorkoutRecord(record)
+
+                    if let voucher = dessertVoucher {
+                        appState.addDessertVoucher(voucher)
+                        DRInfo("成功获取美食券: \(voucher.id)")
+                    }
+
+                    // 关闭运动打卡视图及面板
+                    appState.showWorkoutView = false
+                    animationState.dismissPanel()
+
+                    // 等待动画完成后显示打卡完成页面
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        if let voucher = dessertVoucher {
+                            WorkoutFlowCoordinator.shared.handleWorkoutCompletionWithVoucher(record: record, voucher: voucher)
+                        } else {
+                            WorkoutFlowCoordinator.shared.handleWorkoutCompletion(record: record)
                         }
-                        
-                        // 关闭运动打卡视图
-                        appState.showWorkoutView = false
-                        
-                        // 关闭面板
-                        animationState.dismissPanel()
-                        
-                        // 优化：等待0.5秒，让美食图片完成回到气泡的动画后再显示运动完成页
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            // 使用新的带有挑战进度信息的方法，只显示运动完成页
-                            WorkoutFlowCoordinator.shared.handleWorkoutCompletionWithVoucherAndProgress(
-                                record: record, 
-                                voucher: dessertVoucher, 
-                                challengeProgress: challengeProgressInfo
-                            )
-                        }
+                    }
                 }
             )
             .store(in: &CancellableStorage.shared.cancellables)

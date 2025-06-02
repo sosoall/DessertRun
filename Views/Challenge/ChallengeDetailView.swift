@@ -142,7 +142,7 @@ struct ChallengeDetailView: View {
                 }
             }) {
                 if let voucher = selectedVoucherForPopup {
-                    ExpandedVoucherFullScreen(voucher: voucher, isPresented: $showExpandedVoucher)
+                    ExpandedVoucherFullScreenView(voucher: voucher)
                         .environmentObject(appState)
                 }
             }

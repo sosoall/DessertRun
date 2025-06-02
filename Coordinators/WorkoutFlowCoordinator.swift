@@ -115,6 +115,8 @@ class WorkoutFlowCoordinator: ObservableObject {
             // 延迟触发美食券面板显示，等待完成页面完全关闭
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 self.shouldShowVoucherPanel = true
+                // 切回首页Tab
+                AppState.shared.selectedTabIndex = 0
                 DRInfo("[WorkoutFlowCoordinator] 触发美食券面板显示")
                 
                 // 发送通知告诉ChallengeDetailView显示美食券面板

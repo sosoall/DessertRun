@@ -44,8 +44,8 @@ class AppState: ObservableObject {
     
     // MARK: - 导航状态
     
-    /// 当前选中的主标签索引（0：运动，1：甜品打卡，2：运动记录，3：我的）
-    @Published var selectedTabIndex: Int = 1
+    /// 当前选中的主标签索引（0：首页，1：打卡，2：我的）
+    @Published var selectedTabIndex: Int = 0
     
     /// 用于标记是否需要重置导航状态
     @Published var shouldResetNavigation = false
@@ -179,7 +179,7 @@ class AppState: ObservableObject {
         if authService.isLoggedIn, authService.currentUser != nil {
             self.isLoggedIn = true
             self.showLoginView = false
-            self.selectedTabIndex = 1 // 默认进入"我的挑战"页
+            self.selectedTabIndex = 0 // 默认进入首页
             DRInfo("AppState: 已检测到登录用户，设置登录状态")
         } else {
             // 未登录状态

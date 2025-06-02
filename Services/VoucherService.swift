@@ -36,64 +36,96 @@ class VoucherService: ObservableObject {
     /// 取消令牌
     private var cancellables = Set<AnyCancellable>()
     
+    /// 最近一次触发拉取的时间，用于防抖
+    private var lastFetchTime: Date = .distantPast
+    
     /// 获取美食券列表
     /// - Parameter forceRefresh: 是否强制刷新
     func loadVouchers(forceRefresh: Bool = false) {
-        // 如果强制刷新，重置页码和列表
+        // 1. 节流判断放在最前，避免在被拦截时已清空数据
+        let now = Date()
+        let interval = now.timeIntervalSince(lastFetchTime)
+        if interval < 1 { // 普通调用节流 1s
+            return
+        }
+        if forceRefresh && interval < 10 {
+            return
+        }
+
+        // 2. 如果强制刷新，重置页码和列表
         if forceRefresh {
             currentPage = 1
             vouchers = []
             hasMoreVouchers = true
         }
-        
-        // 如果正在加载或没有更多数据，直接返回
+
+        // 3. 若正在加载或没有更多数据则返回
         if isLoading || !hasMoreVouchers {
             return
         }
-        
+
         isLoading = true
         errorMessage = nil
         
-        let endpoint = "api/v1/vouchers?page=\(currentPage)&limit=\(pageSize)"
-        
-        // 使用NetworkManager进行请求
+        // 使用批量接口，按created_at降序，第一页limit自定义
+        let params: [String: Any] = [
+            "page": currentPage,
+            "limit": pageSize,
+            "status": "active"
+        ]
+
         NetworkManager.shared.request(
-            endpoint: endpoint,
+            endpoint: "/api/v1/vouchers/batch",
             method: .get,
-            parameters: nil,
-            requiresAuth: true
+            parameters: params,
+            requiresAuth: true,
+            responseType: VoucherBatchWrapper.self
         )
         .receive(on: DispatchQueue.main)
         .sink(receiveCompletion: { [weak self] completion in
             self?.isLoading = false
-            
             if case .failure(let error) = completion {
                 self?.errorMessage = error.localizedDescription
                 DRError("获取美食券失败: \(error)")
             }
-        }, receiveValue: { [weak self] (data: APIResponse<PaginatedResponse<DessertVoucher>>) in
+        }, receiveValue: { [weak self] resp in
             guard let self = self else { return }
-            
-            if let items = data.data?.items {
-                // 如果返回的数据不足一页，说明没有更多数据了
-                if items.count < self.pageSize {
-                    self.hasMoreVouchers = false
+            var enriched: [DessertVoucher] = []
+            let imgMap = resp.data.images ?? [:]
+            let iconMap = resp.data.dessertIcons ?? [:]
+            for var v in resp.data.vouchers {
+                if let imgId = v.imageId, let url = imgMap[imgId] {
+                    v.voucherImageURL = url
                 }
-                
-                // 追加数据
-                if self.currentPage == 1 {
-                    self.vouchers = items
-                } else {
-                    self.vouchers.append(contentsOf: items)
+                if let dId = v.dessertId, let url = iconMap[dId] {
+                    v.dessertIconURL = url
                 }
-                
-                // 增加页码
-                self.currentPage += 1
+                enriched.append(v)
+            }
+            if self.currentPage == 1 {
+                self.vouchers = enriched
             } else {
-                self.hasMoreVouchers = false
+                // 追加并去重（按id）
+                var combined = self.vouchers
+                combined.append(contentsOf: enriched)
+                var seen = Set<String>()
+                self.vouchers = combined.filter { voucher in
+                    let id = voucher.id
+                    if seen.contains(id) { return false }
+                    seen.insert(id)
+                    return true
+                }.sorted { $0.createdAt > $1.createdAt }
+            }
+
+            // 更新分页状态
+            self.hasMoreVouchers = resp.data.total > self.vouchers.count
+            if self.hasMoreVouchers {
+                self.currentPage += 1
             }
         })
         .store(in: &cancellables)
+        
+        lastFetchTime = now
     }
     
     /// 加载更多美食券
@@ -164,5 +196,26 @@ struct RedeemVoucherResponse: Codable {
         case voucherID = "voucher_id"
         case redeemedAt = "redeemed_at"
         case activityID = "activity_id"
+    }
+}
+
+struct VoucherBatchWrapper: Codable {
+    let code: Int
+    let message: String
+    let data: VoucherBatchData
+}
+
+struct VoucherBatchData: Codable {
+    let total: Int
+    let page: Int
+    let limit: Int
+    let vouchers: [DessertVoucher]
+    let images: [String: String]?
+    let dessertIcons: [String: String]?
+    
+    enum CodingKeys: String, CodingKey {
+        case total, page, limit, vouchers
+        case images
+        case dessertIcons = "dessert_icons"
     }
 } 

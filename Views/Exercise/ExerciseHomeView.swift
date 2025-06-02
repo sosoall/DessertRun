@@ -160,17 +160,18 @@ struct WorkoutSessionView: View {
     
     var body: some View {
         ZStack {
-            // 背景
+            // 半透明背景
             Color.black.opacity(0.3)
                 .ignoresSafeArea()
             
-            // 运动打卡视图
+            // 运动打卡视图，带退出按钮
             ExerciseHomeView(onExit: {
                 // 退出运动打卡会话
                 appState.showWorkoutView = false
-                appState.selectedTaskVoucher = nil
+                // 返回首页
+                appState.selectedTabIndex = 0
             })
-            .environmentObject(appState)
+                .environmentObject(appState)
         }
     }
 } 

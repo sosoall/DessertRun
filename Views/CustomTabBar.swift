@@ -63,17 +63,32 @@ struct CustomTabViewContainer<Content: View>: View {
                         if !appState.shouldHideTabBar {
                             // 只有这个背景是白色的
                             HStack(spacing: 0) {
+                                let middleIndex = tabItems.count > 1 ? 1 : 0
                                 ForEach(Array(tabItems.enumerated()), id: \.element.id) { index, item in
                                     Button(action: {
                                         withAnimation(.easeInOut(duration: 0.2)) {
                                             selectedTab = index
                                         }
                                     }) {
-                                        Image(systemName: selectedTab == index ? item.selectedIcon : item.icon)
-                                            .font(.system(size: 24))
-                                            .foregroundColor(selectedTab == index ? accentColor : Color.gray)
+                                        if index == middleIndex {
+                                            // 突出显示打卡按钮
+                                            ZStack {
+                                                Circle()
+                                                    .fill(accentColor)
+                                                    .frame(width: 58, height: 58)
+                                                    .shadow(color: accentColor.opacity(0.4), radius: 6, x: 0, y: 4)
+                                                Image(systemName: selectedTab == index ? item.selectedIcon : item.icon)
+                                                    .font(.system(size: 26, weight: .bold))
+                                                    .foregroundColor(.white)
+                                            }
                                             .frame(maxWidth: .infinity)
-                                            .padding(.vertical, 12)
+                                        } else {
+                                            Image(systemName: selectedTab == index ? item.selectedIcon : item.icon)
+                                                .font(.system(size: 24))
+                                                .foregroundColor(selectedTab == index ? accentColor : Color.gray)
+                                                .frame(maxWidth: .infinity)
+                                                .padding(.vertical, 12)
+                                        }
                                     }
                                 }
                             }
