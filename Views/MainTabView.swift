@@ -33,9 +33,9 @@ struct MainTabView: View {
     
     // 标签项配置（新版：首页、打卡、我的）。打卡为主按钮，视觉高亮由CustomTabViewContainer处理。
     private let tabItems = [
-        TabItem(title: "首页", icon: "house", selectedIcon: "house.fill"),
-        TabItem(title: "打卡", icon: "figure.walk", selectedIcon: "figure.walk.circle.fill"),
-        TabItem(title: "我的", icon: "person", selectedIcon: "person.fill")
+        TabItem(title: "首页", icon: "homepage_unselected", selectedIcon: "homepage_selected"),
+        TabItem(title: "打卡", icon: "workout", selectedIcon: "workout"),
+        TabItem(title: "我的", icon: "profilepage_unselected", selectedIcon: "profilepage_selected")
     ]
     
     var body: some View {

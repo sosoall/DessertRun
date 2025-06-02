@@ -74,7 +74,7 @@ class AuthService: ObservableObject {
         DRInfo("开始验证Token有效性: \(token.prefix(10))...")
         
         // 调用API服务获取用户资料，这将隐式验证token
-        APIService.shared.getUserProfile()
+        APIService.shared.fetchUserProfile()
             .receive(on: DispatchQueue.main)
             .sink(
                 receiveCompletion: { result in
@@ -206,6 +206,9 @@ class AuthService: ObservableObject {
                         self?.isLoggedIn = true
                         self?.saveUserToStorage()
                         
+                        // 登录成功后拉取完整用户信息（含昵称）
+                        self?.loadUserProfile()
+                        
                         // 检查是否是新用户（自动注册）
                         if let isNewUser = self?.currentUser?.isNewUser, isNewUser {
                             DRInfo("新用户自动注册成功，准备收集个人信息")
@@ -224,6 +227,30 @@ class AuthService: ObservableObject {
                     self?.currentUser = self?.mapToAppUser(apiUser: apiUser)
                 }
             )
+            .store(in: &cancellables)
+    }
+    
+    /// 登录成功后获取用户资料，填充昵称等信息
+    private func loadUserProfile() {
+        APIService.shared.fetchUserProfile()
+            .receive(on: DispatchQueue.main)
+            .sink(receiveCompletion: { completion in
+                if case .failure(let error) = completion {
+                    DRError("获取用户资料失败: \(error)")
+                }
+            }, receiveValue: { [weak self] apiUser in
+                guard let self = self else { return }
+                self.currentUser = self.mapToAppUser(apiUser: apiUser)
+                self.saveUserToStorage()
+
+                // 更新 AppState 中的用户资料，确保触发@Published变更
+                AppState.shared.userProfile = UserProfile(
+                    id: apiUser.id ?? UUID().uuidString,
+                    name: apiUser.phone,
+                    nickname: apiUser.nickname,
+                    avatarName: "person.circle.fill"
+                )
+            })
             .store(in: &cancellables)
     }
     

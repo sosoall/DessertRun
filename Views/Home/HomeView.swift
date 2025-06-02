@@ -66,8 +66,9 @@ struct HomeView: View {
     // MARK: - 子视图
     private var greetingSection: some View {
         let greeting = timeGreeting
+        let displayName = appState.userProfile.nickname?.isEmpty == false ? appState.userProfile.nickname! : appState.userProfile.name
         return VStack(alignment: .leading, spacing: 4) {
-            Text("\(greeting)，\(appState.userProfile.name)！")
+            Text("\(greeting)，\(displayName)！")
                 .font(.system(size: 28, weight: .bold))
             Text("保持运动，享受美食~")
                 .font(.system(size: 16))

@@ -225,7 +225,8 @@ struct MonthCalendarView: View {
                     // 显示美食倍数
                     Text("\(String(format: "%.1f", dessertCount))x")
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.black)
+                        .foregroundColor(.white)
+                        .shadow(color: .black.opacity(0.25), radius: 1, x: 0, y: 0)
                 }
             }
         }

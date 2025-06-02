@@ -133,10 +133,10 @@ struct ExerciseRecordView: View {
                     }
                 }
                 
-                Spacer(minLength: 80) // 确保底部有足够空间
+                Spacer(minLength: 40) // 减少底部留白
             }
             .padding(.top, 16)
-            .padding(.bottom, 32)
+            .padding(.bottom, 0)
         }
         .background(Color(UIColor.systemGray6))
         .onAppear {

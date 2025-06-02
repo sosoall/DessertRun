@@ -26,6 +26,7 @@ class AppState: ObservableObject {
     @Published var userProfile = UserProfile(
         id: "temp_user_id",
         name: "测试用户",
+        nickname: nil,
         avatarName: "person.circle.fill"
     )
     
@@ -318,7 +319,8 @@ enum AppScreen {
 /// 用户资料结构
 struct UserProfile {
     var id: String
-    var name: String
+    var name: String      // 姓名或账号名
+    var nickname: String? // 用户昵称
     var avatarName: String
 }
 

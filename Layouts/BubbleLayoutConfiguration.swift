@@ -69,8 +69,8 @@ struct BubbleLayoutConfiguration {
         // 屏幕较小时（如iPhone SE、iPhone mini等）
         if smallerDimension < 380 {
             config = BubbleLayoutConfiguration(
-                bubbleSize: 120 * multiplier,
-                minBubbleSize: 60 * multiplier,
+                bubbleSize: 110 * multiplier,
+                minBubbleSize: 55 * multiplier,
                 rowGap: 14 * multiplier,     // 行间距
                 colGap: 10 * multiplier,     // 列间距
                 provideProps: true,
@@ -87,8 +87,8 @@ struct BubbleLayoutConfiguration {
         } else {
             // 大屏幕配置（iPhone标准尺寸及以上）
             config = BubbleLayoutConfiguration(
-                bubbleSize: 180 * multiplier,
-                minBubbleSize: 120 * multiplier,
+                bubbleSize: 160 * multiplier,
+                minBubbleSize: 100 * multiplier,
                 rowGap: 35 * multiplier,     // 行间距
                 colGap: 10 * multiplier,     // 列间距
                 provideProps: true,

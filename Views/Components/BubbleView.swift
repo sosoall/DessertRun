@@ -123,22 +123,20 @@ struct BubbleView: View {
                 
                 // 名称标签
                 if showName {
-                    VStack(spacing: 0) {
-                        Text(item.name)
-                            .font(.system(size: min(14, bubbleSize * 0.15)))
-                            .fontWeight(.medium)
-                            .foregroundColor(.black)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.5)
-                    }
-                    .padding(.vertical, 4)
-                    .padding(.horizontal, 8)
-                    .background(
-                        Capsule()
-                            .fill(Color.white.opacity(0.5))
-                    )
-                    // 只在中心区域显示名称，距离中心越远越透明
-                    .opacity(calculateNameOpacity())
+                    Text(item.name)
+                        .font(.system(size: min(16, bubbleSize * 0.16), weight: .semibold))
+                        .foregroundColor(.black)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(
+                            Capsule()
+                                .stroke(Color.white, lineWidth: 2)
+                        )
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
+                        .opacity(calculateNameOpacity())
+                        // 向上偏移，让文本与图片重叠约 40%
+                        .offset(y: -bubbleSize * 0.1)
                 }
             }
             .padding(contentPadding)

@@ -54,7 +54,7 @@ struct CustomTabViewContainer<Content: View>: View {
                 .overlay(
                     // 主内容
                     content()
-                        .padding(.bottom, appState.shouldHideTabBar ? 0 : (80 + safeAreaBottom))
+                        .padding(.bottom, appState.shouldHideTabBar ? 0 : safeAreaBottom)
                 )
                 
                 // TabBar浮动在底部
@@ -75,33 +75,38 @@ struct CustomTabViewContainer<Content: View>: View {
                                             ZStack {
                                                 Circle()
                                                     .fill(accentColor)
-                                                    .frame(width: 58, height: 58)
+                                                    .frame(width: 48, height: 48)
                                                     .shadow(color: accentColor.opacity(0.4), radius: 6, x: 0, y: 4)
-                                                Image(systemName: selectedTab == index ? item.selectedIcon : item.icon)
-                                                    .font(.system(size: 26, weight: .bold))
+                                                Image(item.icon)
+                                                    .resizable()
+                                                    .aspectRatio(contentMode: .fit)
+                                                    .frame(width: 32, height: 32)
                                                     .foregroundColor(.white)
                                             }
                                             .frame(maxWidth: .infinity)
                                         } else {
-                                            Image(systemName: selectedTab == index ? item.selectedIcon : item.icon)
-                                                .font(.system(size: 24))
-                                                .foregroundColor(selectedTab == index ? accentColor : Color.gray)
+                                            let isSelected = selectedTab == index
+                                            Image(isSelected ? item.selectedIcon : item.icon)
+                                                .resizable()
+                                                .renderingMode(.original)
+                                                .aspectRatio(contentMode: .fit)
+                                                .frame(width: isSelected ? 23 : 25, height: isSelected ? 23 : 25)
                                                 .frame(maxWidth: .infinity)
-                                                .padding(.vertical, 12)
+                                                .padding(.vertical, 4)
                                         }
                                     }
                                 }
                             }
                             .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
+                            .padding(.vertical, 6)
+                            .frame(width: geo.size.width * 0.8)
                             .background(
                                 // 明确设置白色背景，只在这里
                                 RoundedRectangle(cornerRadius: 24)
                                     .fill(Color.white)
                                     .shadow(color: Color.black.opacity(0.15), radius: 8, x: 0, y: 4)
                             )
-                            .padding(.bottom, safeAreaBottom + 10)
-                            .padding(.horizontal, 24)
+                            .padding(.bottom, safeAreaBottom + 12)
                             .if(isDebugMode) { $0.border(Color.purple, width: 2) }
                         }
                     },
@@ -126,6 +131,7 @@ struct CustomTabViewContainer<Content: View>: View {
                     isDebugMode.toggle()
                     print("TabBar Debug Mode: \(isDebugMode ? "ON" : "OFF")")
                 }
+                .background(Color.clear)
         }
     }
 }
