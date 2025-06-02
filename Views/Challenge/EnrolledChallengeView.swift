@@ -269,7 +269,34 @@ struct EnrolledChallengeView: View {
                     .foregroundColor(.secondary)
                     .padding(.horizontal, 32)
 
-                if selectedStatus != .ongoing {
+                if selectedStatus == .ongoing {
+                    // 进行中挑战为空时，显示去挑战中心的按钮
+                    Button(action: {
+                        // 通过通知切换到挑战中心 Tab
+                        NotificationCenter.default.post(name: NSNotification.Name("SwitchToChallengeCenter"), object: nil)
+                        presentationMode.wrappedValue.dismiss()
+                    }) {
+                        HStack {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 16))
+                            
+                            Text("去挑战中心")
+                                .font(.system(size: 16, weight: .semibold))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 12)
+                        .background(
+                            LinearGradient(
+                                gradient: Gradient(colors: [Color.DessertRun.accent, Color.orange]),
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .cornerRadius(20)
+                        .shadow(color: Color.DessertRun.accent.opacity(0.3), radius: 4, x: 0, y: 2)
+                    }
+                } else if selectedStatus != .ongoing {
                     Button("查看进行中的挑战") {
                         selectedStatus = .ongoing
                     }

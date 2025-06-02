@@ -13,13 +13,14 @@ struct ChallengeDetailView: View {
     
     // 视图状态
     @State private var showingEnrollConfirmation = false
-    @State private var isEnrolled = false
+    @State private var showingEnrollmentForm = false
     @State private var showProgress = false
     @State private var progress: ChallengeProgressResponse?
     @State private var showGiftStatus = false
     @State private var voucherSheetHeight: CGFloat = UIScreen.main.bounds.height * 0.5
     @State private var showConfetti = false
     @State private var confettiCounter = 0
+    @State private var isEnrolled = false
     
     // 展开美食券根级弹窗
     @State private var showExpandedVoucher = false
@@ -953,7 +954,7 @@ struct ChallengeDetailView: View {
                 } else if challenge.isInProgress {
                     // 未报名且活动进行中 - 显示报名按钮
                     Button(action: {
-                        showingEnrollConfirmation = true
+                        showingEnrollmentForm = true
                     }) {
                         Text(challenge.activityType == .free ? "免费报名" : "付费报名")
                             .font(.system(size: 16, weight: .semibold))
@@ -964,6 +965,9 @@ struct ChallengeDetailView: View {
                                 RoundedRectangle(cornerRadius: 25)
                                     .fill(Color(hex: "FE2D55"))
                             )
+                    }
+                    .sheet(isPresented: $showingEnrollmentForm) {
+                        ChallengeEnrollmentFormView(challenge: challenge)
                     }
                 } else if challenge.statusText == "即将开始" {
                     // 活动未开始 - 显示不可报名状态

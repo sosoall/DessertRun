@@ -147,12 +147,38 @@ struct BasicEnrollmentVoucherListView: View {
     
     // MARK: - 动态高度计算
     private func recalcHeight() {
-        // 估算：卡片高度≈120，间距12；引导语 & 安全余量 100
-        let perCard: CGFloat = 180  // 调高单个卡片的估算高度
-        let base: CGFloat = 140     // 调高基础高度
-        let total = CGFloat(viewModel.vouchers.count) * perCard + base
+        // 分别计算任务卡和美食券的高度
+        let tasks = viewModel.vouchers.filter { $0.voucherStatus == .inactive }
+        let coupons = viewModel.vouchers.filter { $0.voucherStatus != .inactive }
+        
+        // 任务卡高度：约140px（包含padding）
+        let taskCardHeight: CGFloat = 140
+        // 美食券高度：约95px（收起状态）
+        let voucherCardHeight: CGFloat = 95
+        // 标题高度
+        let sectionHeaderHeight: CGFloat = 24
+        // 基础高度（引导语、间距、安全余量）
+        let baseHeight: CGFloat = 140
+        
+        var totalHeight = baseHeight
+        
+        // 添加任务卡部分高度
+        if !tasks.isEmpty {
+            totalHeight += sectionHeaderHeight + CGFloat(tasks.count) * taskCardHeight
+        }
+        
+        // 添加美食券部分高度
+        if !coupons.isEmpty {
+            totalHeight += sectionHeaderHeight + CGFloat(coupons.count) * voucherCardHeight
+            // 如果两个部分都存在，添加额外间距
+            if !tasks.isEmpty {
+                totalHeight += 12
+            }
+        }
+        
         let screen = UIScreen.main.bounds.height
-        let clamped = min(max(total, screen * 0.5), screen * 0.9)  // 提高最小占屏比例并放宽最大值
+        let clamped = min(max(totalHeight, screen * 0.5), screen * 0.9)
+        
         DispatchQueue.main.async {
             sheetHeight = clamped
         }
