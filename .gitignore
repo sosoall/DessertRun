@@ -52,3 +52,4 @@ Assets.xcassets/homepage_unselected.imageset/Contents.json
 Assets.xcassets/profilepage_selected.imageset/Contents.json
 Assets.xcassets/profilepage_unselected.imageset/Contents.json
 Assets.xcassets/workout.imageset/Contents.json
+Utils/Animations/workout_transition_icon.json

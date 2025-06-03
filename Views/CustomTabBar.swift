@@ -77,11 +77,9 @@ struct CustomTabViewContainer<Content: View>: View {
                                                     .fill(accentColor)
                                                     .frame(width: 48, height: 48)
                                                     .shadow(color: accentColor.opacity(0.4), radius: 6, x: 0, y: 4)
-                                                Image(item.icon)
-                                                    .resizable()
-                                                    .aspectRatio(contentMode: .fit)
+                                                // Lottie 动画图标
+                                                WorkoutIconView(animationName: "workout_transition_icon")
                                                     .frame(width: 32, height: 32)
-                                                    .foregroundColor(.white)
                                             }
                                             .frame(maxWidth: .infinity)
                                         } else {
