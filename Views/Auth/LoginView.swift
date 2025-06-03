@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import DotLottie
 
 /// 扩展View添加点击背景隐藏键盘功能
 extension View {
@@ -22,6 +23,10 @@ struct LoginView: View {
     @State private var showAlertLogin = false
     @State private var alertMessage = ""
     @State private var cancellables = Set<AnyCancellable>()
+    @StateObject private var animationVM = DotLottieAnimation(
+        fileName: "brand_icon",
+        config: AnimationConfig(autoplay: true, loop: true, mode: .bounce)
+    )
     
     // 定义输入焦点字段
     enum LoginField: Hashable {
@@ -77,65 +82,20 @@ struct LoginView: View {
         ZStack {
             // 背景渐变
             LinearGradient(
-                gradient: Gradient(colors: [Color(hex: "FFA751"), Color(hex: "FFE259")]),
+                gradient: Gradient(colors: [Color(hex: "57152E"), Color(hex: "57311D")]),
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
             .ignoresSafeArea()
             .hideKeyboardWhenTappedAround() // 点击背景隐藏键盘
             
-            VStack(spacing: 30) {
-                // 手机设备测试模式快速切换
-                #if DEBUG
-                HStack {
-                    Spacer()
-                    Menu {
-                        ForEach(Config.API.ServerEnvironment.allCases, id: \.self) { env in
-                            Button(action: {
-                                Config.API.environment = env
-                                // 更新环境后显示成功提示
-                                withAnimation {
-                                    alertMessage = "已切换到\(env.rawValue)：\(env.baseURL)"
-                                    showAlertLogin = true
-                                }
-                            }) {
-                                HStack {
-                                    Text(env.rawValue)
-                                    if Config.API.environment == env {
-                                        Image(systemName: "checkmark")
-                                    }
-                                }
-                            }
-                        }
-                    } label: {
-                        HStack {
-                            Image(systemName: "network")
-                                .font(.system(size: 14, weight: .bold))
-                            Text("环境: \(Config.API.environment.rawValue)")
-                                .font(.system(size: 14, weight: .bold))
-                        }
-                        .foregroundColor(.white)
-                        .padding(.vertical, 8)
-                        .padding(.horizontal, 12)
-                        .background(Color.blue.opacity(0.7))
-                        .cornerRadius(20)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 20)
-                                .stroke(Color.white, lineWidth: 1)
-                        )
-                    }
-                    .padding(.trailing, 20)
-                }
-                .padding(.top, 60) // 增加顶部间距，确保按钮在安全区域内可见
-                #endif
+            VStack(spacing: 26) {
+                Spacer().frame(height: 40) // 顶部留白缩小
                 
-                Spacer()
-                
-                // 应用标题
-                Text("DessertRun")
-                    .font(.system(size: 36, weight: .bold))
-                    .foregroundColor(.white)
-                    .padding(.bottom, 40)
+                // 品牌动画
+                animationVM.view()
+                    .frame(width: 200, height: 200)
+                    .padding(.bottom, 30)
                 
                 // 登录方法选择
                 HStack {
@@ -156,7 +116,7 @@ struct LoginView: View {
                         .font(.system(size: 16))
                         .foregroundColor(.white)
                         .padding(8)
-                        .background(Color.white.opacity(0.3))
+                        .background(Color.white.opacity(0.25))
                         .cornerRadius(12)
                     } else {
                         Button("验证码登录") {
@@ -169,7 +129,7 @@ struct LoginView: View {
                         .font(.system(size: 16))
                         .foregroundColor(.white)
                         .padding(8)
-                        .background(Color.white.opacity(0.3))
+                        .background(Color.white.opacity(0.25))
                         .cornerRadius(12)
                     }
                 }
@@ -277,7 +237,7 @@ struct LoginView: View {
                                         .foregroundColor(.white)
                                         .frame(maxWidth: .infinity)
                                         .frame(height: 50)
-                                        .background(phoneNumber.count == 11 ? Color(hex: "FE2D55") : Color.gray)
+                                        .background(phoneNumber.count == 11 ? Color(hex: "FE2D55") : Color(hex: "FE2D55").opacity(0.3))
                                         .cornerRadius(10)
                                 }
                             }
@@ -326,7 +286,7 @@ struct LoginView: View {
                                     .foregroundColor(.white)
                                     .padding(.vertical, 6)
                                     .padding(.horizontal, 12)
-                                    .background(Color.black.opacity(0.3))
+                                    .background(Color.white.opacity(0.3))
                                     .cornerRadius(16)
                                 }
                                 
@@ -428,11 +388,11 @@ struct LoginView: View {
                         .cornerRadius(5)
                 }
                 
-                // 注册说明文本
-                if loginMethod == .verificationCode {
+                // 注册说明文本（仅验证码登录阶段显示一次）
+                if loginMethod == .verificationCode && phoneVerifyStep == .enterCode {
                     Text("未注册手机号将自动完成注册")
                         .font(.system(size: 14))
-                        .foregroundColor(.white.opacity(0.8))
+                        .foregroundColor(.white)
                         .padding(.top, 10)
                 }
                 
@@ -464,16 +424,6 @@ struct LoginView: View {
                     .padding(.top, 20)
                 }
                 
-                // 开发测试工具按钮
-                Button(action: {
-                    showingClearDataConfirm = true
-                }) {
-                    Text("清除测试记录")
-                        .font(.system(size: 12))
-                        .foregroundColor(.white.opacity(0.6))
-                        .padding(.vertical, 5)
-                }
-                .padding(.bottom, 30)
             }
             
             // 登录成功弹窗
@@ -488,11 +438,11 @@ struct LoginView: View {
                         
                         Text("登录成功")
                             .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(.black)
+                            .foregroundColor(.white)
                         
                         Text(authService.isNewUser ? "欢迎加入DessertRun!" : "欢迎回来!")
                             .font(.system(size: 16))
-                            .foregroundColor(.gray)
+                            .foregroundColor(.white)
                             .padding(.bottom, 30)
                     }
                     .frame(width: 250)

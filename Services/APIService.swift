@@ -42,13 +42,25 @@ class APIService {
     /// - Returns: API服务错误
     private func handleError(_ error: NetworkError) -> APIServiceError {
         // 处理token过期情况
-        if case .unauthorized(let message) = error,
-           (message.contains("过期") || message.contains("token") || message.contains("Token")) {
+        if case .unauthorized(let message) = error {
+            DRInfo("检测到401错误: \(message)")
             // 清除本地令牌
             UserDefaults.standard.removeObject(forKey: Config.UserData.tokenKey)
             UserDefaults.standard.removeObject(forKey: Config.UserData.userIdKey)
             
             // 通知认证服务处理token过期
+            DispatchQueue.main.async {
+                AuthService.shared.handleTokenExpired()
+            }
+            return .tokenExpired
+        }
+        
+        // 处理401场景，但被包装成serverError而非unauthorized
+        if case .serverError(let status, let message) = error, status == 401 {
+            DRInfo("检测到401 serverError: \(message)")
+            // 清除本地令牌
+            UserDefaults.standard.removeObject(forKey: Config.UserData.tokenKey)
+            UserDefaults.standard.removeObject(forKey: Config.UserData.userIdKey)
             DispatchQueue.main.async {
                 AuthService.shared.handleTokenExpired()
             }
@@ -67,17 +79,36 @@ class APIService {
                let message = json["message"] as? String {
                 
                 switch httpResponse.statusCode {
-                case 400..<500:
-                    if httpResponse.statusCode == 401 {
-                        return .tokenExpired
-                    } else {
-                        return .networkError(APINetworkError(error: .serverError(httpResponse.statusCode, message)))
+                case 401:
+                    DRInfo("检测到401错误状态码: \(message)")
+                    // 清除本地令牌
+                    UserDefaults.standard.removeObject(forKey: Config.UserData.tokenKey)
+                    UserDefaults.standard.removeObject(forKey: Config.UserData.userIdKey)
+                    
+                    // 通知认证服务处理token过期
+                    DispatchQueue.main.async {
+                        AuthService.shared.handleTokenExpired()
                     }
+                    return .tokenExpired
+                case 400..<500:
+                    return .networkError(APINetworkError(error: .serverError(httpResponse.statusCode, message)))
                 default:
                     return .networkError(APINetworkError(error: .serverError(httpResponse.statusCode, message)))
                 }
             } else {
                 // 如果无法提取错误信息，则使用状态码生成通用错误
+                if httpResponse.statusCode == 401 {
+                    DRInfo("检测到401错误状态码（无消息）")
+                    // 清除本地令牌
+                    UserDefaults.standard.removeObject(forKey: Config.UserData.tokenKey)
+                    UserDefaults.standard.removeObject(forKey: Config.UserData.userIdKey)
+                    
+                    // 通知认证服务处理token过期
+                    DispatchQueue.main.async {
+                        AuthService.shared.handleTokenExpired()
+                    }
+                    return .tokenExpired
+                }
                 return .networkError(APINetworkError(error: .serverError(httpResponse.statusCode, "服务器返回错误：\(httpResponse.statusCode)")))
             }
         } else {

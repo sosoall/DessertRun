@@ -395,12 +395,9 @@ struct ProfileHomeView: View {
             // 用户信息
             VStack(alignment: .leading, spacing: 4) {
                 if authService.isLoggedIn {
-                    Text(authService.currentUser?.nickname ?? "甜品爱好者")
+                    Text(authService.currentUser?.nickname ?? "")
                         .font(.title2)
                         .fontWeight(.bold)
-                    Text("甜品爱好者")
-                        .font(.caption)
-                        .foregroundColor(Color(hex: "FE2D55"))
                 } else {
                     Text("未登录")
                         .font(.title2)
@@ -433,6 +430,13 @@ struct ProfileHomeView: View {
         .cornerRadius(16)
         .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
         .padding(.horizontal)
+        // 未登录时整卡点击跳转登录
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if !authService.isLoggedIn {
+                showLoginView = true
+            }
+        }
     }
     
     // 用户信息部分
@@ -446,7 +450,11 @@ struct ProfileHomeView: View {
             VStack(spacing: 0) {
                 // 身体数据设置
                 Button(action: {
-                    showBodyDataSetup = true
+                    if authService.isLoggedIn {
+                        showBodyDataSetup = true
+                    } else {
+                        showLoginView = true
+                    }
                 }) {
                     HStack {
                         Image(systemName: "figure.walk.circle.fill")
@@ -481,14 +489,17 @@ struct ProfileHomeView: View {
                     .padding()
                     .background(Color.white)
                 }
-                .disabled(!authService.isLoggedIn)
                 
                 Divider()
                     .padding(.leading, 56)
                 
                 // 运动偏好设置
                 Button(action: {
-                    showExerciseHabitSetup = true
+                    if authService.isLoggedIn {
+                        showExerciseHabitSetup = true
+                    } else {
+                        showLoginView = true
+                    }
                 }) {
                     HStack {
                         Image(systemName: "heart.circle.fill")
@@ -523,7 +534,6 @@ struct ProfileHomeView: View {
                     .padding()
                     .background(Color.white)
                 }
-                .disabled(!authService.isLoggedIn)
             }
             .background(Color.white)
             .cornerRadius(16)

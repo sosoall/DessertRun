@@ -80,9 +80,6 @@ struct HomeView: View {
         return VStack(alignment: .leading, spacing: 4) {
             Text("\(greeting)，\(displayName)！")
                 .font(.system(size: 28, weight: .bold))
-            Text("保持运动，享受美食~")
-                .font(.system(size: 16))
-                .foregroundColor(.secondary)
         }
     }
     

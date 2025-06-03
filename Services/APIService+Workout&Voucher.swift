@@ -59,9 +59,12 @@ extension APIService {
                     throw NetworkError.invalidResponse
                 }
                 
-                
-                // 验证状态码
+                // 验证状态码，401需特殊处理
                 guard (200..<300).contains(httpResponse.statusCode) else {
+                    if httpResponse.statusCode == 401 {
+                        // 抛出未授权错误，触发统一登录过期处理
+                        throw NetworkError.unauthorized("未登录或登录已过期")
+                    }
                     throw NetworkError.serverError(httpResponse.statusCode, "服务器错误")
                 }
                 
@@ -69,16 +72,36 @@ extension APIService {
             }
             .decode(type: APIWorkoutStatsResponse.self, decoder: JSONDecoder())
             .mapError { error -> APIServiceError in
+                // 解码错误
                 if let decodingError = error as? DecodingError {
                     DRError("[APIService] 运动统计数据解析错误: \(decodingError)")
                     return .decodeError(decodingError.localizedDescription)
-                } else if let networkError = error as? NetworkError {
-                    DRError("[APIService] 网络错误: \(networkError)")
-                    return .networkError(APINetworkError(error: networkError))
-                } else {
-                    DRError("[APIService] 获取运动统计失败: \(error)")
-                    return .networkError(APINetworkError(error: NetworkError.requestFailed(error)))
                 }
+
+                // 网络层错误
+                if let networkError = error as? NetworkError {
+                    DRError("[APIService] 网络错误: \(networkError)")
+
+                    // 检测401 无权限
+                    switch networkError {
+                    case .unauthorized:
+                        DispatchQueue.main.async {
+                            AuthService.shared.handleTokenExpired()
+                        }
+                        return .tokenExpired
+                    case .serverError(let status, _ ) where status == 401:
+                        DispatchQueue.main.async {
+                            AuthService.shared.handleTokenExpired()
+                        }
+                        return .tokenExpired
+                    default:
+                        return .networkError(APINetworkError(error: networkError))
+                    }
+                }
+
+                // 其他未知错误
+                DRError("[APIService] 获取运动统计失败: \(error)")
+                return .unknown
             }
             .eraseToAnyPublisher()
     }
@@ -1151,7 +1174,20 @@ extension APIService {
                 return .decodeError(decodingError.localizedDescription)
             } else if let networkError = error as? NetworkError {
                 DRError("[APIService] 周统计数据网络错误: \(networkError)")
-                return .networkError(APINetworkError(error: networkError))
+                switch networkError {
+                case .unauthorized:
+                    DispatchQueue.main.async {
+                        AuthService.shared.handleTokenExpired()
+                    }
+                    return .tokenExpired
+                case .serverError(let status, _) where status == 401:
+                    DispatchQueue.main.async {
+                        AuthService.shared.handleTokenExpired()
+                    }
+                    return .tokenExpired
+                default:
+                    return .networkError(APINetworkError(error: networkError))
+                }
             } else {
                 DRError("[APIService] 获取周统计数据失败: \(error)")
                 return .unknown

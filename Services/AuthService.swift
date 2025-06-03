@@ -54,6 +54,9 @@ class AuthService: ObservableObject {
         // 重置登录状态
         resetLoginState()
         
+        // 清除所有缓存数据
+        clearUserData()
+        
         // 发送认证状态变更通知，让AppState处理UI状态更新
         DispatchQueue.main.async {
             NotificationCenter.default.post(name: .authStatusChanged, object: nil)
@@ -270,6 +273,10 @@ class AuthService: ObservableObject {
                         globalProfile.name = nickname
                     }
                     AppState.shared.userProfile = globalProfile
+
+                    // 登录成功后立即刷新美食券和排行榜数据
+                    VoucherService.shared.loadVouchers(forceRefresh: true)
+                    FoodCheckInViewModel.shared.loadTopDesserts(limit: 5, force: true)
                 }
             })
             .store(in: &cancellables)
@@ -458,19 +465,25 @@ class AuthService: ObservableObject {
     func logout() {
         DRInfo("用户退出登录")
         
+        // 先清除令牌
+        UserDefaults.standard.removeObject(forKey: Config.UserData.tokenKey)
+        UserDefaults.standard.removeObject(forKey: Config.UserData.userIdKey)
+        
         // 先清除AppState中的缓存数据
         AppState.shared.workoutRecords = []
         AppState.shared.dessertVouchers = []
+        // 清空VoucherService缓存
+        VoucherService.shared.vouchers = []
+        // 重置排行榜缓存
+        FoodCheckInViewModel.shared.resetForLogout()
+        AppState.shared.isLoggedIn = false
+        AppState.shared.showLoginView = true
         
         // 再清除用户数据和登录状态
         self.currentUser = nil
         self.isLoggedIn = false
         UserDefaults.standard.removeObject(forKey: StorageKeys.currentUser)
         UserDefaults.standard.set(false, forKey: StorageKeys.isLoggedIn)
-        
-        // 清除令牌
-        UserDefaults.standard.removeObject(forKey: Config.UserData.tokenKey)
-        UserDefaults.standard.removeObject(forKey: Config.UserData.userIdKey)
         
         // 最后发送通知
         NotificationCenter.default.post(name: .authStatusChanged, object: nil)
@@ -501,6 +514,10 @@ class AuthService: ObservableObject {
         self.currentUser = nil
         self.isLoggedIn = false
         self.isNewUser = false
+        
+        // 清空美食券与排行榜缓存
+        VoucherService.shared.vouchers = []
+        FoodCheckInViewModel.shared.resetForLogout()
         
         DRInfo("所有用户数据已清除")
     }

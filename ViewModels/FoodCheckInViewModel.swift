@@ -790,6 +790,25 @@ class FoodCheckInViewModel: ObservableObject {
             }
         }
     }
+    
+    // MARK: - 退出登录清理
+    /// 退出登录时调用，重置所有与用户相关的缓存数据
+    func resetForLogout() {
+        DispatchQueue.main.async {
+            DRInfo("[FoodCheckInViewModel] 退出登录，重置本地缓存数据")
+            // 清空排行榜
+            self.topDesserts = []
+            self.hasNoTopDessertData = false
+            self.isLoadingTopDesserts = false
+            // 重置分页等状态
+            self.currentUserUUID = nil
+            self.isLoadingVouchers = false
+            self.isLoadingMoreVouchers = false
+            self.currentVoucherPage = 1
+            self.hasMoreVouchers = false
+            self.noMoreVouchersConfirmed = false
+        }
+    }
 }
 
 // MARK: - 后端美食排行榜响应模型

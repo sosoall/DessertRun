@@ -34,6 +34,9 @@ struct DessertRunApp: App {
     /// 显示启动页
     @State private var showSplash = true
     
+    /// 根视图的唯一标识
+    @State private var rootViewKey = UUID()
+    
     init() {
         // 设置全局设置，避免UI和输入系统警告
         // 这些设置不会修复根本问题，但会减少不必要的警告日志
@@ -78,6 +81,16 @@ struct DessertRunApp: App {
                 } else {
                     MainTabView()
                         .environmentObject(appState)
+                }
+            }
+            .id(rootViewKey)
+            .onChange(of: appState.isLoggedIn) { _, newValue in
+                // 登录状态变化时刷新根视图
+                rootViewKey = UUID()
+                
+                // 如果已经退出登录，确保不再显示资料填写页
+                if newValue == false {
+                    showUserInfoSetup = false
                 }
             }
             .onAppear {

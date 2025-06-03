@@ -1,32 +1,38 @@
 import SwiftUI
 import DotLottie
 
+/// 应用启动页
 struct SplashScreenView: View {
     @State private var fadeOut = false
     @StateObject private var animationVM = DotLottieAnimation(
         fileName: "BubbleTea",
         config: AnimationConfig(autoplay: true, loop: true)
     )
+
     var body: some View {
         ZStack {
-            Color.white.ignoresSafeArea()
-            VStack(spacing: 24) {
-                Spacer()
-                // 产品名称
-                Text("DessertRun")
-                    .font(.system(size: 36, weight: .heavy))
+            // 活力渐变背景（沿用挑战页样式）
+            LinearGradient(
+                gradient: Gradient(colors: [Color(hex: "FFF8E1"), Color(hex: "F5F5F5")]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+
+            VStack(spacing: 40) {
+                // Slogan
+                Text("\"该吃吃，该喝喝，\n热量别往肚里搁\"")
+                    .font(.system(size: 26, weight: .bold))
                     .foregroundColor(Color(hex: "FE2D55"))
-                // slogan
-                Text("该吃吃，该喝喝，热量别往肚里搁")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.gray)
-                // 动画
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 24)
+
+                // 可爱的动画
                 animationVM.view()
-                    .frame(width: 120, height: 120)
-                Spacer()
+                    .frame(width: 200, height: 200)
             }
             .opacity(fadeOut ? 0 : 1)
-            .scaleEffect(fadeOut ? 0.9 : 1)
+            .scaleEffect(fadeOut ? 0.92 : 1)
             .animation(.easeOut(duration: 0.6), value: fadeOut)
         }
         .onAppear {

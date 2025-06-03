@@ -33,10 +33,9 @@ struct VerificationCodeInputView: View {
                     }
                 }
                 .onAppear {
-                    // 推迟显示键盘，让视图完全加载
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        isKeyboardActive = true
-                    }
+                    // 立即激活键盘并设置状态
+                    isKeyboardActive = true
+                    isTextFieldFocused = true
                 }
             
             // 显示验证码的视图
@@ -67,14 +66,18 @@ struct VerificationCodeInputView: View {
         let digit: String = index < code.count ? String(code[code.index(code.startIndex, offsetBy: index)]) : ""
         
         return ZStack {
+            // 背景和边框
             RoundedRectangle(cornerRadius: 8)
-                .stroke(isTextFieldFocused ? Color.blue : Color.gray, lineWidth: 1)
-                .background(Color.white.opacity(0.8))
-                .frame(width: 45, height: 55)
+                .fill(Color.white.opacity(0.8))
                 .overlay(
-                    Text(digit)
-                        .font(.title2.bold())
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(isTextFieldFocused ? Color.blue : Color.gray, lineWidth: 1)
                 )
+            
+            // 文字
+            Text(digit)
+                .font(.title2.bold())
+                .foregroundColor(.primary)
         }
         .frame(width: 45, height: 55)
     }

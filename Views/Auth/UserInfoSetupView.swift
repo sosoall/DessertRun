@@ -25,6 +25,10 @@ struct UserInfoSetupView: View {
     var body: some View {
         NavigationStack {
             ZStack {
+                // 纯白色背景
+                Color.white
+                    .ignoresSafeArea()
+                
                 if navigateToMainView {
                     MainTabView()
                         .environmentObject(appState)
@@ -71,6 +75,10 @@ struct UserInfoSetupView: View {
                         // 如果是模态模式，从API获取用户信息
                         if isModal {
                             loadCurrentUserInfo()
+                        }
+                        // 若昵称为空，使用默认值
+                        if viewModel.nickname.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            viewModel.nickname = "美食爱好者"
                         }
                     }
                     
@@ -138,26 +146,22 @@ struct UserInfoSetupView: View {
     private func setupTitle() -> some View {
         switch currentStep {
         case 0:
-            stepTitle("设置个人资料", subtitle: "请设置您的昵称和性别")
+            stepTitle("欢迎来到该吃吃！请介绍一下自己吧")
         case 1:
-            stepTitle("身体数据", subtitle: "请输入您的身高和体重")
+            stepTitle("我们需要你的身体数据，设计合理的运动量")
         case 2:
-            stepTitle("运动习惯", subtitle: "您是否有运动习惯？")
+            stepTitle("我们会根据你的运动习惯，推荐运动")
         default:
-            stepTitle("设置完成", subtitle: "您的个人资料已设置完成")
+            stepTitle("欢迎光临～")
         }
     }
     
     // 标题组件
-    private func stepTitle(_ title: String, subtitle: String) -> some View {
+    private func stepTitle(_ title: String) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(title)
                 .font(.title)
                 .fontWeight(.bold)
-            
-            Text(subtitle)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
         }
     }
     
@@ -175,8 +179,12 @@ struct UserInfoSetupView: View {
                     
                     TextField("请输入昵称", text: $viewModel.nickname)
                         .padding()
-                        .background(Color(.systemGray6))
-                        .cornerRadius(10)
+                        .background(Color.white)
+                        .cornerRadius(16)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(Color(.systemGray4), lineWidth: 1)
+                        )
                 }
                 
                 // 性别选择
@@ -199,8 +207,12 @@ struct UserInfoSetupView: View {
                                 .foregroundColor(viewModel.user.gender == .male ? .white : .primary)
                                 .frame(height: 50)
                                 .frame(maxWidth: .infinity)
-                                .background(viewModel.user.gender == .male ? Color.blue : Color(.systemGray6))
-                                .cornerRadius(10)
+                                .background(viewModel.user.gender == .male ? Color(hex: "FE2D55") : Color.white)
+                                .cornerRadius(16)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .stroke(viewModel.user.gender == .male ? Color.clear : Color(.systemGray4), lineWidth: 1)
+                                )
                         }
                         .buttonStyle(PlainButtonStyle()) // 添加这一行解决按钮不响应问题
                         .id("maleButton-\(viewModel.user.gender == .male)") // 添加动态ID，强制视图刷新
@@ -219,8 +231,12 @@ struct UserInfoSetupView: View {
                                 .foregroundColor(viewModel.user.gender == .female ? .white : .primary)
                                 .frame(height: 50)
                                 .frame(maxWidth: .infinity)
-                                .background(viewModel.user.gender == .female ? Color.blue : Color(.systemGray6))
-                                .cornerRadius(10)
+                                .background(viewModel.user.gender == .female ? Color(hex: "FE2D55") : Color.white)
+                                .cornerRadius(16)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .stroke(viewModel.user.gender == .female ? Color.clear : Color(.systemGray4), lineWidth: 1)
+                                )
                         }
                         .buttonStyle(PlainButtonStyle()) // 添加这一行解决按钮不响应问题
                         .id("femaleButton-\(viewModel.user.gender == .female)") // 添加动态ID，强制视图刷新
@@ -323,82 +339,93 @@ struct UserInfoSetupView: View {
     // 底部按钮区域
     @ViewBuilder
     private func bottomButtons() -> some View {
-        VStack(spacing: 15) {
-            // 下一步按钮
-            if isModal {
-                // 模态模式下，只显示保存按钮
-                Button(action: {
-                    saveCurrentStepInfo()
-                }) {
-                    Text("保存")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color(hex: "FE2D55"))
-                        .cornerRadius(10)
-                }
-                .padding(.horizontal, 20)
-                
-                if let onDismiss = onDismiss {
+        VStack(spacing: 0) {
+            VStack(spacing: 15) {
+                // 下一步按钮
+                if isModal {
+                    // 模态模式下，只显示保存按钮
                     Button(action: {
-                        onDismiss()
+                        saveCurrentStepInfo()
                     }) {
-                        Text("取消")
+                        Text("保存")
                             .font(.headline)
-                            .foregroundColor(Color(hex: "FE2D55"))
+                            .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
                             .padding()
-                            .background(Color.white)
-                            .cornerRadius(10)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(Color(hex: "FE2D55"), lineWidth: 1)
-                            )
+                            .background(Color(hex: "FE2D55"))
+                            .cornerRadius(16)
                     }
                     .padding(.horizontal, 20)
-                }
-            } else {
-                // 非模态模式下，显示下一步或完成按钮
-                Button(action: {
-                    if currentStep < totalSteps - 1 {
-                        // 保存当前步骤数据并转到下一步
-                        saveCurrentStepInfo()
-                        currentStep += 1
-                    } else {
-                        // 最后一步，保存所有数据并完成设置
-                        saveAllUserInfo()
+                    
+                    if let onDismiss = onDismiss {
+                        Button(action: {
+                            onDismiss()
+                        }) {
+                            Text("取消")
+                                .font(.headline)
+                                .foregroundColor(Color(hex: "FE2D55"))
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.white)
+                                .cornerRadius(16)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .stroke(Color(.systemGray4), lineWidth: 1)
+                                )
+                        }
+                        .padding(.horizontal, 20)
                     }
-                }) {
-                    Text(currentStep < totalSteps - 1 ? "下一步" : "完成")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color(hex: "FE2D55"))
-                        .cornerRadius(10)
-                }
-                .padding(.horizontal, 20)
-                
-                // 跳过按钮（仅在非模态模式且非最后一步时显示）
-                if currentStep < totalSteps - 1 {
+                } else {
+                    // 非模态模式下，显示下一步或完成按钮
                     Button(action: {
-                        // 标记资料完整
-                        saveAllUserInfo()
+                        if currentStep < totalSteps - 1 {
+                            // 保存当前步骤数据并转到下一步
+                            saveCurrentStepInfo()
+                            currentStep += 1
+                        } else {
+                            // 最后一步，保存所有数据并完成设置
+                            saveAllUserInfo()
+                        }
                     }) {
-                        Text("跳过，稍后设置")
-                            .font(.subheadline)
-                            .foregroundColor(Color(hex: "FE2D55"))
+                        Text(currentStep < totalSteps - 1 ? "下一步" : "完成")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color(hex: "FE2D55"))
+                            .cornerRadius(16)
                     }
-                    .padding(.bottom, 10)
+                    .padding(.horizontal, 20)
+                    
+                    // 跳过按钮（仅在非模态模式且非最后一步时显示）
+                    if currentStep < totalSteps - 1 {
+                        Button(action: {
+                            // 标记资料完整
+                            saveAllUserInfo()
+                        }) {
+                            Text("跳过，稍后设置")
+                                .font(.subheadline)
+                                .foregroundColor(Color(hex: "FE2D55"))
+                        }
+                        .padding(.bottom, 10)
+                    }
                 }
             }
+            .padding(.vertical, 20)
+            .background(Color.white)
+            
+            // 延伸到安全区域
+            Rectangle()
+                .fill(Color.white)
+                .frame(height: 0)
+                .background(Color.white)
+                .edgesIgnoringSafeArea(.bottom)
         }
-        .padding(.vertical, 20)
         .background(
             Rectangle()
                 .fill(Color.white)
                 .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: -5)
+                .edgesIgnoringSafeArea(.bottom)
         )
     }
     
@@ -714,7 +741,7 @@ struct GenderOptionButton: View {
                 .foregroundColor(isSelected ? .white : .primary)
                 .frame(height: 50)
                 .frame(maxWidth: .infinity)
-                .background(isSelected ? Color.blue : Color(.systemGray6))
+                .background(isSelected ? Color(hex: "FE2D55") : Color(.systemGray6))
                 .cornerRadius(10)
         }
     }
@@ -732,8 +759,12 @@ struct ExerciseHabitButton: View {
                 .foregroundColor(isSelected ? .white : .primary)
                 .frame(height: 50)
                 .frame(maxWidth: .infinity)
-                .background(isSelected ? Color.blue : Color(.systemGray6))
-                .cornerRadius(10)
+                .background(isSelected ? Color(hex: "FE2D55") : Color.white)
+                .cornerRadius(16)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(isSelected ? Color.clear : Color(.systemGray4), lineWidth: 1)
+                )
         }
     }
 }
@@ -753,7 +784,7 @@ struct StepProgressBar: View {
                 
                 // 进度条
                 Rectangle()
-                    .fill(Color.blue)
+                    .fill(Color(hex: "FE2D55"))
                     .frame(width: self.progress(in: geometry.size.width), height: 6)
                     .cornerRadius(3)
             }
