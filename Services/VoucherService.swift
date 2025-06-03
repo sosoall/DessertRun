@@ -182,6 +182,20 @@ class VoucherService: ObservableObject {
         })
         .store(in: &cancellables)
     }
+    
+    /// 在本地列表中快速插入一张新美食券（避免重新走网络请求）
+    /// - Parameter voucher: 新生成的美食券
+    func insertNewVoucher(_ voucher: DessertVoucher) {
+        // 保证在主线程更新已发布属性
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            // 如果列表中已存在同 ID 券则忽略
+            guard !self.vouchers.contains(where: { $0.id == voucher.id }) else { return }
+            // 直接插入列表首位并保持时间倒序
+            self.vouchers.insert(voucher, at: 0)
+            self.vouchers.sort { $0.createdAt > $1.createdAt }
+        }
+    }
 }
 
 /// 分页响应

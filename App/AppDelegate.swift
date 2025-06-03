@@ -19,8 +19,6 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         // 配置日志过滤，禁用美食券和图片缓存的调试日志
         configureLogging()
         
-        // 设置摇一摇菜单（仅Debug模式生效）
-        application.setupShakeGestureMenu()
         
         // 初始化网络缓存
         setupNetworkCache()

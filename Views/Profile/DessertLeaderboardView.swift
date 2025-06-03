@@ -57,7 +57,7 @@ struct DessertLeaderboardView: View {
                 }
                 .frame(height: 120)
                 .onAppear {
-                    if viewModel.topDesserts.isEmpty && !viewModel.isLoadingTopDesserts {
+                    if viewModel.topDesserts.isEmpty && !viewModel.hasNoTopDessertData {
                         viewModel.loadTopDesserts(limit: 5, force: true)
                     }
                 }
@@ -78,13 +78,7 @@ struct DessertLeaderboardView: View {
                                                     .resizable()
                                                     .scaledToFit()
                                             default:
-                                                RoundedRectangle(cornerRadius: 12)
-                                                    .fill(Color.gray.opacity(0.1))
-                                                    .overlay(
-                                                        Image(systemName: "cup.and.saucer")
-                                                            .font(.system(size: 24))
-                                                            .foregroundColor(.gray)
-                                                    )
+                                                PlaceholderImageView(size: index == 0 ? 110 : 90)
                                             }
                                         }
                                         .frame(height: index == 0 ? 110 : 90)
@@ -135,8 +129,10 @@ struct DessertLeaderboardView: View {
         .cornerRadius(16)
         .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
         .onAppear {
-            // 每次进入都强制刷新排行榜，确保账号切换后数据正确
-            viewModel.loadTopDesserts(limit: 5, force: true)
+            // 仅当不存在数据且未确认无数据时才请求，避免无数据状态下无限重试
+            if viewModel.topDesserts.isEmpty && !viewModel.hasNoTopDessertData {
+                viewModel.loadTopDesserts(limit: 5, force: true)
+            }
         }
     }
 }

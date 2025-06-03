@@ -71,32 +71,27 @@ struct CustomTabViewContainer<Content: View>: View {
                                         }
                                     }) {
                                         if index == middleIndex {
-                                            // 突出显示打卡按钮
-                                            ZStack {
-                                                Circle()
-                                                    .fill(accentColor)
-                                                    .frame(width: 48, height: 48)
-                                                    .shadow(color: accentColor.opacity(0.4), radius: 6, x: 0, y: 4)
-                                                // Lottie 动画图标
-                                                WorkoutIconView(animationName: "workout_transition_icon")
-                                                    .frame(width: 32, height: 32)
-                                            }
-                                            .frame(maxWidth: .infinity)
+                                            // 中间打卡按钮：去掉背景圆圈，仅显示动画图标
+                                            let isSelected = selectedTab == index
+                                            WorkoutIconView(animationName: "workout_transition_icon")
+                                                .frame(width: 36, height: 36)
+                                                .colorMultiply(isSelected ? accentColor : Color(hex: "C0C0C0"))
+                                                .frame(maxWidth: .infinity)
                                         } else {
                                             let isSelected = selectedTab == index
                                             Image(isSelected ? item.selectedIcon : item.icon)
                                                 .resizable()
                                                 .renderingMode(.original)
                                                 .aspectRatio(contentMode: .fit)
-                                                .frame(width: isSelected ? 23 : 25, height: isSelected ? 23 : 25)
+                                                .frame(width: isSelected ? 27 : 29, height: isSelected ? 27 : 29)
                                                 .frame(maxWidth: .infinity)
-                                                .padding(.vertical, 4)
+                                                .padding(.vertical, 10)
                                         }
                                     }
                                 }
                             }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 6)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 10)
                             .frame(width: geo.size.width * 0.8)
                             .background(
                                 // 明确设置白色背景，只在这里
@@ -123,11 +118,6 @@ struct CustomTabViewContainer<Content: View>: View {
                 )
                 .onPreferenceChange(SafeAreaBottomPreferenceKey.self) { value in
                     safeAreaBottom = max(0, value)
-                }
-                // 添加调试双击手势
-                .onTapGesture(count: 2) {
-                    isDebugMode.toggle()
-                    print("TabBar Debug Mode: \(isDebugMode ? "ON" : "OFF")")
                 }
                 .background(Color.clear)
         }

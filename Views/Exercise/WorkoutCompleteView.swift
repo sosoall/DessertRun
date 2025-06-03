@@ -1,4 +1,5 @@
 import SwiftUI
+import ConfettiSwiftUI
 
 /// 运动完成界面
 /// - Parameters:
@@ -17,13 +18,13 @@ struct WorkoutCompleteView: View {
     @EnvironmentObject var coordinator: WorkoutFlowCoordinator
     
     // 状态变量
-    @State private var showConfetti = true
     @State private var showVoucher = false
     @State private var showVoucherFullScreen = false
     @State private var voucherScale: CGFloat = 0.8
     @State private var voucherOpacity: Double = 0
     @State private var bottomTextOpacity: Double = 0
     @State private var isShared: Bool = false
+    @State private var confettiCounter: Int = 0
     
     // 用于导航的状态
     @Binding var isPresented: Bool
@@ -103,7 +104,8 @@ struct WorkoutCompleteView: View {
                                 .padding(.bottom, 20)
                         }
                     } else {
-                        Text("恭喜获得美食券一张")
+                        // 动态提示：消耗掉 X 个美食
+                        Text("恭喜消耗掉\(String(format: "%.1f", record.equivalentDessertCount))个\(record.dessert.name)")
                             .font(.system(size: 18))
                             .foregroundColor(.white.opacity(0.9))
                             .padding(.bottom, 20)
@@ -168,11 +170,9 @@ struct WorkoutCompleteView: View {
             }
             .padding()
             
-            // 彩带动画
-            if showConfetti {
-                ConfettiView(confettiCount: 80, animationDuration: 4.0)
-                    .allowsHitTesting(false)
-            }
+            // 彩带动画 (ConfettiSwiftUI)
+            Color.clear // 占位，用于挂载修饰符
+                .confettiCannon(trigger: $confettiCounter, num: 45, colors: [.red, .yellow, .blue, .green, .pink], radius: 350)
             
             // 全屏美食券的返回按钮
             if showVoucherFullScreen {
@@ -231,10 +231,8 @@ struct WorkoutCompleteView: View {
                     }
                 }
                 
-                // 5秒后自动停止彩带
-                DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
-                    showConfetti = false
-                }
+                // 触发一次彩带
+                confettiCounter += 1
             }
         }
     }

@@ -417,6 +417,7 @@ extension APIService {
                 let created_at: String
                 let expire_at: String?
                 let voucher_image_url: String?
+                let dessert_icon_url: String?
             }
         }
         
@@ -542,6 +543,11 @@ extension APIService {
                 dessertVoucher.voucherImageURL = imgURL
             }
 
+            // 设置甜品icon URL
+            if let iconURL = voucherDTO.dessert_icon_url, !iconURL.isEmpty {
+                dessertVoucher.dessertIconURL = iconURL
+            }
+
             return (workoutRecord, dessertVoucher)
         }
         .mapError { error -> APIServiceError in
@@ -605,6 +611,7 @@ extension APIService {
                 let image_id: String?
                 let image_url: String?
                 let voucher_image_url: String?
+                let dessert_icon_url: String?
             }
         }
         
@@ -955,6 +962,7 @@ extension APIService {
                 let image_id: String?
                 let image_url: String?
                 let voucher_image_url: String?
+                let dessert_icon_url: String?
             }
         }
         
@@ -1212,6 +1220,7 @@ extension APIService {
                 let exercise_type: String?
                 let exercise_name: String?
                 let voucher_image_url: String?
+                let dessert_icon_url: String?
             }
         }
 
@@ -1324,9 +1333,9 @@ extension APIService {
                 dessertVoucher.voucherImageURL = imgURL
             }
 
-            // 记录根级甜品icon
-            if dessertVoucher.dessertIconURL == nil {
-                dessertVoucher.dessertIconURL = apiResp.data.dessert_icon_url
+            // 设置甜品icon URL
+            if let iconURL = voucherDTO.dessert_icon_url, !iconURL.isEmpty {
+                dessertVoucher.dessertIconURL = iconURL
             }
 
             // 从voucher信息创建完整的WorkoutRecord，而不是使用不完整的WorkoutRecordDTO

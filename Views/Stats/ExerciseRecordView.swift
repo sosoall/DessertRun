@@ -84,22 +84,12 @@ struct ExerciseRecordView: View {
                     VStack(spacing: 16) {
                         // 周视图图表
                         if viewModel.weeklyStatsLoading {
-                            // 显示加载中
-                            VStack {
-                                Spacer()
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle())
-                                Text("加载中...")
-                                    .font(.caption)
-                                    .foregroundColor(.gray)
-                                    .padding(.top, 8)
-                                Spacer()
-                            }
-                            .frame(height: 300)
-                            .background(Color.white)
-                            .cornerRadius(16)
-                            .shadow(color: Color.black.opacity(0.05), radius: 3, x: 0, y: 2)
-                            .padding(.horizontal)
+                            WeeklyBarSkeleton()
+                                .frame(maxWidth: .infinity, minHeight: 300, maxHeight: 300)
+                                .background(Color.white)
+                                .cornerRadius(16)
+                                .shadow(color: Color.black.opacity(0.05), radius: 3, x: 0, y: 2)
+                                .padding(.horizontal)
                         } else {
                             // 周视图图表
                             weekChartView

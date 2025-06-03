@@ -123,15 +123,6 @@ extension UIApplication {
         CacheManager.shared.clearAllCaches(completion: completion)
     }
     
-    /// 开发模式：添加摇一摇菜单
-    func setupShakeGestureMenu() {
-        #if DEBUG
-        // 在AppDelegate的 application(_:didFinishLaunchingWithOptions:) 中调用此方法
-        DRInfo("[App] 设置摇一摇菜单")
-        
-        // 摇一摇处理逻辑（实现在UIViewController扩展中）
-        #endif
-    }
 }
 
 // MARK: - 开发模式扩展

@@ -31,6 +31,9 @@ struct DessertRunApp: App {
     /// 是否已添加观察者
     @State private var observerAdded = false
     
+    /// 显示启动页
+    @State private var showSplash = true
+    
     init() {
         // 设置全局设置，避免UI和输入系统警告
         // 这些设置不会修复根本问题，但会减少不必要的警告日志
@@ -47,7 +50,18 @@ struct DessertRunApp: App {
     var body: some Scene {
         WindowGroup {
             ZStack {
-                if appState.isResettingApp {
+                if showSplash {
+                    SplashScreenView()
+                        .transition(.opacity)
+                        .onAppear {
+                            // 2.0 秒后自动隐藏
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                                withAnimation {
+                                    showSplash = false
+                                }
+                            }
+                        }
+                } else if appState.isResettingApp {
                     ProgressView("重置应用中...")
                         .onAppear {
                             // 应用重置逻辑

@@ -67,6 +67,10 @@ class WorkoutFlowCoordinator: ObservableObject {
             self.latestDessertVoucher = voucher
             self.latestChallengeProgress = nil // 清空挑战进度，因为这个方法不包含挑战进度
             
+            // ⚠️立即将新美食券插入本地缓存并广播通知，刷新首页美食券列表
+            VoucherService.shared.insertNewVoucher(voucher)
+            NotificationCenter.default.post(name: NSNotification.Name("VouchersUpdated"), object: nil)
+            
             // 设置应用状态
             AppState.shared.justCompletedWorkout = true
             
@@ -88,6 +92,10 @@ class WorkoutFlowCoordinator: ObservableObject {
             self.latestWorkoutRecord = record
             self.latestDessertVoucher = voucher
             self.latestChallengeProgress = challengeProgress
+            
+            // ⚠️ 立即插入美食券并广播通知，保持首页列表最新
+            VoucherService.shared.insertNewVoucher(voucher)
+            NotificationCenter.default.post(name: NSNotification.Name("VouchersUpdated"), object: nil)
             
             // 设置应用状态
             AppState.shared.justCompletedWorkout = true
