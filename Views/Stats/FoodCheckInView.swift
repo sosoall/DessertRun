@@ -75,7 +75,7 @@ struct FoodCheckInView: View {
                 
                 // 2. 单独加载排行榜数据
                 if viewModel.topDesserts.isEmpty && !viewModel.isLoadingTopDesserts {
-                    viewModel.loadTopDessertsIndependently(limit: 5)
+                    viewModel.loadTopDesserts(limit: 5, force: true)
                 }
                 
                 // 3. 如果美食券为空，加载美食券数据
@@ -102,7 +102,7 @@ struct FoodCheckInView: View {
                         }
                         
                         if viewModel.topDesserts.isEmpty {
-                            viewModel.loadTopDessertsIndependently(limit: 5)
+                            viewModel.loadTopDesserts(limit: 5, force: true)
                         }
                         
                         // 设置美食券已加载标记
@@ -125,7 +125,7 @@ struct FoodCheckInView: View {
                     // viewModel.loadWorkoutRecordsIndependently()
                     
                     // 加载排行榜数据
-                    viewModel.loadTopDessertsIndependently(limit: 5)
+                    viewModel.loadTopDesserts(limit: 5, force: true)
                     
                     // 重置标志
                     navigatedFromWorkoutComplete = false
@@ -328,7 +328,7 @@ struct FoodCheckInView: View {
                     // 刷新按钮
                     Button(action: {
                         // 刷新排行榜数据 - 仅刷新排行榜，不影响美食券列表
-                        viewModel.loadTopDesserts(limit: 5)
+                        viewModel.loadTopDesserts(limit: 5, force: true)
                         DRDebug("[FoodCheckInView] 用户手动刷新排行榜")
                     }) {
                         Image(systemName: "arrow.clockwise")
@@ -341,39 +341,21 @@ struct FoodCheckInView: View {
                 .padding(.top, 14)
                 
                 // 美食排行榜水平布局
-                if viewModel.isLoadingTopDesserts {
-                    // 加载中状态
-                    HStack {
-                        Spacer()
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle())
-                            .scaleEffect(1.2)
-                            .padding()
-                        Spacer()
-                    }
-                    .frame(height: 90) // 更紧凑
-                } else if viewModel.topDesserts.isEmpty {
-                    // 空状态
-                    HStack {
-                        Spacer()
-                        VStack {
-                            Text("暂无记录")
-                                .font(.system(size: 14)) // Caption字体样式
-                                .foregroundColor(.gray)
-                                .padding()
-                        }
-                        Spacer()
-                    }
-                    .frame(height: 90) // 更紧凑
-                    .onAppear {
-                        DRDebug("[FoodCheckInView] 排行榜显示空状态，数据量: \(viewModel.topDesserts.count)")
-                        
-                        // 如果是空的，尝试再加载一次
-                        if !viewModel.isLoadingTopDesserts {
-                            viewModel.loadTopDesserts(limit: 5)
-                            DRDebug("[FoodCheckInView] 排行榜为空，自动尝试再次加载")
+                if viewModel.topDesserts.isEmpty {
+                    // 骨架占位 (5 个)
+                    HStack(spacing: 12) {
+                        ForEach(0..<5, id: \.self) { idx in
+                            VStack(spacing: 4) {
+                                PlaceholderImageView(size: idx==0 ? 110 : 70)
+                                Text("    ")
+                                    .font(.system(size: 12))
+                                    .redacted(reason: .placeholder)
+                            }
+                            .shimmering()
                         }
                     }
+                    .padding(.horizontal,14)
+                    .frame(height: 140)
                 } else {
                     // 有数据状态
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -387,7 +369,8 @@ struct FoodCheckInView: View {
                                             // 使用CachedImage加载图片，尺寸更小
                                             CachedImage(url: dessert.imageName, dessertId: dessert.dessertId)
                                                 .scaledToFit()
-                                                .frame(height: dessert.id == viewModel.topDesserts.first?.id ? 90 : 60) // 更小的图片
+                                                .frame(width: dessert.id == viewModel.topDesserts.first?.id ? 120 : 70,
+                                                       height: dessert.id == viewModel.topDesserts.first?.id ? 120 : 70)
                                                 .cornerRadius(8)
                                         }
                                         .frame(height: 90) // 更紧凑
@@ -398,13 +381,14 @@ struct FoodCheckInView: View {
                                                 .renderingMode(.original)
                                                 .scaledToFit()
                                                 .frame(width: 28, height: 28) // 更小的皇冠
-                                                .offset(x: 8, y: -10)
+                                                .offset(x: 8, y: -18)
                                         }
                                     }
                                     
                                     Text("打卡\(dessert.count)次")
-                                        .font(.system(size: 12)) // Caption字体样式
+                                        .font(.system(size: 12))
                                         .foregroundColor(.black)
+                                        .frame(height:14)
                                 }
                                 // 添加唯一ID，避免整个列表刷新
                                 .id("top-dessert-\(dessert.id)")
@@ -967,7 +951,8 @@ struct CachedImage: View {
                 // 如果第一次下载失败，尝试其他可能的URL格式
                 let fallbackUrl = "\(Config.API.baseURL)/api/v1/desserts/\(dessertId)/image"
                 ImageCacheService.shared.downloadAndCacheImage(url: fallbackUrl) { backupImage in
-                    self.image = backupImage ?? UIImage(named: "dessert_placeholder")
+                    // 如果仍然无法加载，保持占位骨架视图，而不是使用丑陋的占位图
+                    self.image = backupImage // 可能为nil，保持骨架
                 }
             }
         }

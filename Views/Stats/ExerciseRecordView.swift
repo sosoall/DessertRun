@@ -31,14 +31,12 @@ struct ExerciseRecordView: View {
                 // 顶部标题和视图切换
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("运动记录")
-                            .font(.system(size: 24, weight: .bold))
-                        
+                        SectionHeader(title: "运动记录")
                         Text("追踪你的运动成就")
                             .font(.system(size: 16))
                             .foregroundColor(.secondary)
                     }
-                    .padding(.leading, 16) // 增加左边距
+                    .padding(.leading, 16)
                     
                     Spacer()
                     

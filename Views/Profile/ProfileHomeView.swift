@@ -311,7 +311,7 @@ struct ProfileHomeView: View {
         
         // 3. 获取运动习惯
         group.enter()
-        APIService.shared.getUserExerciseHabit()
+        APIService.shared.fetchUserExerciseHabit()
             .receive(on: DispatchQueue.main)
             .sink(
                 receiveCompletion: { completion in

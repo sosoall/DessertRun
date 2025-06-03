@@ -75,6 +75,9 @@ class FoodCheckInViewModel: ObservableObject {
     // 添加标记，明确确认没有更多美食券数据
     var noMoreVouchersConfirmed: Bool = false
     
+    /// 当前排行榜对应的用户ID（用于账号切换时刷新）
+    private var currentUserUUID: UUID? = nil
+    
     // MARK: - 初始化方法
     
     /// 初始化
@@ -163,11 +166,21 @@ class FoodCheckInViewModel: ObservableObject {
     }
     
     // MARK: - 从API加载美食排行榜
-    func loadTopDesserts(limit: Int = 5) {
-        // 防止重复加载
+    func loadTopDesserts(limit: Int = 5, force: Bool = false) {
+        // 检查当前用户是否变化
+        let userUUID = AuthService.shared.currentUser?.id
+        if currentUserUUID != userUUID {
+            DRInfo("[FoodCheckInViewModel] 检测到账户切换，重置排行榜数据")
+            currentUserUUID = userUUID
+            topDesserts = []
+        }
+        
+        // 防止重复加载，除非force为true
         if isLoadingTopDesserts {
-            DRDebug("[FoodCheckInViewModel] 正在加载美食排行榜，忽略重复请求")
-            return
+            if force == false {
+                DRDebug("[FoodCheckInViewModel] 正在加载美食排行榜，忽略重复请求")
+                return
+            }
         }
         
         isLoadingTopDesserts = true
@@ -766,7 +779,7 @@ class FoodCheckInViewModel: ObservableObject {
                 
                 // 2. 刷新排行榜数据
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    self.loadTopDessertsIndependently(limit: 5)
+                    self.loadTopDesserts(limit: 5, force: true)
                     
                     // 额外发送通知，确保视图更新
                     NotificationCenter.default.post(name: NSNotification.Name("VouchersUpdated"), object: nil)

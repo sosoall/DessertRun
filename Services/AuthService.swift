@@ -102,14 +102,23 @@ class AuthService: ObservableObject {
                     self?.isLoggedIn = true
                     self?.saveUserToStorage()
                     
-                    // 确保AppState知道用户已登录，不应显示登录页面
+                    // 更新全局 AppState 用户资料
+                    let displayName = apiUser.nickname ?? (apiUser.phone ?? "")
                     DispatchQueue.main.async {
+                        AppState.shared.userProfile = UserProfile(
+                            id: apiUser.id ?? UUID().uuidString,
+                            name: displayName,
+                            nickname: apiUser.nickname,
+                            avatarName: "person.circle.fill")
                         AppState.shared.isLoggedIn = true
                         AppState.shared.showLoginView = false
-                        DRInfo("已更新AppState: 用户已登录，隐藏登录页面")
-                        
+                        DRInfo("已更新AppState: 用户已登录，隐藏登录页面，并刷新昵称")
+
                         // 发送认证状态变更通知
                         NotificationCenter.default.post(name: .authStatusChanged, object: nil)
+
+                        // 提前拉取首页所需数据（美食券等）
+                        VoucherService.shared.loadVouchers(forceRefresh: true)
                     }
                 }
             )
@@ -244,12 +253,24 @@ class AuthService: ObservableObject {
                 self.saveUserToStorage()
 
                 // 更新 AppState 中的用户资料，确保触发@Published变更
+                let displayName = apiUser.nickname ?? (apiUser.phone ?? "")
                 AppState.shared.userProfile = UserProfile(
                     id: apiUser.id ?? UUID().uuidString,
-                    name: apiUser.phone,
+                    name: displayName,
                     nickname: apiUser.nickname,
                     avatarName: "person.circle.fill"
                 )
+
+                // [新增] 将最新昵称同步到 AppState，确保首页问候语实时刷新
+                DispatchQueue.main.async {
+                    var globalProfile = AppState.shared.userProfile
+                    globalProfile.nickname = apiUser.nickname
+                    // 如果昵称存在，则同时作为展示名称
+                    if let nickname = apiUser.nickname, !nickname.isEmpty {
+                        globalProfile.name = nickname
+                    }
+                    AppState.shared.userProfile = globalProfile
+                }
             })
             .store(in: &cancellables)
     }
@@ -396,6 +417,18 @@ class AuthService: ObservableObject {
         }
         
         self.currentUser = user
+
+        // [新增] 将最新昵称同步到 AppState，确保首页问候语实时刷新
+        DispatchQueue.main.async {
+            var globalProfile = AppState.shared.userProfile
+            globalProfile.nickname = user.nickname
+            // 如果昵称存在，则同时作为展示名称
+            if let nickname = user.nickname, !nickname.isEmpty {
+                globalProfile.name = nickname
+            }
+            AppState.shared.userProfile = globalProfile
+        }
+
         // 同步更新isNewUser状态
         self.isNewUser = user.isNewUser
         saveUserToStorage()

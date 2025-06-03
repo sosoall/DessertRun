@@ -17,7 +17,7 @@ struct DessertLeaderboardView: View {
                 
                 // 刷新按钮
                 Button(action: {
-                    viewModel.loadTopDesserts(limit: 5)
+                    viewModel.loadTopDesserts(limit: 5, force: true)
                 }) {
                     Image(systemName: "arrow.clockwise")
                         .font(.system(size: 14))
@@ -57,8 +57,8 @@ struct DessertLeaderboardView: View {
                 }
                 .frame(height: 120)
                 .onAppear {
-                    if !viewModel.isLoadingTopDesserts {
-                        viewModel.loadTopDesserts(limit: 5)
+                    if viewModel.topDesserts.isEmpty && !viewModel.isLoadingTopDesserts {
+                        viewModel.loadTopDesserts(limit: 5, force: true)
                     }
                 }
             } else {
@@ -135,10 +135,8 @@ struct DessertLeaderboardView: View {
         .cornerRadius(16)
         .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
         .onAppear {
-            // 初始加载数据
-            if viewModel.topDesserts.isEmpty && !viewModel.isLoadingTopDesserts {
-                viewModel.loadTopDesserts(limit: 5)
-            }
+            // 每次进入都强制刷新排行榜，确保账号切换后数据正确
+            viewModel.loadTopDesserts(limit: 5, force: true)
         }
     }
 }

@@ -122,6 +122,14 @@ class VoucherService: ObservableObject {
             if self.hasMoreVouchers {
                 self.currentPage += 1
             }
+
+            // 4. 预缓存券大图与icon，加快滚动加载
+            let urlsToPrefetch: [String] = self.vouchers.compactMap { v in
+                [v.displayVoucherImageURL, v.displayDessertIconURL]
+            }.flatMap { $0 }.compactMap { $0 }
+            if !urlsToPrefetch.isEmpty {
+                ImageCacheService.shared.prefetchImages(urls: urlsToPrefetch) { _, _ in }
+            }
         })
         .store(in: &cancellables)
         

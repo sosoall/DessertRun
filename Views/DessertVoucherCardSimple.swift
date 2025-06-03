@@ -52,8 +52,8 @@ struct DessertVoucherCardSimple: View {
     /// 添加图片加载状态标志，避免重复加载
     @State private var hasLoadedImages: Bool = false
     
-    /// 添加唯一ID，防止多个实例混淆状态
-    private let instanceId = UUID().uuidString
+    /// 使用voucher.id作为唯一ID，保证切换其他视图时不重新生成，避免闪动
+    private var stableId: String { voucher.id }
     
     /// 提供一个环境变量，用于触发弹窗展示
     @Environment(\.presentationMode) var presentationMode
@@ -153,11 +153,7 @@ struct DessertVoucherCardSimple: View {
                                      .scaledToFit()
                                      .frame(width: 90, height: 90)
                             } else {
-                                Image(systemName: "fork.knife.circle.fill")
-                                    .resizable()
-                                    .scaledToFit()
-                                    .foregroundColor(Color(hex: "#FF9D0B"))
-                                    .frame(width: 90, height: 90)
+                                PlaceholderImageView(size: 90)
                             }
                         }
                     }
@@ -175,11 +171,7 @@ struct DessertVoucherCardSimple: View {
                                      .scaledToFit()
                                      .frame(width: 42, height: 42)
                             } else {
-                                Image(systemName: "cup.and.saucer.fill")
-                                    .resizable()
-                                    .scaledToFit()
-                                    .foregroundColor(Color(hex: "#FF9D0B"))
-                                    .frame(width: 42, height: 42)
+                                PlaceholderImageView(size: 42)
                             }
                         }
                         .position(x: 22, y: 190)
@@ -198,11 +190,7 @@ struct DessertVoucherCardSimple: View {
                                      .scaledToFit()
                                      .frame(width: 65, height: 65)
                             } else {
-                                Image(systemName: "fork.knife.circle.fill")
-                                    .resizable()
-                                    .scaledToFit()
-                                    .foregroundColor(Color(hex: "#FF9D0B"))
-                                    .frame(width: 65, height: 65)
+                                PlaceholderImageView(size: 65)
                             }
                         }
                     }
@@ -217,11 +205,7 @@ struct DessertVoucherCardSimple: View {
                                      .scaledToFit()
                                      .frame(width: 36, height: 36)
                             } else {
-                                Image(systemName: "cup.and.saucer.fill")
-                                    .resizable()
-                                    .scaledToFit()
-                                    .foregroundColor(Color(hex: "#FF9D0B"))
-                                    .frame(width: 36, height: 36)
+                                PlaceholderImageView(size: 36)
                             }
                         }
                         .position(x: 22, y: 56)
@@ -253,7 +237,7 @@ struct DessertVoucherCardSimple: View {
         // 确保整个卡片没有任何外部padding
         .padding(0)
         .frame(height: forceExpanded ? 220 : (75 + (isInactive ? 40 : 0))) // 展开无副券，收起任务卡含副券40
-        .id("card-\(voucher.id)-\(instanceId)") // 添加唯一ID避免状态混淆
+        .id("card-\(stableId)") // 稳定ID，避免因重建导致闪动
         // 为未激活任务卡添加灰度效果
         .grayscale(isInactive ? 1.0 : 0.0)
         .onAppear {
@@ -293,7 +277,7 @@ struct DessertVoucherCardSimple: View {
                 // 展开美食券
                 var userInfo: [String: Any] = [
                     "preloadedImages": hasLoadedImages,
-                    "instanceId": instanceId,
+                    "instanceId": stableId,
                     "voucherId": voucher.id
                 ]
                 if let imageURL = voucherImageURL {

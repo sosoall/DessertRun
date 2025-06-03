@@ -39,8 +39,8 @@ class ImageCacheService {
     
     // 内存缓存
     private let memoryCache = NSCache<NSString, UIImage>()
-    // URL缓存字典 [ID: (URL, 过期时间)]
-    private var urlCache = [String: (url: String, expiresAt: Date)]()
+    // URL缓存字典 [URL: 过期时间]
+    private var urlCache = [String: Date]()
     private let urlCacheLock = NSLock() // URL缓存锁
     // 文件管理器
     private let fileManager = FileManager.default
@@ -89,7 +89,7 @@ class ImageCacheService {
         defer { urlCacheLock.unlock() }
         
         let now = Date()
-        let expiredKeys = urlCache.filter { $0.value.expiresAt < now }.map { $0.key }
+        let expiredKeys = urlCache.filter { $0.value < now }.map { $0.key }
         
         for key in expiredKeys {
             urlCache.removeValue(forKey: key)
@@ -106,13 +106,13 @@ class ImageCacheService {
     ///   - id: 图片ID
     ///   - expirationInterval: 过期时间间隔（秒），默认30分钟
     func cacheImageURL(_ url: String, forId id: String, expirationInterval: TimeInterval? = nil) {
-        guard !url.isEmpty && !id.isEmpty else { return }
+        guard !url.isEmpty else { return }
         
         let expiration = expirationInterval ?? defaultUrlCacheExpiration
         let expiresAt = Date().addingTimeInterval(expiration)
         
         urlCacheLock.lock()
-        urlCache[id] = (url: url, expiresAt: expiresAt)
+        urlCache[url] = expiresAt
         urlCacheLock.unlock()
     }
     
@@ -120,20 +120,19 @@ class ImageCacheService {
     /// - Parameter id: 图片ID
     /// - Returns: 缓存的URL，如果不存在或已过期则返回nil
     func getCachedImageURL(forId id: String) -> String? {
-        urlCacheLock.lock()
-        defer { urlCacheLock.unlock() }
+        let urlStr = id
         
-        guard let cached = urlCache[id] else { return nil }
+        guard let expiresAt = urlCache[urlStr] else { return nil }
         
         // 检查是否过期
         let now = Date()
-        if cached.expiresAt < now {
+        if expiresAt < now {
             // 已过期，移除缓存
-            urlCache.removeValue(forKey: id)
+            urlCache.removeValue(forKey: urlStr)
             return nil
         }
         
-        return cached.url
+        return urlStr
     }
     
     /// 检查是否有缓存的图片（通过URL或ID）

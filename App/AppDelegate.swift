@@ -119,8 +119,8 @@ extension AppDelegate {
     /// 设置网络缓存
     private func setupNetworkCache() {
         // 设置URLCache
-        let cacheSizeMemory = 10 * 1024 * 1024 // 10MB内存缓存
-        let cacheSizeDisk = 50 * 1024 * 1024   // 50MB磁盘缓存
+        let cacheSizeMemory = 50 * 1024 * 1024 // 50MB内存缓存
+        let cacheSizeDisk = 200 * 1024 * 1024   // 200MB磁盘缓存
         let cache = URLCache(memoryCapacity: cacheSizeMemory, diskCapacity: cacheSizeDisk, diskPath: "URLCache")
         URLCache.shared = cache
         
