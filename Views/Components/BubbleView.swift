@@ -130,7 +130,7 @@ struct BubbleView: View {
                         .padding(.vertical, 2)
                         .background(
                             Capsule()
-                                .stroke(Color.white, lineWidth: 2)
+                                .fill(Color.white.opacity(0.7))
                         )
                         .lineLimit(1)
                         .minimumScaleFactor(0.5)

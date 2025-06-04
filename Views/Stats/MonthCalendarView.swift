@@ -112,18 +112,19 @@ struct MonthCalendarView: View {
                     RoundedRectangle(cornerRadius: 4)
                         .fill(pinkColor)
                         .frame(width: 14, height: 14)
-                    
-                    Text("运动量super！")
-                        .font(.system(size: 14))
+                    Text("已运动")
+                        .font(.system(size:14))
                         .foregroundColor(Color(hex: "909090"))
                 }
-                
                 HStack(spacing: 6) {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(yellowColor)
-                        .frame(width: 14, height: 14)
-                    
-                    Text("已运动")
+                    Text("1.3x")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 2)
+                        .background(Color(hex: "FE2D55"))
+                        .cornerRadius(4)
+                    Text("运动量是1.3个所选美食")
                         .font(.system(size: 14))
                         .foregroundColor(Color(hex: "909090"))
                 }

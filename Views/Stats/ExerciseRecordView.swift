@@ -4,7 +4,7 @@ import SwiftUI
 struct ExerciseRecordView: View {
     @ObservedObject var viewModel: ExerciseRecordViewModel
     @EnvironmentObject var appState: AppState
-    @State private var selectedTab: StatTab = .month
+    @Binding var selectedTab: StatTab
     @State private var selectedMonth: Date = Date()
     @State private var selectedWeek: Date = Date()
     @State private var hasAppeared: Bool = false  // 添加状态变量控制是否已经加载过数据
@@ -26,45 +26,9 @@ struct ExerciseRecordView: View {
     }
     
     var body: some View {
-        ScrollView {
+        ZStack {
+            // 主内容
             VStack(spacing: 24) {
-                // 顶部标题和视图切换
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        SectionHeader(title: "运动记录")
-                        Text("追踪你的运动成就")
-                            .font(.system(size: 16))
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.leading, 16)
-                    
-                    Spacer()
-                    
-                    // 视图切换按钮 - 重新设计为简洁样式
-                    HStack(spacing: 20) {
-                        ForEach(StatTab.allCases) { tab in
-                            Button(action: {
-                                selectedTab = tab
-                            }) {
-                                VStack(spacing: 4) {
-                                    Text(tab.rawValue)
-                                        .font(.system(size: 14, weight: selectedTab == tab ? .semibold : .regular))
-                                        .foregroundColor(selectedTab == tab ? .primary : Color.gray)
-                                    
-                                    // 下划线指示器
-                                    Rectangle()
-                                        .fill(selectedTab == tab ? Color(hex: "8E8E93") : Color.clear)
-                                        .frame(height: 2)
-                                        .frame(width: selectedTab == tab ? 20 : 0)
-                                        .animation(.easeInOut(duration: 0.2), value: selectedTab)
-                                }
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                        }
-                    }
-                    .padding(.trailing, 16)
-                }
-                
                 // 根据选择的Tab显示不同内容
                 if selectedTab == .month {
                     // 月视图
@@ -73,6 +37,10 @@ struct ExerciseRecordView: View {
                         MonthCalendarView(viewModel: viewModel)
                             .background(Color.white)
                             .cornerRadius(16)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .stroke(Color(hex: "ECECEC"), lineWidth: 1)
+                            )
                             .shadow(color: Color.black.opacity(0.05), radius: 3, x: 0, y: 2)
                             .padding(.horizontal)
                         
@@ -88,6 +56,10 @@ struct ExerciseRecordView: View {
                                 .frame(maxWidth: .infinity, minHeight: 300, maxHeight: 300)
                                 .background(Color.white)
                                 .cornerRadius(16)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .stroke(Color(hex: "ECECEC"), lineWidth: 1)
+                                )
                                 .shadow(color: Color.black.opacity(0.05), radius: 3, x: 0, y: 2)
                                 .padding(.horizontal)
                         } else {
@@ -95,6 +67,10 @@ struct ExerciseRecordView: View {
                             weekChartView
                                 .background(Color.white)
                                 .cornerRadius(16)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .stroke(Color(hex: "ECECEC"), lineWidth: 1)
+                                )
                                 .shadow(color: Color.black.opacity(0.05), radius: 3, x: 0, y: 2)
                                 .padding(.horizontal)
                         }
@@ -103,6 +79,10 @@ struct ExerciseRecordView: View {
                         weeklyProgressCard
                             .background(Color.white)
                             .cornerRadius(16)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .stroke(Color(hex: "ECECEC"), lineWidth: 1)
+                            )
                             .shadow(color: Color.black.opacity(0.05), radius: 3, x: 0, y: 2)
                             .padding(.horizontal)
                     }
@@ -113,6 +93,10 @@ struct ExerciseRecordView: View {
                         YearlyCalendarView(viewModel: viewModel)
                             .background(Color.white)
                             .cornerRadius(16)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .stroke(Color(hex: "ECECEC"), lineWidth: 1)
+                            )
                             .shadow(color: Color.black.opacity(0.05), radius: 3, x: 0, y: 2)
                             .padding(.horizontal)
                             
@@ -123,10 +107,92 @@ struct ExerciseRecordView: View {
                 
                 Spacer(minLength: 40) // 减少底部留白
             }
-            .padding(.top, 16)
-            .padding(.bottom, 0)
+            // 左侧手势区
+            HStack {
+                Rectangle()
+                    .fill(Color.clear)
+                    .frame(width: UIScreen.main.bounds.width / 6)
+                    .contentShape(Rectangle())
+                    .highPriorityGesture(
+                        DragGesture()
+                            .onEnded { value in
+                                let threshold: CGFloat = 40
+                                if value.translation.width > threshold && abs(value.translation.width) > abs(value.translation.height) {
+                                    // 右滑，切换当前视图的上一周期
+                                    switch selectedTab {
+                                    case .month:
+                                        // 切换到上一个月
+                                        let calendar = Calendar.current
+                                        if let prevMonth = calendar.date(byAdding: .month, value: -1, to: selectedMonth) {
+                                            selectedMonth = prevMonth
+                                            viewModel.selectedMonth = prevMonth
+                                            let year = calendar.component(.year, from: prevMonth)
+                                            let month = calendar.component(.month, from: prevMonth)
+                                            viewModel.loadMonthStats(year: year, month: month)
+                                        }
+                                    case .week:
+                                        // 切换到上一周
+                                        viewModel.goToPreviousWeek()
+                                    case .year:
+                                        // 切换到上一年
+                                        let calendar = Calendar.current
+                                        let prevYear = calendar.date(byAdding: .year, value: -1, to: viewModel.selectedYear)
+                                        if let prevYear = prevYear {
+                                            viewModel.selectedYear = prevYear
+                                            let year = calendar.component(.year, from: prevYear)
+                                            viewModel.loadYearStats(year: year)
+                                        }
+                                    }
+                                }
+                            }
+                    )
+                Spacer()
+            }
+            // 右侧手势区
+            HStack {
+                Spacer()
+                Rectangle()
+                    .fill(Color.clear)
+                    .frame(width: UIScreen.main.bounds.width / 6)
+                    .contentShape(Rectangle())
+                    .highPriorityGesture(
+                        DragGesture()
+                            .onEnded { value in
+                                let threshold: CGFloat = 40
+                                if value.translation.width < -threshold && abs(value.translation.width) > abs(value.translation.height) {
+                                    // 左滑，切换当前视图的下一个周期
+                                    switch selectedTab {
+                                    case .month:
+                                        // 切换到下一个月
+                                        let calendar = Calendar.current
+                                        if let nextMonth = calendar.date(byAdding: .month, value: 1, to: selectedMonth) {
+                                            selectedMonth = nextMonth
+                                            viewModel.selectedMonth = nextMonth
+                                            let year = calendar.component(.year, from: nextMonth)
+                                            let month = calendar.component(.month, from: nextMonth)
+                                            viewModel.loadMonthStats(year: year, month: month)
+                                        }
+                                    case .week:
+                                        // 切换到下一周
+                                        viewModel.goToNextWeek()
+                                    case .year:
+                                        // 切换到下一年
+                                        let calendar = Calendar.current
+                                        let nextYear = calendar.date(byAdding: .year, value: 1, to: viewModel.selectedYear)
+                                        if let nextYear = nextYear {
+                                            viewModel.selectedYear = nextYear
+                                            let year = calendar.component(.year, from: nextYear)
+                                            viewModel.loadYearStats(year: year)
+                                        }
+                                    }
+                                }
+                            }
+                    )
+            }
         }
-        .background(Color(UIColor.systemGray6))
+        .padding(.top, 16)
+        .padding(.bottom, 0)
+        .background(Color.white)
         .onAppear {
             DRInfo("[ExerciseRecordView] onAppear 触发")
             
@@ -162,7 +228,6 @@ struct ExerciseRecordView: View {
         }
         .onChange(of: selectedTab) { oldTab, newTab in
             DRInfo("[ExerciseRecordView] 标签页切换: \(oldTab) -> \(newTab)")
-            // 当切换标签页时，确保viewModel中的年份和月份是最新的
             refreshCurrentTabData()
         }
         .onReceive(viewModel.$dailyStatsMap) { _ in
@@ -216,6 +281,10 @@ struct ExerciseRecordView: View {
         .padding(.horizontal, 12)
         .background(Color.white)
         .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(hex: "ECECEC"), lineWidth: 1)
+        )
         .shadow(color: Color.black.opacity(0.1), radius: 2, x: 2, y: 2)
     }
     
@@ -244,6 +313,10 @@ struct ExerciseRecordView: View {
         .padding(.horizontal, 12)
         .background(Color.white)
         .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(hex: "ECECEC"), lineWidth: 1)
+        )
         .shadow(color: Color.black.opacity(0.1), radius: 2, x: 2, y: 2)
     }
     
@@ -272,6 +345,10 @@ struct ExerciseRecordView: View {
         .padding(.horizontal, 12)
         .background(Color.white)
         .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(hex: "ECECEC"), lineWidth: 1)
+        )
         .shadow(color: Color.black.opacity(0.1), radius: 2, x: 2, y: 2)
     }
     
@@ -304,6 +381,10 @@ struct ExerciseRecordView: View {
         .padding(.horizontal, 12)
         .background(Color.white)
         .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(hex: "ECECEC"), lineWidth: 1)
+        )
         .shadow(color: Color.black.opacity(0.1), radius: 2, x: 2, y: 2)
     }
     
@@ -403,6 +484,7 @@ struct ExerciseRecordView: View {
                 }
             }
             .padding(.horizontal, 16)
+            .padding(.top, 15)
             .padding(.bottom, 12)
         }
     }
@@ -434,7 +516,7 @@ struct ExerciseRecordView: View {
                     
                     // 进度条
                     RoundedRectangle(cornerRadius: 99)
-                        .fill(Color(hex: "FF329A"))
+                        .fill(Color(hex: "FE2D55"))
                         .frame(width: calculateProgressWidth(), height: 8)
                 }
                 .padding(.horizontal, 2) // 添加小边距，确保与刻度0和7对齐
@@ -679,6 +761,10 @@ struct ExerciseRecordCard: View {
         .padding(16)
         .background(Color.white)
         .cornerRadius(16)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color(hex: "ECECEC"), lineWidth: 1)
+        )
         .shadow(color: Color.black.opacity(0.05), radius: 3, x: 0, y: 2)
     }
     
@@ -841,7 +927,7 @@ struct WeeklyCalorieChart: View {
 // MARK: - 预览
 struct ExerciseRecordView_Previews: PreviewProvider {
     static var previews: some View {
-        ExerciseRecordView(viewModel: ExerciseRecordViewModel(appState: AppState.shared))
+        ExerciseRecordView(viewModel: ExerciseRecordViewModel(appState: AppState.shared), selectedTab: .constant(.month))
             .environmentObject(AppState.shared)
     }
 } 

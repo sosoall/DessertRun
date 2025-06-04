@@ -202,7 +202,15 @@ class AppState: ObservableObject {
             // 如果已登录，关闭登录页面，否则显示登录页面
             if self.isLoggedIn {
                 self.showLoginView = false
-                DRInfo("AppState: 更新为已登录状态，关闭登录页面")
+
+                // 同步用户资料显示名称
+                if let user = authService.currentUser {
+                    let displayName = user.nickname?.isEmpty == false ? user.nickname! : (user.phoneNumber)
+                    self.userProfile.nickname = user.nickname
+                    self.userProfile.name = displayName ?? ""
+                }
+
+                DRInfo("AppState: 更新为已登录状态，关闭登录页面，并同步昵称")
             } else {
                 self.showLoginView = true
                 DRInfo("AppState: 更新为未登录状态，显示登录页面")

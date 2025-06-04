@@ -93,7 +93,7 @@ struct DessertLeaderboardView: View {
                                             .renderingMode(.original)
                                             .scaledToFit()
                                             .frame(width: 32, height: 32)
-                                            .offset(x: 10, y: -12)
+                                            .offset(x: 10, y: -4)
                                     }
                                 }
                                 
@@ -122,10 +122,14 @@ struct DessertLeaderboardView: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
                 }
-                .frame(height: 160)
+                .frame(height: 180)
             }
         }
         .background(Color.white)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color(hex: "ECECEC"), lineWidth: 2)
+        )
         .cornerRadius(16)
         .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
         .onAppear {

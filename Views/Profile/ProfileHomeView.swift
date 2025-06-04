@@ -41,7 +41,6 @@ struct ProfileHomeView: View {
     // 关于项列表
     private let aboutItems: [(icon: String, title: String, color: Color)] = [
         ("doc.text.fill", "隐私政策", Color.purple),
-        ("doc.plaintext.fill", "协议条款", Color.purple),
         ("info.circle.fill", "关于DessertRun", Color.blue),
         ("questionmark.circle.fill", "反馈与建议", Color.green)
     ]
@@ -62,8 +61,8 @@ struct ProfileHomeView: View {
                 // 用户信息部分
                 userInfoSection
                 
-                // 设置部分
-                settingsSection
+                // 设置部分（当前需求隐藏）
+                // settingsSection
                 
                 // 关于部分
                 aboutSection
@@ -78,7 +77,7 @@ struct ProfileHomeView: View {
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
                             .padding()
-                            .background(Color(hex: "FE2D55"))
+                            .background(Color.gray.opacity(0.4))
                             .cornerRadius(10)
                     }
                     .padding(.horizontal)
@@ -99,100 +98,14 @@ struct ProfileHomeView: View {
                     .padding(.top, 10)
                 }
                 
-                // 开发测试功能
-                #if DEBUG
-                // 开发者工具部分
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("开发者工具")
-                        .font(.headline)
-                        .foregroundColor(Color(hex: "61462C"))
-                        .padding(.horizontal)
-                    
-                    VStack(spacing: 0) {
-                        // 环境设置
-                        NavigationLink(destination: EnvironmentSettingsView()) {
-                            HStack {
-                                Image(systemName: "server.rack")
-                                    .foregroundColor(Color.purple)
-                                    .frame(width: 30, height: 30)
-                                
-                                Text("服务器环境设置")
-                                    .font(.body)
-                                
-                                Spacer()
-                                
-                                Text(Config.API.environment.rawValue)
-                                    .font(.caption)
-                                    .foregroundColor(.gray)
-                                
-                                Image(systemName: "chevron.right")
-                                    .foregroundColor(.gray)
-                            }
-                            .padding()
-                            .background(Color.white)
-                        }
-                        
-                        Divider()
-                            .padding(.leading, 56)
-                        
-                        // 显示API地址
-                        HStack {
-                            Image(systemName: "network")
-                                .foregroundColor(Color.blue)
-                                .frame(width: 30, height: 30)
-                            
-                            Text("当前API地址")
-                                .font(.body)
-                            
-                            Spacer()
-                            
-                            Text(Config.API.baseURL)
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                        }
-                        .padding()
-                        .background(Color.white)
-                        
-                        Divider()
-                            .padding(.leading, 56)
-                        
-                        // 清除测试数据
-                        if authService.isLoggedIn {
-                            Button(action: {
-                                authService.clearUserData()
-                                appState.updateLoginStatus()
-                            }) {
-                                HStack {
-                                    Image(systemName: "trash")
-                                        .foregroundColor(Color.red)
-                                        .frame(width: 30, height: 30)
-                                    
-                                    Text("清除测试数据")
-                                        .font(.body)
-                                        .foregroundColor(.primary)
-                                    
-                                    Spacer()
-                                }
-                                .padding()
-                                .background(Color.white)
-                            }
-                        }
-                    }
-                    .background(Color.white)
-                    .cornerRadius(16)
-                    .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
-                    .padding(.horizontal)
-                }
-                #endif
+                // 开发者工具部分已按需求隐藏
                 
                 Spacer()
                     .frame(height: 30)
             }
             .padding(.top, 16)
         }
-        .background(Color(UIColor.systemGray6).ignoresSafeArea())
+        .background(Color.white.ignoresSafeArea())
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .fullScreenCover(isPresented: $showLoginView) {
@@ -377,20 +290,12 @@ struct ProfileHomeView: View {
     var userProfileCard: some View {
         HStack(spacing: 16) {
             // 头像
-            if authService.isLoggedIn {
-                Image(systemName: "person.circle.fill")
-                    .font(.system(size: 60))
-                    .foregroundColor(Color(hex: "FE2D55"))
-                    .frame(width: 80, height: 80)
-                    .background(Color.white)
-                    .clipShape(Circle())
-                    .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
-            } else {
-                Image(systemName: "person.circle.fill")
-                    .font(.system(size: 60))
-                    .foregroundColor(Color.gray)
-                    .frame(width: 80, height: 80)
-            }
+            Image("Avatar")
+                .resizable()
+                .scaledToFill()
+                .frame(width: 80, height: 80)
+                .clipShape(Circle())
+                .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
             
             // 用户信息
             VStack(alignment: .leading, spacing: 4) {
@@ -427,6 +332,10 @@ struct ProfileHomeView: View {
         }
         .padding()
         .background(Color.white)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color(hex: "ECECEC"), lineWidth: 2)
+        )
         .cornerRadius(16)
         .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
         .padding(.horizontal)
@@ -536,48 +445,10 @@ struct ProfileHomeView: View {
                 }
             }
             .background(Color.white)
-            .cornerRadius(16)
-            .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
-            .padding(.horizontal)
-        }
-    }
-    
-    // 设置部分
-    var settingsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("设置")
-                .font(.headline)
-                .foregroundColor(Color(hex: "61462C"))
-                .padding(.horizontal)
-            
-            VStack(spacing: 0) {
-                ForEach(0..<settingItems.count, id: \.self) { index in
-                    HStack {
-                        // 图标
-                        Image(systemName: settingItems[index].icon)
-                            .foregroundColor(settingItems[index].color)
-                            .frame(width: 30, height: 30)
-                        
-                        // 标题
-                        Text(settingItems[index].title)
-                            .font(.body)
-                        
-                        Spacer()
-                        
-                        // 箭头
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.gray)
-                    }
-                    .padding()
-                    .background(Color.white)
-                    
-                    if index < settingItems.count - 1 {
-                        Divider()
-                            .padding(.leading, 56)
-                    }
-                }
-            }
-            .background(Color.white)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color(hex: "ECECEC"), lineWidth: 2)
+            )
             .cornerRadius(16)
             .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
             .padding(.horizontal)
@@ -594,24 +465,15 @@ struct ProfileHomeView: View {
             
             VStack(spacing: 0) {
                 ForEach(0..<aboutItems.count, id: \.self) { index in
-                    HStack {
-                        // 图标
-                        Image(systemName: aboutItems[index].icon)
-                            .foregroundColor(aboutItems[index].color)
-                            .frame(width: 30, height: 30)
-                        
-                        // 标题
-                        Text(aboutItems[index].title)
-                            .font(.body)
-                        
-                        Spacer()
-                        
-                        // 箭头
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.gray)
+                    Group {
+                        if aboutItems[index].title == "隐私政策" {
+                            NavigationLink(destination: PrivacyPolicyView()) {
+                                rowView(for: index)
+                            }
+                        } else {
+                            rowView(for: index)
+                        }
                     }
-                    .padding()
-                    .background(Color.white)
                     
                     if index < aboutItems.count - 1 {
                         Divider()
@@ -619,11 +481,37 @@ struct ProfileHomeView: View {
                     }
                 }
             }
-            .background(Color.white)
+            .background(
+                LinearGradient(
+                gradient: Gradient(colors: [Color(hex: "FFF8E1"), Color(hex: "F5F5F5")]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color(hex: "ECECEC"), lineWidth: 2)
+            )
             .cornerRadius(16)
             .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
             .padding(.horizontal)
         }
+    }
+    
+    // 提取行视图生成函数，减少重复
+    private func rowView(for index: Int) -> some View {
+        HStack {
+            Image(systemName: aboutItems[index].icon)
+                .foregroundColor(aboutItems[index].color)
+                .frame(width: 30, height: 30)
+            Text(aboutItems[index].title)
+                .font(.body)
+            Spacer()
+            Image(systemName: "chevron.right")
+                .foregroundColor(.gray)
+        }
+        .padding()
+        .background(Color.white)
     }
 }
 

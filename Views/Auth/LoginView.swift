@@ -45,6 +45,9 @@ struct LoginView: View {
     @State private var agreeToTerms = false
     @State private var showTermsAlert = false
     
+    // 隐私政策弹窗
+    @State private var showPrivacyPolicy = false
+    
     // 验证码登录相关状态
     @State private var loginMethod: LoginMethod = .verificationCode // 默认使用验证码登录
     @State private var verificationCode = ""
@@ -256,15 +259,16 @@ struct LoginView: View {
                                         .contentShape(Rectangle())
                                 }
                                 
-                                Text("同意《用户协议》和《隐私政策》")
+                                // 协议文字，隐私政策可点击
+                                Text("同意")
                                     .font(.system(size: 14))
                                     .foregroundColor(.white)
-                                    // 为文本也添加点击事件
-                                    .onTapGesture {
-                                        agreeToTerms.toggle()
-                                    }
-                                
-                                Spacer()
+                                Button("《隐私政策》") {
+                                    showPrivacyPolicy = true
+                                }
+                                .font(.system(size: 14))
+                                .foregroundColor(.white)
+                                .underline()
                             }
                             .padding(.top, 20)
                         }
@@ -410,15 +414,16 @@ struct LoginView: View {
                                 .contentShape(Rectangle())
                         }
                         
-                        Text("同意《用户协议》和《隐私政策》")
+                        // 协议文字，隐私政策可点击
+                        Text("同意《用户协议》和")
                             .font(.system(size: 14))
                             .foregroundColor(.white)
-                            // 为文本也添加点击事件
-                            .onTapGesture {
-                                agreeToTerms.toggle()
-                            }
-                        
-                        Spacer()
+                        Button("《隐私政策》") {
+                            showPrivacyPolicy = true
+                        }
+                        .font(.system(size: 14))
+                        .foregroundColor(.white)
+                        .underline()
                     }
                     .padding(.horizontal, 30)
                     .padding(.top, 20)
@@ -515,6 +520,17 @@ struct LoginView: View {
         }
         .onChange(of: isShowingRegister) { oldValue, newValue in
             dismissKeyboard() // 切换到注册页面时隐藏键盘
+        }
+        // 隐私政策弹窗
+        .sheet(isPresented: $showPrivacyPolicy) {
+            NavigationView {
+                PrivacyPolicyView()
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button("关闭") { showPrivacyPolicy = false }
+                        }
+                    }
+            }
         }
     }
     

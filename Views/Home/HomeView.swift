@@ -7,6 +7,9 @@ struct HomeView: View {
     let viewModel: ExerciseRecordViewModel
     @EnvironmentObject var appState: AppState
     
+    // 统计视图当前标签
+    @State private var selectedStatTab: ExerciseRecordView.StatTab = .month
+    
     // 美食券数据（最近一天）
     @State private var vouchers: [DessertVoucher] = []
     @State private var showAllVouchers: Bool = false
@@ -64,7 +67,7 @@ struct HomeView: View {
                 self.selectedVoucher = nil
             }
         }
-        .background(Color(UIColor.systemGroupedBackground))
+        .background(Color.white)
         // 监听VoucherService加载完成后，如已有数据则确保不再显示骨架
         .onReceive(voucherService.$vouchers) { list in
             if startedInitialLoad {
@@ -141,8 +144,33 @@ struct HomeView: View {
     }
     
     private var statisticsSection: some View {
-        ExerciseRecordView(viewModel: viewModel)
-            .environmentObject(appState)
+        VStack(alignment: .leading, spacing: 12) {
+            // 标题
+            HStack {
+                SectionHeader(title: "运动记录")
+                Spacer()
+            }
+            
+            // 标签按钮
+            HStack(spacing: 12) {
+                ForEach(ExerciseRecordView.StatTab.allCases) { tab in
+                    Button(action: { selectedStatTab = tab }) {
+                        Text(tab.rawValue)
+                            .font(.system(size: 14, weight: selectedStatTab == tab ? .semibold : .regular))
+                            .foregroundColor(selectedStatTab == tab ? .white : .primary)
+                            .frame(minWidth: 44, minHeight: 32)
+                            .padding(.horizontal, 8)
+                            .background(selectedStatTab == tab ? Color(hex: "FE2D55") : Color(hex: "F2F2F7"))
+                            .cornerRadius(10)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+            }
+            
+            // 统计内容
+            ExerciseRecordView(viewModel: viewModel, selectedTab: $selectedStatTab)
+                .environmentObject(appState)
+        }
     }
     
     // MARK: - 网络

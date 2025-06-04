@@ -584,6 +584,16 @@ extension APIService {
                 
                 // 针对网络错误进行特殊处理
                 if case .unauthorized = networkError {
+                    // 主线程触发登录失效处理，弹出登录页
+                    DispatchQueue.main.async {
+                        AuthService.shared.handleTokenExpired()
+                    }
+                    return .tokenExpired
+                } else if case .serverError(let status, _) = networkError, status == 401 {
+                    // 部分后端实现可能把401包装成 serverError(401)
+                    DispatchQueue.main.async {
+                        AuthService.shared.handleTokenExpired()
+                    }
                     return .tokenExpired
                 } else {
                     return .networkError(APINetworkError(error: networkError))
