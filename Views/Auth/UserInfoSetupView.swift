@@ -13,7 +13,7 @@ struct UserInfoSetupView: View {
     var isModal: Bool
     var onDismiss: (() -> Void)?
     
-    private let totalSteps = 3 // 修改总步骤数：1.昵称和性别 2.身高和体重 3.运动习惯
+    private let totalSteps = 3 // 修改总步骤数：1.身高体重 2.运动习惯 3.昵称性别
     
     // 初始化方法
     init(initialStep: Int = 0, isModal: Bool = false, onDismiss: (() -> Void)? = nil) {
@@ -34,31 +34,106 @@ struct UserInfoSetupView: View {
                         .environmentObject(appState)
                 } else {
                     VStack(spacing: 0) {
-                        // 进度条 - 非模态模式才显示
+                        // 顶部区域 - 对所有页面都一样，但模态模式下隐藏
                         if !isModal {
-                            StepProgressBar(currentStep: currentStep, totalSteps: totalSteps)
-                                .padding(.top, 20)
-                                .padding(.horizontal, 30)
+                            VStack(spacing: 5) {
+                                // 顶部行：返回按钮和Brand Logo在同一行
+                                HStack {
+                                    // 返回按钮（只在非第一页和非模态模式下显示）
+                                    if currentStep > 0 {
+                                        backButton
+                                    } else {
+                                        // 空白区域保持布局对称
+                                        Spacer()
+                                            .frame(width: 32, height: 32)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    // Brand Logo - 居中
+                                    Image("brand_logo")
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(width: 120)
+                                    
+                                    Spacer()
+                                    
+                                    // 右侧空白保持对称
+                                    Spacer()
+                                        .frame(width: 32, height: 32)
+                                }
+                                .padding(.horizontal, 20)
+                                .padding(.top, 0)
+                                
+                                // 固定标题文字
+                                Text("用三个问题更了解你！")
+                                    .font(.system(size: 18))
+                                    .foregroundColor(.gray)
+                                    .padding(.top, 5)
+                                
+                                // 进度条
+                                StepProgressBar(currentStep: currentStep, totalSteps: totalSteps)
+                                    .padding(.horizontal, 30)
+                                    .padding(.top, 8)
+                            }
+                            .padding(.top, 0)
+                        } else {
+                            // 模态模式下不显示任何顶部导航元素
+                            EmptyView()
                         }
                         
-                        // 内容区域
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 25) {
-                                // 标题
-                                setupTitle()
-                                    .padding(.top, 20)
-                                
-                                // 表单内容
-                                VStack(alignment: .leading, spacing: 30) {
-                                    formContent()
+                        // 内容区域 - 移除ScrollView，直接使用VStack
+                        VStack(alignment: .leading, spacing: currentStep == 0 ? 10 : 25) {
+                            // 第一页特殊布局：标题和图片并排
+                            if currentStep == 0 {
+                                HStack(alignment: .top, spacing: 15) {
+                                    // 页面标题 - 使用pageTitle()函数以支持isModal判断
+                                    VStack(alignment: .leading, spacing: 5) {
+                                        if isModal {
+                                            Text("我们需要你的身体")
+                                                .font(.system(size: 20, weight: .semibold))
+                                                .foregroundColor(.black)
+                                            Text("数据，设计合理的运动量")
+                                                .font(.system(size: 20, weight: .semibold))
+                                                .foregroundColor(.black)
+                                        } else {
+                                            Text("1. 我们需要你的身体")
+                                                .font(.system(size: 20, weight: .semibold))
+                                                .foregroundColor(.gray)
+                                            Text("数据，设计合理的运动量")
+                                                .font(.system(size: 20, weight: .semibold))
+                                                .foregroundColor(.gray)
+                                        }
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    
+                                    // 第一页图片
+                                    Image("userinfo1")
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(width: 100, height: 100)
                                 }
-                                .padding(.top, 5)
-                                
-                                Spacer()
+                                .padding(.top, isModal ? 15 : 5)
+                            } else {
+                                // 其他页面标题
+                                pageTitle()
+                                    .padding(.top, isModal ? 20 : 10)
                             }
-                            .padding(.horizontal, 20)
-                            .padding(.bottom, 100)
+                            
+                            // 表单内容和图片
+                            VStack(alignment: .leading, spacing: currentStep == 0 ? 10 : 30) {
+                                formContent()
+                                
+                                // 第二页和第三页的图片
+                                if currentStep != 0 {
+                                    pageImage()
+                                }
+                            }
+                            .padding(.top, currentStep == 0 ? 0 : 20)
+                            
+                            Spacer()
                         }
+                        .padding(.horizontal, 20)
                         .onTapGesture {
                             dismissKeyboard()
                         }
@@ -89,7 +164,6 @@ struct UserInfoSetupView: View {
                 }
             }
             .navigationBarBackButtonHidden(true)
-            .navigationBarItems(leading: isModal ? nil : backButton)
         }
     }
     
@@ -130,38 +204,90 @@ struct UserInfoSetupView: View {
             }
         }) {
             Image(systemName: "chevron.left")
-                .foregroundColor(.primary)
-                .padding(10)
+                .foregroundColor(.gray)
+                .font(.system(size: 16, weight: .medium))
+                .padding(8)
                 .background(
                     Circle()
                         .fill(Color.gray.opacity(0.2))
                 )
         }
-        .opacity(currentStep > 0 ? 1 : 0)
-        .disabled(currentStep == 0)
     }
     
-    // 标题部分
+    // 页面标题
     @ViewBuilder
-    private func setupTitle() -> some View {
-        switch currentStep {
-        case 0:
-            stepTitle("欢迎来到该吃吃！请介绍一下自己吧")
-        case 1:
-            stepTitle("我们需要你的身体数据，设计合理的运动量")
-        case 2:
-            stepTitle("我们会根据你的运动习惯，推荐运动")
-        default:
-            stepTitle("欢迎光临～")
+    private func pageTitle() -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            switch currentStep {
+            case 0:
+                VStack(alignment: .leading, spacing: 5) {
+                    if isModal {
+                        Text("我们需要你的身体")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(.black)
+                        Text("数据，设计合理的运动量")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(.black)
+                    } else {
+                        Text("1. 我们需要你的身体")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(.gray)
+                        Text("数据，设计合理的运动量")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(.gray)
+                    }
+                }
+            case 1:
+                VStack(alignment: .leading, spacing: 5) {
+                    if isModal {
+                        Text("我们会根据你的")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(.black)
+                        Text("运动习惯，推荐运动")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(.black)
+                    } else {
+                        Text("2. 我们会根据你的")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(.gray)
+                        Text("运动习惯，推荐运动")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(.gray)
+                    }
+                }
+            case 2:
+                if isModal {
+                    Text("请介绍一下自己吧！")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(.black)
+                } else {
+                    Text("3. 最后，请介绍一下自己吧！")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(.gray)
+                }
+            default:
+                EmptyView()
+            }
         }
     }
     
-    // 标题组件
-    private func stepTitle(_ title: String) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text(title)
-                .font(.title)
-                .fontWeight(.bold)
+    // 页面插图
+    @ViewBuilder
+    private func pageImage() -> some View {
+        HStack {
+            switch currentStep {
+            case 0:
+                Spacer()
+                Image("userinfo1")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 120, height: 120)
+            case 1, 2:
+                // 第二页和第三页图片在表单下方，占据更大空间
+                EmptyView()
+            default:
+                EmptyView()
+            }
         }
     }
     
@@ -170,8 +296,113 @@ struct UserInfoSetupView: View {
     private func formContent() -> some View {
         switch currentStep {
         case 0:
+            // 身高和体重设置
+            VStack(alignment: .leading, spacing: 15) {
+                // 身高设置
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("身高（厘米）")
+                        .font(.headline)
+                    
+                    HStack {
+                        Picker("", selection: Binding(
+                            get: { Int(viewModel.user.bodyData?.height ?? 170) },
+                            set: { viewModel.user.bodyData?.height = Double($0) }
+                        )) {
+                            ForEach(100...220, id: \.self) { height in
+                                Text("\(height)")
+                                    .font(.system(size: 20, weight: .medium))
+                                    .tag(height)
+                            }
+                        }
+                        .pickerStyle(WheelPickerStyle())
+                        .frame(height: 150)
+                        .clipped()
+                        
+                        Text("厘米")
+                            .padding(.leading, 10)
+                    }
+                }
+                
+                // 体重设置
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("体重（公斤）")
+                        .font(.headline)
+                    
+                    HStack {
+                        Picker("", selection: Binding(
+                            get: { Int(viewModel.user.bodyData?.weight ?? 60) },
+                            set: { viewModel.user.bodyData?.weight = Double($0) }
+                        )) {
+                            ForEach(35...150, id: \.self) { weight in
+                                Text("\(weight)")
+                                    .font(.system(size: 20, weight: .medium))
+                                    .tag(weight)
+                            }
+                        }
+                        .pickerStyle(WheelPickerStyle())
+                        .frame(height: 150)
+                        .clipped()
+                        
+                        Text("公斤")
+                            .padding(.leading, 10)
+                    }
+                }
+            }
+            
+        case 1:
+            // 是否有运动习惯
+            VStack(alignment: .leading, spacing: 30) {
+                Text("您是否有运动习惯？")
+                    .font(.headline)
+                
+                HStack(spacing: 20) {
+                    // "是"按钮
+                    ExerciseHabitButton(
+                        title: "是",
+                        isSelected: viewModel.user.exerciseHabit?.hasExerciseHabit == true
+                    ) {
+                        print("是按钮被点击") // 添加调试日志
+                        dismissKeyboard() // 首先隐藏键盘
+                        withAnimation {
+                            viewModel.user.exerciseHabit?.hasExerciseHabit = true
+                            // 强制视图刷新
+                            viewModel.objectWillChange.send()
+                        }
+                    }
+                    
+                    // "否"按钮
+                    ExerciseHabitButton(
+                        title: "否",
+                        isSelected: viewModel.user.exerciseHabit?.hasExerciseHabit == false
+                    ) {
+                        print("否按钮被点击") // 添加调试日志
+                        dismissKeyboard() // 首先隐藏键盘
+                        withAnimation {
+                            viewModel.user.exerciseHabit?.hasExerciseHabit = false
+                            // 强制视图刷新
+                            viewModel.objectWillChange.send()
+                        }
+                    }
+                }
+                
+                // 第二页的大图
+                VStack {
+                    Spacer()
+                        .frame(height: 20)
+                    
+                    HStack {
+                        Spacer()
+                        Image("userinfo2")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 200, height: 200)
+                    }
+                }
+            }
+            
+        case 2:
             // 昵称和性别设置
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 30) {
                 // 昵称设置
                 VStack(alignment: .leading, spacing: 10) {
                     Text("昵称")
@@ -242,91 +473,18 @@ struct UserInfoSetupView: View {
                         .id("femaleButton-\(viewModel.user.gender == .female)") // 添加动态ID，强制视图刷新
                     }
                 }
-            }
-            
-        case 1:
-            // 身高和体重设置
-            VStack(alignment: .leading, spacing: 30) {
-                // 身高设置
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("身高（厘米）")
-                        .font(.headline)
+                
+                // 第三页的大图
+                VStack {
+                    Spacer()
+                        .frame(height: 20)
                     
                     HStack {
-                        Picker("", selection: Binding(
-                            get: { Int(viewModel.user.bodyData?.height ?? 170) },
-                            set: { viewModel.user.bodyData?.height = Double($0) }
-                        )) {
-                            ForEach(100...220, id: \.self) { height in
-                                Text("\(height)").tag(height)
-                            }
-                        }
-                        .pickerStyle(WheelPickerStyle())
-                        .frame(height: 150)
-                        .clipped()
-                        
-                        Text("厘米")
-                            .padding(.leading, 10)
-                    }
-                }
-                
-                // 体重设置
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("体重（公斤）")
-                        .font(.headline)
-                    
-                    HStack {
-                        Picker("", selection: Binding(
-                            get: { Int(viewModel.user.bodyData?.weight ?? 60) },
-                            set: { viewModel.user.bodyData?.weight = Double($0) }
-                        )) {
-                            ForEach(35...150, id: \.self) { weight in
-                                Text("\(weight)").tag(weight)
-                            }
-                        }
-                        .pickerStyle(WheelPickerStyle())
-                        .frame(height: 150)
-                        .clipped()
-                        
-                        Text("公斤")
-                            .padding(.leading, 10)
-                    }
-                }
-            }
-            
-        case 2:
-            // 是否有运动习惯
-            VStack(alignment: .leading, spacing: 20) {
-                Text("您是否有运动习惯？")
-                    .font(.headline)
-                
-                HStack(spacing: 20) {
-                    // "是"按钮
-                    ExerciseHabitButton(
-                        title: "是",
-                        isSelected: viewModel.user.exerciseHabit?.hasExerciseHabit == true
-                    ) {
-                        print("是按钮被点击") // 添加调试日志
-                        dismissKeyboard() // 首先隐藏键盘
-                        withAnimation {
-                            viewModel.user.exerciseHabit?.hasExerciseHabit = true
-                            // 强制视图刷新
-                            viewModel.objectWillChange.send()
-                        }
-                    }
-                    
-                    // "否"按钮
-                    ExerciseHabitButton(
-                        title: "否",
-                        isSelected: viewModel.user.exerciseHabit?.hasExerciseHabit == false
-                    ) {
-                        print("否按钮被点击") // 添加调试日志
-                        dismissKeyboard() // 首先隐藏键盘
-                        withAnimation {
-                            viewModel.user.exerciseHabit?.hasExerciseHabit = false
-                            // 强制视图刷新
-                            viewModel.objectWillChange.send()
-                        }
+                        Spacer()
+                        Image("userinfo3")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 200, height: 200)
                     }
                 }
             }
@@ -349,32 +507,18 @@ struct UserInfoSetupView: View {
                     }) {
                         Text("保存")
                             .font(.headline)
-                            .foregroundColor(.white)
+                            .foregroundColor(Color(hex: "FE2D55"))
                             .frame(maxWidth: .infinity)
                             .padding()
-                            .background(Color(hex: "FE2D55"))
+                            .background(Color.white)
                             .cornerRadius(16)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .stroke(Color(hex: "FE2D55"), lineWidth: 1.5)
+                            )
                     }
                     .padding(.horizontal, 20)
                     
-                    if let onDismiss = onDismiss {
-                        Button(action: {
-                            onDismiss()
-                        }) {
-                            Text("取消")
-                                .font(.headline)
-                                .foregroundColor(Color(hex: "FE2D55"))
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.white)
-                                .cornerRadius(16)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 16)
-                                        .stroke(Color(.systemGray4), lineWidth: 1)
-                                )
-                        }
-                        .padding(.horizontal, 20)
-                    }
                 } else {
                     // 非模态模式下，显示下一步或完成按钮
                     Button(action: {
@@ -387,13 +531,17 @@ struct UserInfoSetupView: View {
                             saveAllUserInfo()
                         }
                     }) {
-                        Text(currentStep < totalSteps - 1 ? "下一步" : "完成")
+                        Text(currentStep < totalSteps - 1 ? "下一题" : "完成！")
                             .font(.headline)
-                            .foregroundColor(.white)
+                            .foregroundColor(.black)
                             .frame(maxWidth: .infinity)
                             .padding()
-                            .background(Color(hex: "FE2D55"))
+                            .background(Color(hex: "FFF2D8"))
                             .cornerRadius(16)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .stroke(Color(hex: "FFE3A6"), lineWidth: 1.5)
+                            )
                     }
                     .padding(.horizontal, 20)
                     
@@ -405,7 +553,7 @@ struct UserInfoSetupView: View {
                         }) {
                             Text("跳过，稍后设置")
                                 .font(.subheadline)
-                                .foregroundColor(Color(hex: "FE2D55"))
+                                .foregroundColor(.gray)
                         }
                         .padding(.bottom, 10)
                     }
@@ -434,57 +582,7 @@ struct UserInfoSetupView: View {
         // 根据当前步骤调用对应的API
         switch currentStep {
         case 0:
-            // 第一步：昵称和性别 - 调用基本信息API
-            let basicInfo = UpdateBasicInfoRequest(
-                nickname: viewModel.nickname.isEmpty ? nil : viewModel.nickname,
-                avatar: nil,
-                gender: viewModel.user.gender?.toApiValue,
-                birthYear: viewModel.user.birthYear
-            )
-            
-            APIService.shared.updateUserBasicInfo(info: basicInfo)
-                .receive(on: DispatchQueue.main)
-                .sink(
-                    receiveCompletion: { completion in
-                        if case let .failure(error) = completion {
-                            print("更新基本信息失败: \(error.errorMessage)")
-                        }
-                        
-                        // 如果是模态模式，更新完成后关闭页面
-                        if isModal, let onDismiss = onDismiss {
-                            onDismiss()
-                        }
-                    },
-                    receiveValue: { response in
-                        print("更新基本信息成功: \(response.nickname ?? "未设置昵称")")
-                        
-                        // 更新本地用户数据
-                        if let user = authService.currentUser {
-                            user.nickname = response.nickname
-                            user.gender = response.gender.flatMap { User.Gender.fromApiString($0) }
-                            user.birthYear = response.birthYear
-                            
-                            // 保存到本地存储
-                            authService.saveUserToStorage()
-                        }
-                        
-                        // 显示成功消息
-                        if isModal {
-                            showSuccessMessage = true
-                            // 2秒后关闭成功消息并返回
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                                showSuccessMessage = false
-                                if let onDismiss = onDismiss {
-                                    onDismiss()
-                                }
-                            }
-                        }
-                    }
-                )
-                .store(in: &authService.cancellables)
-            
-        case 1:
-            // 第二步：身高和体重 - 调用身体数据API
+            // 第一步：身高和体重 - 调用身体数据API
             let bodyData = UpdateBodyDataRequest(
                 height: viewModel.user.bodyData?.height,
                 weight: viewModel.user.bodyData?.weight
@@ -536,8 +634,8 @@ struct UserInfoSetupView: View {
                 )
                 .store(in: &authService.cancellables)
             
-        case 2:
-            // 第三步：运动习惯 - 调用运动习惯API
+        case 1:
+            // 第二步：运动习惯 - 调用运动习惯API
             let exerciseHabit = UpdateExerciseHabitRequest(
                 hasExerciseHabit: viewModel.user.exerciseHabit?.hasExerciseHabit,
                 exerciseFrequency: nil, // 这里暂时没有收集这些数据
@@ -571,6 +669,56 @@ struct UserInfoSetupView: View {
                             user.exerciseHabit?.hasExerciseHabit = response.hasExerciseHabit ?? false
                             user.exerciseHabit?.exerciseFrequency = response.exerciseFrequency
                             user.exerciseHabit?.exerciseDuration = response.exerciseDuration
+                            
+                            // 保存到本地存储
+                            authService.saveUserToStorage()
+                        }
+                        
+                        // 显示成功消息
+                        if isModal {
+                            showSuccessMessage = true
+                            // 2秒后关闭成功消息并返回
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                showSuccessMessage = false
+                                if let onDismiss = onDismiss {
+                                    onDismiss()
+                                }
+                            }
+                        }
+                    }
+                )
+                .store(in: &authService.cancellables)
+            
+        case 2:
+            // 第三步：昵称和性别 - 调用基本信息API
+            let basicInfo = UpdateBasicInfoRequest(
+                nickname: viewModel.nickname.isEmpty ? nil : viewModel.nickname,
+                avatar: nil,
+                gender: viewModel.user.gender?.toApiValue,
+                birthYear: viewModel.user.birthYear
+            )
+            
+            APIService.shared.updateUserBasicInfo(info: basicInfo)
+                .receive(on: DispatchQueue.main)
+                .sink(
+                    receiveCompletion: { completion in
+                        if case let .failure(error) = completion {
+                            print("更新基本信息失败: \(error.errorMessage)")
+                        }
+                        
+                        // 如果是模态模式，更新完成后关闭页面
+                        if isModal, let onDismiss = onDismiss {
+                            onDismiss()
+                        }
+                    },
+                    receiveValue: { response in
+                        print("更新基本信息成功: \(response.nickname ?? "未设置昵称")")
+                        
+                        // 更新本地用户数据
+                        if let user = authService.currentUser {
+                            user.nickname = response.nickname
+                            user.gender = response.gender.flatMap { User.Gender.fromApiString($0) }
+                            user.birthYear = response.birthYear
                             
                             // 保存到本地存储
                             authService.saveUserToStorage()
@@ -784,7 +932,7 @@ struct StepProgressBar: View {
                 
                 // 进度条
                 Rectangle()
-                    .fill(Color(hex: "FE2D55"))
+                    .fill(Color(hex: "FF9901"))
                     .frame(width: self.progress(in: geometry.size.width), height: 6)
                     .cornerRadius(3)
             }

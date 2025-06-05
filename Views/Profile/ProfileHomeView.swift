@@ -112,21 +112,21 @@ struct ProfileHomeView: View {
             LoginView()
         }
         .fullScreenCover(isPresented: $showBasicInfoSetup) {
-            UserInfoSetupPage(currentStep: 0, onDismiss: {
+            UserInfoSetupPage(currentStep: 2, onDismiss: {
                 showBasicInfoSetup = false
                 // 重新获取用户资料
                 fetchUserProfile()
             })
         }
         .fullScreenCover(isPresented: $showBodyDataSetup) {
-            UserInfoSetupPage(currentStep: 1, onDismiss: {
+            UserInfoSetupPage(currentStep: 0, onDismiss: {
                 showBodyDataSetup = false
                 // 重新获取用户资料
                 fetchUserProfile()
             })
         }
         .fullScreenCover(isPresented: $showExerciseHabitSetup) {
-            UserInfoSetupPage(currentStep: 2, onDismiss: {
+            UserInfoSetupPage(currentStep: 1, onDismiss: {
                 showExerciseHabitSetup = false
                 // 重新获取用户资料
                 fetchUserProfile()
@@ -528,6 +528,7 @@ struct UserInfoSetupPage: View {
                         Button("关闭") {
                             onDismiss()
                         }
+                        .foregroundColor(Color(hex: "FE2D55"))
                     }
                 }
         }
