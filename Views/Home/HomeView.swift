@@ -22,9 +22,74 @@ struct HomeView: View {
     // 引入VoucherService，实时监听加载状态
     @ObservedObject private var voucherService = VoucherService.shared
     
+    // 引入AuthService，监听用户状态
+    @ObservedObject private var authService = AuthService.shared
+    
     private let columns = [GridItem(.flexible()), GridItem(.flexible())]
     
     var body: some View {
+        // 根据用户状态显示不同内容
+        if authService.isNewUser {
+            newUserView
+        } else {
+            regularUserView
+        }
+    }
+    
+    // MARK: - 新用户视图
+    private var newUserView: some View {
+        VStack(spacing: 32) {
+            // 问候语
+            VStack(alignment: .leading, spacing: 4) {
+                let greeting = timeGreeting
+                let displayName = appState.userProfile.nickname?.isEmpty == false ? appState.userProfile.nickname! : appState.userProfile.name
+                Text("\(greeting)，\(displayName)！")
+                    .font(.system(size: 28, weight: .bold))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal)
+            }
+            .padding(.top, 16)
+            
+            Spacer()
+            
+            // 大图和按钮
+            VStack(spacing: 24) {
+                // emptystate 图片
+                Image("emptystate")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(maxWidth: 280, maxHeight: 280)
+                
+                // 开始运动按钮
+                Button(action: {
+                    // 进入运动打卡页面（甜品选择页）
+                    appState.selectedTabIndex = 1 // 运动tab
+                }) {
+                    Text("今天吃了什么？")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 56)
+                        .background(
+                            LinearGradient(
+                                gradient: Gradient(colors: [Color(hex: "FE2D55"), Color(hex: "FF6B6B")]),
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .cornerRadius(28)
+                        .shadow(color: Color(hex: "FE2D55").opacity(0.3), radius: 8, x: 0, y: 4)
+                }
+                .padding(.horizontal, 32)
+            }
+            
+            Spacer()
+        }
+        .background(Color.white)
+    }
+    
+    // MARK: - 老用户视图（原有完整内容）
+    private var regularUserView: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 24) {
                 greetingSection

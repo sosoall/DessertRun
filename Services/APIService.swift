@@ -1000,9 +1000,25 @@ class APIService {
         // ImageCacheService已经被改进为可以处理重定向
         return URL(string: urlString)
     }
+    
+    // MARK: - 新用户状态检查
+    
+    /// 检查用户是否有打卡记录
+    func checkUserHasWorkoutRecords(userId: String) -> AnyPublisher<Bool, APIServiceError> {
+        let endpoint = "/api/v1/users/\(userId)/has-workout-records"
+        
+        return networkManager.request(
+            endpoint: endpoint,
+            method: .get,
+            requiresAuth: true
+        )
+        .map { (response: HasWorkoutRecordsResponse) -> Bool in
+            response.hasRecords
+        }
+        .mapError { self.handleError($0) }
+        .eraseToAnyPublisher()
+    }
 }
-
-// MARK: - 数据模型
 
 /// API错误类型
 enum APIError: Error {

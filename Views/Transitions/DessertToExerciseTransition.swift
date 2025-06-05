@@ -295,6 +295,9 @@ struct DessertToExerciseTransition: View {
                         DRInfo("成功获取美食券: \(voucher.id)")
                     }
 
+                    // 刷新用户状态，以便同步is_new_user状态
+                    AuthService.shared.markUserAsExperienced()
+
                     // 关闭运动打卡视图及面板
                     appState.showWorkoutView = false
                     animationState.dismissPanel()

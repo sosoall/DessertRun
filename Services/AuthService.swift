@@ -172,7 +172,78 @@ class AuthService: ObservableObject {
     /// 将API用户转换为App用户模型
     private func mapToAppUser(apiUser: APIUser) -> User {
         // 将API用户转换为本地用户
-        return apiUser.toLocalUser()
+        let localUser = apiUser.toLocalUser()
+        
+        // 检查缓存的新用户状态
+        self.checkAndUpdateNewUserStatus(for: localUser)
+        
+        return localUser
+    }
+    
+    /// 检查并更新新用户状态（优化缓存策略：老用户状态永久缓存）
+    private func checkAndUpdateNewUserStatus(for user: User) {
+        let cacheKey = "isNewUser_\(user.apiUserId ?? "")"
+        
+        // 检查本地缓存
+        let cachedIsNewUser = UserDefaults.standard.object(forKey: cacheKey) != nil ? UserDefaults.standard.bool(forKey: cacheKey) : nil
+        
+        // 如果缓存显示为老用户，永久使用缓存（老用户状态不会变化）
+        if let isNewUser = cachedIsNewUser, !isNewUser {
+            DispatchQueue.main.async {
+                self.isNewUser = false
+            }
+            return
+        }
+        
+        // 如果缓存显示为新用户或者没有缓存，异步检查用户是否有打卡记录
+        self.checkUserWorkoutRecords(for: user.apiUserId ?? "", cacheKey: cacheKey)
+    }
+    
+    /// 异步检查用户是否有打卡记录
+    private func checkUserWorkoutRecords(for userId: String, cacheKey: String) {
+        APIService.shared.checkUserHasWorkoutRecords(userId: userId)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { completion in
+                    if case .failure(let error) = completion {
+                        print("检查用户打卡记录失败: \(error)")
+                        // 失败时，如果有缓存就用缓存，否则默认为新用户
+                        if UserDefaults.standard.object(forKey: cacheKey) == nil {
+                            self.isNewUser = true
+                        }
+                    }
+                },
+                receiveValue: { hasRecords in
+                    // 根据是否有打卡记录来确定用户状态
+                    let isNewUser = !hasRecords
+                    
+                    // 永久缓存结果（特别是老用户状态）
+                    UserDefaults.standard.set(isNewUser, forKey: cacheKey)
+                    
+                    // 更新UI状态
+                    self.isNewUser = isNewUser
+                    
+                    print("用户状态检查完成: \(isNewUser ? "新用户" : "老用户"), 已缓存")
+                }
+            )
+            .store(in: &cancellables)
+    }
+    
+    /// 标记用户为有经验的用户（首次打卡后调用）
+    func markUserAsExperienced() {
+        guard let currentUserData = self.currentUser else { return }
+        
+        let cacheKey = "isNewUser_\(currentUserData.apiUserId ?? "")"
+        
+        // 永久标记为老用户
+        UserDefaults.standard.set(false, forKey: cacheKey)
+        
+        // 立即更新UI状态
+        DispatchQueue.main.async {
+            self.isNewUser = false
+        }
+        
+        print("用户已标记为有经验用户，永久缓存")
     }
     
     /// 发送验证码

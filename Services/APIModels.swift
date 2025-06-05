@@ -368,4 +368,13 @@ struct APIWeeklyWorkoutStatsResponse: Codable {
 // MARK: - 挑战相关模型
 
 // 注意：ChallengeProgressResponse等模型已在ChallengeEnrollment.swift中定义
-// 这里移除重复定义，使用现有的模型 
+// 这里移除重复定义，使用现有的模型
+
+/// 检查用户是否有打卡记录的响应
+struct HasWorkoutRecordsResponse: Codable {
+    let hasRecords: Bool
+    
+    enum CodingKeys: String, CodingKey {
+        case hasRecords = "has_records"
+    }
+} 
