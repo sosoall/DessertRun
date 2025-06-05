@@ -156,9 +156,8 @@ struct VoucherWithImages: Codable, Identifiable {
         }
         
         // 解析核销日期
-        var redeemedAtDate: Date? = nil
         if let redeemedAt = redeemedAt {
-            redeemedAtDate = parseISODate(redeemedAt)
+            _ = parseISODate(redeemedAt)
         }
         
         // 记录解析成功的创建日期，便于调试

@@ -87,7 +87,7 @@ struct ExerciseHomeView: View {
                                 
                                 // 副标题 - 显示任务卡要求
                                 HStack {
-                                    if let taskVoucher = appState.selectedTaskVoucher {
+                                    if appState.selectedTaskVoucher != nil {
                                         Text("按照任务卡要求完成运动即可解锁美食券")
                                             .font(.system(size: 12, weight: .regular))
                                             .foregroundColor(Color(hex: "999999"))

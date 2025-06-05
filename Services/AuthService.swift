@@ -106,10 +106,10 @@ class AuthService: ObservableObject {
                     self?.saveUserToStorage()
                     
                     // 更新全局 AppState 用户资料
-                    let displayName = apiUser.nickname ?? (apiUser.phone ?? "")
+                    let displayName = apiUser.nickname ?? apiUser.phone
                     DispatchQueue.main.async {
                         AppState.shared.userProfile = UserProfile(
-                            id: apiUser.id ?? UUID().uuidString,
+                            id: apiUser.id,
                             name: displayName,
                             nickname: apiUser.nickname,
                             avatarName: "person.circle.fill")
@@ -237,6 +237,21 @@ class AuthService: ObservableObject {
                 receiveValue: { [weak self] apiUser in
                     DRInfo("获取到用户数据: \(apiUser.nickname ?? "未设置昵称")")
                     self?.currentUser = self?.mapToAppUser(apiUser: apiUser)
+                    
+                    // 更新全局 AppState 用户资料
+                    let displayName = apiUser.nickname ?? apiUser.phone
+                    DispatchQueue.main.async {
+                        AppState.shared.userProfile = UserProfile(
+                            id: apiUser.id,
+                            name: displayName,
+                            nickname: apiUser.nickname,
+                            avatarName: "person.circle.fill"
+                        )
+
+                        // 登录成功后立即刷新美食券和排行榜数据
+                        VoucherService.shared.loadVouchers(forceRefresh: true)
+                        FoodCheckInViewModel.shared.loadTopDesserts(limit: 5, force: true)
+                    }
                 }
             )
             .store(in: &cancellables)
@@ -256,9 +271,9 @@ class AuthService: ObservableObject {
                 self.saveUserToStorage()
 
                 // 更新 AppState 中的用户资料，确保触发@Published变更
-                let displayName = apiUser.nickname ?? (apiUser.phone ?? "")
+                let displayName = apiUser.nickname ?? apiUser.phone
                 AppState.shared.userProfile = UserProfile(
-                    id: apiUser.id ?? UUID().uuidString,
+                    id: apiUser.id,
                     name: displayName,
                     nickname: apiUser.nickname,
                     avatarName: "person.circle.fill"

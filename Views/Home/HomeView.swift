@@ -74,6 +74,16 @@ struct HomeView: View {
                 vouchers = Array(list.sorted { $0.createdAt > $1.createdAt }.prefix(3))
             }
         }
+        // 使用导航跳转到全部美食券列表
+        .background(
+            NavigationLink(value: "VoucherList") {
+                EmptyView()
+            }
+            .hidden()
+        )
+        .navigationDestination(isPresented: $navigateToVoucherList) {
+            VoucherListView().environmentObject(appState)
+        }
     }
     
     // MARK: - 子视图
@@ -134,13 +144,6 @@ struct HomeView: View {
                 }
             }
         }
-        // 使用导航跳转到全部美食券列表
-        .background(
-            NavigationLink(destination: VoucherListView().environmentObject(appState), isActive: $navigateToVoucherList) {
-                EmptyView()
-            }
-            .hidden()
-        )
     }
     
     private var statisticsSection: some View {

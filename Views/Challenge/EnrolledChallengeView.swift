@@ -423,7 +423,7 @@ struct EnrolledChallengeView: View {
     // 检查今天是否有运动打卡
     private func hasTodayWorkout() -> Bool {
         let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
+        _ = calendar.startOfDay(for: Date())
         
         // 检查今天是否有任何挑战的打卡记录
         // TODO: 这里需要根据实际的运动记录API来实现

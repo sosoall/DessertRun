@@ -449,8 +449,8 @@ struct ExerciseRecordView: View {
                         day: weekdayName,
                         caloriesBurned: Int($0.caloriesBurned),
                         hasWorkout: $0.hasWorkout,
-                        isGoalAchieved: $0.caloriesBurned >= ($0.targetCalories ?? 0),
-                        targetCalories: $0.targetCalories != nil ? Int($0.targetCalories) : nil,
+                        isGoalAchieved: $0.caloriesBurned >= $0.targetCalories,
+                        targetCalories: $0.targetCalories != 0 ? Int($0.targetCalories) : nil,
                         dessertId: $0.dessertId,
                         dessertCount: $0.dessertCount
                     )

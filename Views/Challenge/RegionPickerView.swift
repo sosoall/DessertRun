@@ -107,7 +107,7 @@ struct RegionPickerView: View {
                 }
                 .pickerStyle(WheelPickerStyle())
                 .frame(maxWidth: .infinity)
-                .onChange(of: selectedProvinceIndex) { newValue in
+                .onChange(of: selectedProvinceIndex) { _, newValue in
                     updateCitiesForProvince(at: newValue)
                 }
                 
@@ -121,7 +121,7 @@ struct RegionPickerView: View {
                 }
                 .pickerStyle(WheelPickerStyle())
                 .frame(maxWidth: .infinity)
-                .onChange(of: selectedCityIndex) { newValue in
+                .onChange(of: selectedCityIndex) { _, newValue in
                     updateDistrictsForCity(at: newValue)
                 }
                 

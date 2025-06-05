@@ -263,11 +263,12 @@ struct DessertToExerciseTransition: View {
                 receiveCompletion: { completion in
                     self.isLoading = false
                     if case .failure(let error) = completion {
-                        // 优先显示后端返回的error详细信息
-                        if let apiError = error as? APIServiceError {
+                        // 根据错误类型处理，不使用条件转换
+                        switch error {
+                        case let apiError as APIServiceError:
                             self.errorMessage = apiError.errorMessage
                             DRError("创建运动记录失败: \(apiError.errorMessage)")
-                        } else {
+                        default:
                             self.errorMessage = error.errorMessage
                             DRError("创建运动记录失败: \(error.errorMessage)")
                         }
@@ -873,7 +874,7 @@ struct DessertToExerciseTransition: View {
             let typeStr = exerciseType.type
             
             // 获取当前登录用户的体重
-            let weight = AuthService.shared.currentUser?.bodyData?.weight ?? 0.0
+            let _ = AuthService.shared.currentUser?.bodyData?.weight ?? 0.0
             
             if exerciseType.usesDistance {
                 // 距离类型运动 - 直接使用API返回的usesDistance字段

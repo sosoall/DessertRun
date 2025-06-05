@@ -883,7 +883,7 @@ struct ExpandedCardView: View {
                     .font(.system(size: 18, weight: .medium))  // Title字体样式
                     .padding()
                 
-                Text("分享\(voucher.dessertName)的美食打卡记录")
+                Text("分享\(voucher.dessertName ?? "美食")的美食打卡记录")
                     .font(.system(size: 16))  // Body字体样式
                     .padding()
                 

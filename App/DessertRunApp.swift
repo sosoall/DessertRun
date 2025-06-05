@@ -72,6 +72,9 @@ struct DessertRunApp: App {
                                 appState.isResettingApp = false
                             }
                         }
+                } else if appState.showOnboarding {
+                    OnboardingGuideView()
+                        .environmentObject(appState)
                 } else if showUserInfoSetup {
                     UserInfoSetupView()
                         .environmentObject(appState)

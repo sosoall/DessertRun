@@ -99,6 +99,9 @@ class AppState: ObservableObject {
     /// 是否显示新手引导
     @Published var showOnboarding = false
     
+    /// UserDefaults存储键 - 新手引导完成标记
+    private static let onboardingKey = "hasCompletedOnboarding"
+    
     // MARK: - 挑战相关状态
     
     /// 当前选中的挑战活动ID
@@ -140,6 +143,9 @@ class AppState: ObservableObject {
         if isFirstLaunch {
             UserDefaults.standard.set(true, forKey: "hasLaunchedBefore")
         }
+        
+        // 检查是否已完成新手引导
+        self.showOnboarding = !UserDefaults.standard.bool(forKey: Self.onboardingKey)
         
         // 监听登录状态变化通知
         setupNotificationObservers()
@@ -205,9 +211,9 @@ class AppState: ObservableObject {
 
                 // 同步用户资料显示名称
                 if let user = authService.currentUser {
-                    let displayName = user.nickname?.isEmpty == false ? user.nickname! : (user.phoneNumber)
+                    let displayName = user.nickname?.isEmpty == false ? user.nickname! : user.phoneNumber
                     self.userProfile.nickname = user.nickname
-                    self.userProfile.name = displayName ?? ""
+                    self.userProfile.name = displayName
                 }
 
                 DRInfo("AppState: 更新为已登录状态，关闭登录页面，并同步昵称")
@@ -257,7 +263,7 @@ class AppState: ObservableObject {
         // 检查是否已存在相同ID的美食券，避免重复
         if !dessertVouchers.contains(where: { $0.id == voucher.id }) {
             dessertVouchers.append(voucher)
-            print("【调试】已添加新的美食券: \(voucher.dessertName), ID: \(voucher.id)")
+            print("【调试】已添加新的美食券: \(voucher.dessertName ?? "未知美食"), ID: \(voucher.id)")
         } else {
             print("【调试】美食券已存在，ID: \(voucher.id)")
         }
@@ -313,6 +319,16 @@ class AppState: ObservableObject {
             DispatchQueue.main.async {
                 DRInfo("[AppState] 美食数据预加载完成，共\(desserts.count)项")
             }
+        }
+    }
+    
+    // MARK: - 新手引导
+    
+    /// 标记新手引导已完成
+    func completeOnboarding() {
+        UserDefaults.standard.set(true, forKey: Self.onboardingKey)
+        DispatchQueue.main.async {
+            self.showOnboarding = false
         }
     }
 }

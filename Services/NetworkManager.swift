@@ -335,11 +335,16 @@ public class NetworkManager {
                 }
             }
             .mapError { error -> NetworkError in
-                // 如果错误已经是NetworkError，直接返回即可
+                // 如果已经是NetworkError，直接返回
                 if let networkError = error as? NetworkError {
                     return networkError
+                }
+                
+                // 对于解码错误，返回相应的NetworkError
+                if let decodingError = error as? DecodingError {
+                    return NetworkError.decodingFailed(decodingError)
                 } else {
-                    return NetworkError.requestFailed(error)
+                    return NetworkError.requestFailed(error as NSError)
                 }
             }
             .flatMap { (data: Data) -> AnyPublisher<T, NetworkError> in
@@ -441,19 +446,16 @@ public class NetworkManager {
                         }
                         
                         // 处理self为nil的情况
-                        guard let self = self else {
+                        guard self != nil else {
                             return NetworkError.decodingFailed(error)
                         }
                         
-                        // 如果不是标准响应格式，尝试直接解析为目标类型
-                        DRInfo("[NetworkManager] 尝试直接解析为目标类型 \(T.self)")
-                        
-                        // 简化错误处理逻辑，避免使用case pattern matching
-                        if let decodingError = error as? DecodingError {
-                            // 直接返回解码错误
-                            return NetworkError.decodingFailed(decodingError)
+                        // 对于解码错误，返回相应的NetworkError
+                        if error is DecodingError {
+                            return NetworkError.decodingFailed(error)
                         } else {
-                            return NetworkError.requestFailed(error)
+                            // 对于其他类型的错误，根据具体情况处理
+                            return NetworkError.requestFailed(error as NSError)
                         }
                     }
                     .tryMap { response in
@@ -479,22 +481,13 @@ public class NetworkManager {
                     }
                     .catch { [weak self] error -> AnyPublisher<T, NetworkError> in
                         // 处理self为nil的情况
-                        guard let self = self else {
+                        guard self != nil else {
                             return Fail(error: error).eraseToAnyPublisher()
                         }
                         
-                        // 如果不是标准响应格式，尝试直接解析为目标类型
-                        DRInfo("[NetworkManager] 尝试直接解析为目标类型 \(T.self)")
-                        
-                        // 简化错误处理逻辑，避免使用case pattern matching
-                        if let decodingError = error as? DecodingError {
-                            // 直接返回解码错误
-                            return Fail(error: NetworkError.decodingFailed(decodingError))
-                                    .eraseToAnyPublisher()
-                        } else {
+                        // 直接返回错误，不进行类型转换
                         return Fail(error: error)
                             .eraseToAnyPublisher()
-                        }
                     }
                     .eraseToAnyPublisher()
             }
@@ -677,32 +670,16 @@ public class NetworkManager {
             .decode(type: R.self, decoder: self.decoder)
             .mapError { [weak self] error -> NetworkError in
                 // 确保self不为nil
-                guard let self = self else {
+                guard self != nil else {
                     return NetworkError.decodingFailed(error)
                 }
                 
-                if let decodingError = error as? DecodingError {
-                    DRError("[NetworkManager] 解析自定义响应失败: \(decodingError.localizedDescription)")
-                    
-                    // 提供更详细的解码错误信息
-                    switch decodingError {
-                    case .keyNotFound(let key, let context):
-                        DRError("[NetworkManager] 找不到键: \(key.stringValue), 路径: \(context.codingPath.map { $0.stringValue })")
-                        // 尝试输出当前已解析的上下文内容
-                        DRError("[NetworkManager] 解析上下文: \(context.debugDescription)")
-                    case .typeMismatch(let type, let context):
-                        DRError("[NetworkManager] 类型不匹配: 期望\(type), 路径: \(context.codingPath.map { $0.stringValue })")
-                    case .valueNotFound(let type, let context):
-                        DRError("[NetworkManager] 值不存在: 期望\(type), 路径: \(context.codingPath.map { $0.stringValue })")
-                    case .dataCorrupted(let context):
-                        DRError("[NetworkManager] 数据损坏: \(context.debugDescription), 路径: \(context.codingPath.map { $0.stringValue })")
-                    @unknown default:
-                        DRError("[NetworkManager] 未知解码错误: \(decodingError)")
-                    }
-                    
-                    return NetworkError.decodingFailed(decodingError)
+                // 对于解码错误，返回相应的NetworkError
+                if error is DecodingError {
+                    return NetworkError.decodingFailed(error)
                 } else {
-                    return NetworkError.requestFailed(error)
+                    // 对于其他类型的错误，根据具体情况处理
+                    return NetworkError.requestFailed(error as NSError)
                 }
             }
             .eraseToAnyPublisher()
@@ -984,11 +961,16 @@ public class NetworkManager {
                 }
             }
             .mapError { error -> NetworkError in
-                // 如果错误已经是NetworkError，直接返回即可
+                // 如果已经是NetworkError，直接返回
                 if let networkError = error as? NetworkError {
                     return networkError
+                }
+                
+                // 对于解码错误，返回相应的NetworkError
+                if let decodingError = error as? DecodingError {
+                    return NetworkError.decodingFailed(decodingError)
                 } else {
-                    return NetworkError.requestFailed(error)
+                    return NetworkError.requestFailed(error as NSError)
                 }
             }
             .eraseToAnyPublisher()

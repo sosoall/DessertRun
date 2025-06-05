@@ -223,6 +223,8 @@ struct ChallengeProgressView: View {
     // 获取进度节点数据
     private func getProgressNodes() -> [ProgressNode] {
         let statusString = getCurrentStatusString()
+        
+        // 获取实际的完成次数和需要次数
         let completedCheckins = progressResponse?.enrollment.completedCheckins ?? 0
         let requiredCheckins = selectedChallenge?.requiredCheckins ?? 3
         

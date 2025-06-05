@@ -66,12 +66,11 @@ extension APIService {
             }
         }
         .mapError { error -> APIServiceError in
-            if let networkError = error as? NetworkError {
+            // 直接根据错误类型处理，不使用条件转换
+            switch error {
+            case let networkError as NetworkError:
                 return .networkError(APINetworkError(error: networkError))
-            } else if let decodingError = error as? DecodingError {
-                DRError("[APIService] 解析运动类型失败: \(decodingError)")
-                return .networkError(APINetworkError(error: .decodingFailed(decodingError)))
-            } else {
+            default:
                 return .unknown
             }
         }
@@ -138,9 +137,11 @@ extension APIService {
         .mapError { error -> APIServiceError in
             DRError("[APIService] 计算运动时间API错误: \(error)")
             
-            if let networkError = error as? NetworkError {
+            // 直接根据错误类型处理，不使用条件转换
+            switch error {
+            case let networkError as NetworkError:
                 return .networkError(APINetworkError(error: networkError))
-            } else {
+            default:
                 return .unknown
             }
         }
@@ -207,9 +208,11 @@ extension APIService {
         .mapError { error -> APIServiceError in
             DRError("[APIService] 计算运动距离API错误: \(error)")
             
-            if let networkError = error as? NetworkError {
+            // 直接根据错误类型处理，不使用条件转换
+            switch error {
+            case let networkError as NetworkError:
                 return .networkError(APINetworkError(error: networkError))
-            } else {
+            default:
                 return .unknown
             }
         }
@@ -237,9 +240,11 @@ extension APIService {
         return data
     }
     .mapError { error -> APIServiceError in
-        if let networkError = error as? NetworkError {
+        // 直接根据错误类型处理，不使用条件转换
+        switch error {
+        case let networkError as NetworkError:
             return .networkError(APINetworkError(error: networkError))
-        } else {
+        default:
             return .unknown
         }
     }

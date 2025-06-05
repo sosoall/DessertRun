@@ -320,7 +320,7 @@ struct SimplifiedWaterfallGrid<Item: Identifiable, Content: View>: View {
     // 根据内容估算项目的高度
     private func calculateEstimatedHeight(for item: Item) -> CGFloat {
         // 基础高度（卡片的最小高度）
-        var baseHeight: CGFloat = 180
+        let baseHeight: CGFloat = 180
         
         // 尝试将item转换为ChallengeActivity来获取详细信息
         if let challenge = item as? ChallengeActivity {
