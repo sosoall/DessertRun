@@ -79,23 +79,9 @@ struct ExerciseHomeView: View {
                             // 标题和副标题 - 左对齐
                             VStack(alignment: .leading, spacing: 2) {
                                 HStack {
-                                    Text("运动打卡中...")
+                                    Text("你今天吃了什么？")
                                         .font(.system(size: 20, weight: .bold))
                                         .foregroundColor(Color(hex: "212121"))
-                                    Spacer()
-                                }
-                                
-                                // 副标题 - 显示任务卡要求
-                                HStack {
-                                    if appState.selectedTaskVoucher != nil {
-                                        Text("按照任务卡要求完成运动即可解锁美食券")
-                                            .font(.system(size: 12, weight: .regular))
-                                            .foregroundColor(Color(hex: "999999"))
-                                    } else {
-                                        Text("选择你喜欢的美食")
-                                            .font(.system(size: 12, weight: .regular))
-                                            .foregroundColor(Color(hex: "999999"))
-                                    }
                                     Spacer()
                                 }
                             }

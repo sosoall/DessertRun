@@ -8,61 +8,111 @@ struct WorkoutProgressIndicator: View {
     
     /// 进度步骤定义
     private let steps = [
-        (title: "选择美食", step: 1),
-        (title: "选择运动", step: 2),
-        (title: "完成运动", step: 3)
+        (title: "享受美食", step: 1),
+        (title: "运动消耗", step: 2),
+        (title: "热量归零！", step: 3)
     ]
     
     var body: some View {
-        VStack(spacing: 6) {
-            // 步骤指示器
-            HStack(spacing: 0) {
-                ForEach(0..<steps.count, id: \.self) { index in
-                    let step = steps[index]
-                    let isCompleted = step.step < currentStep
-                    let isCurrent = step.step == currentStep
-                    
+        VStack(spacing: 3) {
+            // 使用GeometryReader确保精确对齐
+            GeometryReader { geometry in
+                let totalWidth = geometry.size.width
+                let nodeCount = steps.count
+                let spacing = totalWidth / CGFloat(nodeCount)
+                
+                ZStack(alignment: .leading) {
+                    // 背景连接线
                     HStack(spacing: 0) {
-                        // 步骤圆圈
-                        ZStack {
-                            Circle()
-                                .fill(isCompleted || isCurrent ? Color(hex: "FE2D55") : Color.gray.opacity(0.3))
-                                .frame(width: 24, height: 24)
-                            
-                            Text("\(step.step)")
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundColor(.white)
-                        }
+                        Spacer()
+                            .frame(width: spacing * 0.2) // 左边留20%距离
                         
-                        // 连接线（除了最后一个）
-                        if index < steps.count - 1 {
-                            Rectangle()
-                                .fill(step.step < currentStep ? Color(hex: "FE2D55") : Color.gray.opacity(0.3))
-                                .frame(height: 2)
-                                .frame(maxWidth: .infinity)
+                        Rectangle()
+                            .fill(Color.gray.opacity(0.3))
+                            .frame(height: 2)
+                        
+                        Spacer()
+                            .frame(width: spacing * 0.2) // 右边留20%距离
+                    }
+                    
+                    // 步骤圆圈
+                    HStack(spacing: 0) {
+                        ForEach(0..<steps.count, id: \.self) { index in
+                            let step = steps[index]
+                            let isCompleted = step.step < currentStep
+                            let isCurrent = step.step == currentStep
+                            
+                            ZStack {
+                                // 实际显示的圆圈
+                                if isCompleted {
+                                    Circle()
+                                        .fill(Color(hex: "FE2D55"))
+                                        .frame(width: 24, height: 24)
+                                    
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 10, weight: .bold))
+                                        .foregroundColor(.white)
+                                } else if isCurrent {
+                                    // 当前步骤 - 白色背景遮挡线条
+                                    Circle()
+                                        .fill(Color.white)
+                                        .frame(width: 26, height: 26)
+                                    
+                                    Circle()
+                                        .fill(Color(hex: "FE2D55"))
+                                        .frame(width: 24, height: 24)
+                                    
+                                    Text("\(step.step)")
+                                        .font(.system(size: 12, weight: .bold))
+                                        .foregroundColor(.white)
+                                } else {
+                                    // 未完成的节点 - 白色背景遮挡线条
+                                    Circle()
+                                        .fill(Color.white)
+                                        .frame(width: 26, height: 26)
+                                    
+                                    Circle()
+                                        .fill(Color.gray.opacity(0.2))
+                                        .frame(width: 24, height: 24)
+                                    
+                                    Text("\(step.step)")
+                                        .font(.system(size: 12, weight: .bold))
+                                        .foregroundColor(.gray)
+                                }
+                            }
+                            .frame(width: spacing, height: 26) // 每个节点占用相同宽度
                         }
                     }
                 }
             }
-            .frame(height: 24)
+            .frame(height: 26)
             
-            // 步骤标题
-            HStack(spacing: 0) {
-                ForEach(0..<steps.count, id: \.self) { index in
-                    let step = steps[index]
-                    let isCompleted = step.step < currentStep
-                    let isCurrent = step.step == currentStep
-                    
-                    Text(step.title)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(isCompleted || isCurrent ? Color(hex: "FE2D55") : Color.gray)
-                        .frame(maxWidth: .infinity)
-                        .multilineTextAlignment(.center)
+            // 步骤标题 - 使用相同的布局确保对齐
+            GeometryReader { geometry in
+                let totalWidth = geometry.size.width
+                let nodeCount = steps.count
+                let spacing = totalWidth / CGFloat(nodeCount)
+                
+                HStack(spacing: 0) {
+                    ForEach(0..<steps.count, id: \.self) { index in
+                        let step = steps[index]
+                        let isCompleted = step.step < currentStep
+                        let isCurrent = step.step == currentStep
+                        
+                        Text(step.title)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(isCompleted || isCurrent ? Color(hex: "FE2D55") : Color.gray)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                            .frame(width: spacing, height: 24) // 减少文字区域高度
+                    }
                 }
             }
+            .frame(height: 24) // 减少文字区域高度
         }
+        .frame(height: 53) // 26 + 3 + 24 = 53，减少总高度
         .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.vertical, 4)
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color.white)

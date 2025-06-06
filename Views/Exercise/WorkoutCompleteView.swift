@@ -131,8 +131,6 @@ struct WorkoutCompleteView: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: showVoucherFullScreen ? 400 : 300) // 增加高度以适应展开状态
                 
-                Spacer()
-                
                 // 底部分享按钮（模仿FoodCheckIn中的样式）
                 if showVoucher && !showVoucherFullScreen {
                     Button(action: {
@@ -143,7 +141,7 @@ struct WorkoutCompleteView: View {
                             Image(systemName: "square.and.arrow.up")
                                 .font(.system(size: 16))
                             
-                            Text("分享可以获得5颗星星")
+                            Text("分享")
                                 .font(.system(size: 14, weight: .medium))
                         }
                         .foregroundColor(.white)
@@ -165,8 +163,10 @@ struct WorkoutCompleteView: View {
                         .cornerRadius(24)
                         .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
                     }
-                    .padding(.bottom, 20)
+                    .padding(.top, 12)
                 }
+                
+                Spacer()
             }
             .padding()
             

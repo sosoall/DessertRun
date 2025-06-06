@@ -403,33 +403,24 @@ struct DessertToExerciseTransition: View {
         VStack(spacing: 0) {
             // 顶部区域包含关闭按钮
             HStack {
-                // 左上角退出按钮
+                Spacer()
+                
+                // 右上角关闭按钮
                 Button(action: {
                     animationState.dismissPanel()
                 }) {
-                    Text("退出")
-                        .font(.system(size: 16, weight: .medium))
+                    Image(systemName: "xmark")
+                        .font(.system(size: 18, weight: .medium))
                         .foregroundColor(.black)
-                        .padding(.vertical, 8)
-                        .padding(.horizontal, 16)
+                        .frame(width: 32, height: 32)
                         .background(
-                            RoundedRectangle(cornerRadius: 20)
-                                .fill(Color.gray.opacity(0.1))
+                            Circle()
+                                .fill(Color.white)
+                                .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
                         )
                 }
-                .padding(.leading, 16)
+                .padding(.trailing, 16)
                 .padding(.top, 10)
-                
-                Spacer()
-                
-                // 顶部拖动条
-                RoundedRectangle(cornerRadius: 2.5)
-                    .fill(Color.gray.opacity(0.5))
-                    .frame(width: 60, height: 5)
-                    .padding(.top, 12)
-                    .padding(.bottom, 8)
-                
-                Spacer()
             }
             
             // 标题区域
@@ -460,17 +451,19 @@ struct DessertToExerciseTransition: View {
                 VStack(alignment: .center, spacing: 0) {
                     // 不需要额外图片，因为从气泡移动过来的图片已经使用DessertImageView
                     
-                    Text("运动目标：\(dessert.name)")
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundColor(.black)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                        .padding(.bottom, 10)
-                    
-                    Text("（约\(Int(calories))卡路里）")
-                        .font(.system(size: 16))
-                        .foregroundColor(.black)
-                        .padding(.bottom, 5)
+                    // 将运动目标和卡路里信息放在同一行
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        Text("\(dessert.name)")
+                            .font(.system(size: 20, weight: .regular))
+                            .foregroundColor(.black)
+                        
+                        Text("（约\(Int(calories))卡路里）")
+                            .font(.system(size: 12))
+                            .foregroundColor(.gray)
+                    }
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+                    .padding(.bottom, 3)
                 }
                 .padding(.bottom, 15)
             }
@@ -479,13 +472,24 @@ struct DessertToExerciseTransition: View {
     
     /// 运动列表视图
     private var exerciseListView: some View {
-        ScrollView {
-            VStack(spacing: 12) {
-                ForEach(exerciseTypes, id: \.self) { exerciseType in
-                    exerciseRowView(for: exerciseType)
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(spacing: 12) {
+                    ForEach(exerciseTypes, id: \.self) { exerciseType in
+                        exerciseRowView(for: exerciseType)
+                            .id(exerciseType.type) // 为每个运动类型添加ID
+                    }
+                }
+                .padding(.bottom, 20)
+            }
+            .onChange(of: expandedExerciseID) { _, newValue in
+                // 当展开状态改变时，自动滚动到展开的面板
+                if let exerciseID = newValue {
+                    withAnimation(.easeInOut(duration: 0.5)) {
+                        proxy.scrollTo(exerciseID, anchor: .center)
+                    }
                 }
             }
-            .padding(.bottom, 20)
         }
     }
     
@@ -532,10 +536,15 @@ struct DessertToExerciseTransition: View {
                 }
         }) {
             HStack(spacing: 0) {
-                    // 直接显示彩色图标，不使用圆圈
+                    // 运动图标 - 添加圆角矩形背景
                     Image(systemName: exerciseType.iconName)
-                        .font(.system(size: 24, weight: .semibold))
-                        .foregroundColor(exerciseType.color)
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(width: 32, height: 32)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(exerciseType.color)
+                        )
                         .padding(.leading, 20)
                 
                 // 中间文本内容
@@ -554,23 +563,35 @@ struct DessertToExerciseTransition: View {
                     
                     Spacer()
                     
-                    // 右侧按钮文本
+                    // 右侧按钮 - 根据展开状态显示不同内容
                     if expandedExerciseID == exerciseType.type {
-                        Image(systemName: "chevron.right")
+                        // 展开状态 - 显示下箭头
+                        Image(systemName: "chevron.down")
                             .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(.gray)
+                            .foregroundColor(.primary)
                             .padding(.trailing, 20)
                     } else {
-                        Text("去运动")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                    .background(
-                        Capsule()
-                                    .fill(exerciseType.color)
-                            )
-                            .padding(.trailing, 16)
+                        // 未展开状态 - 显示"去运动"按钮
+                        HStack(spacing: 6) {
+                            Text("去运动")
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundColor(.primary)
+                            
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.primary)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Color.gray.opacity(0.1))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                                )
+                        )
+                        .padding(.trailing, 20)
                     }
                 }
                 .frame(height: 80)
@@ -794,7 +815,7 @@ struct DessertToExerciseTransition: View {
                     .shadow(color: Color(hex: "FF2D55").opacity(0.2), radius: 6, x: 0, y: 3)
                 } else {
                     // 正常状态
-                    Text("完成运动")
+                    Text("打卡")
                         .font(.system(size: 17, weight: .bold))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
@@ -828,6 +849,10 @@ struct DessertToExerciseTransition: View {
             RoundedRectangle(cornerRadius: 16)
                 .fill(Color(hex: "F8F8F8"))
                 .shadow(color: Color.black.opacity(0.05), radius: 6, x: 0, y: 3)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(exerciseType.color.opacity(0.3), lineWidth: 2)
+                )
         )
     }
     

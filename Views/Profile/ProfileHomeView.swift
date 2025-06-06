@@ -26,6 +26,10 @@ struct ProfileHomeView: View {
     // 确认退出登录对话框状态
     @State private var showLogoutConfirm = false
     
+    // 新增：关于页面的控制状态
+    @State private var showFeedbackView = false
+    @State private var showAboutAppView = false
+    
     // API加载状态
     @State private var isLoading = false
     @State private var errorMessage: String? = nil
@@ -41,7 +45,7 @@ struct ProfileHomeView: View {
     // 关于项列表
     private let aboutItems: [(icon: String, title: String, color: Color)] = [
         ("doc.text.fill", "隐私政策", Color.purple),
-        ("info.circle.fill", "关于DessertRun", Color.blue),
+        ("info.circle.fill", "关于该吃吃", Color.blue),
         ("questionmark.circle.fill", "反馈与建议", Color.green)
     ]
     
@@ -131,6 +135,12 @@ struct ProfileHomeView: View {
                 // 重新获取用户资料
                 fetchUserProfile()
             })
+        }
+        .fullScreenCover(isPresented: $showFeedbackView) {
+            FeedbackView()
+        }
+        .fullScreenCover(isPresented: $showAboutAppView) {
+            AboutAppView()
         }
         .alert("确认退出登录", isPresented: $showLogoutConfirm) {
             Button("取消", role: .cancel) { }
@@ -470,6 +480,18 @@ struct ProfileHomeView: View {
                             NavigationLink(destination: PrivacyPolicyView()) {
                                 rowView(for: index)
                             }
+                        } else if aboutItems[index].title == "关于该吃吃" {
+                            Button(action: {
+                                showAboutAppView = true
+                            }) {
+                                rowView(for: index)
+                            }
+                        } else if aboutItems[index].title == "反馈与建议" {
+                            Button(action: {
+                                showFeedbackView = true
+                            }) {
+                                rowView(for: index)
+                            }
                         } else {
                             rowView(for: index)
                         }
@@ -506,6 +528,7 @@ struct ProfileHomeView: View {
                 .frame(width: 30, height: 30)
             Text(aboutItems[index].title)
                 .font(.body)
+                .foregroundColor(.primary)
             Spacer()
             Image(systemName: "chevron.right")
                 .foregroundColor(.gray)

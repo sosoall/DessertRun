@@ -25,15 +25,37 @@ struct VoucherListView: View {
         }
     }
     
+    // 格式化时间为24小时制（HH:mm）
+    private func formatTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+    
     var body: some View {
         NavigationStack {
             List {
                 ForEach(groupedVouchers, id: \.0) { dateString, vouchers in
                     Section(header: Text(dateString).font(.headline)) {
                         ForEach(vouchers) { voucher in
-                            DessertVoucherCardSimple(voucher: voucher, forceExpanded: false)
-                                .environmentObject(appState)
-                                .padding(.vertical, 8)
+                            // 使用VStack将卡片和时间分开，时间显示在卡片外面
+                            VStack(spacing: 0) {
+                                // 美食券卡片
+                                DessertVoucherCardSimple(voucher: voucher, forceExpanded: false)
+                                    .environmentObject(appState)
+                                    .padding(.vertical, 8)
+                                
+                                // 时间显示在卡片下方外面
+                                HStack {
+                                    Spacer()
+                                    Text(formatTime(voucher.createdAt))
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                        .padding(.trailing, 12)
+                                        .padding(.top, 4)
+                                }
+                            }
+                            .padding(.bottom, 12) // 增加每个券之间的间距
                         }
                     }
                 }
