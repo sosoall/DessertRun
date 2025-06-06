@@ -57,10 +57,10 @@ struct DessertVoucher: Identifiable, Codable, Equatable {
     let imageURL: String?
     
     /// 美食券图片URL（voucher_image_url）
-    var voucherImageURL: String? = nil
+    var voucherImageURL: String?
     
     /// 甜品Icon图片URL（dessert_icon_url）
-    var dessertIconURL: String? = nil
+    var dessertIconURL: String?
     
     /// 运动类型
     let exerciseType: String?
@@ -153,14 +153,16 @@ struct DessertVoucher: Identifiable, Codable, Equatable {
             expireAt: nil,
             imageId: nil,
             imageURL: nil,
+            voucherImageURL: nil,
+            dessertIconURL: nil,
             exerciseType: nil,
             exerciseName: nil,
             challengeEnrollmentId: nil
         )
     }
     
-    /// 创建示例券（用于预览）
-    static func createSample() -> DessertVoucher {
+    /// 示例美食券（用于预览和测试）
+    static var sample: DessertVoucher {
         let now = Date()
         let calendar = Calendar.current
         let expireDate = calendar.date(byAdding: .day, value: 14, to: now)!
@@ -169,7 +171,7 @@ struct DessertVoucher: Identifiable, Codable, Equatable {
             id: UUID().uuidString,
             userId: UUID().uuidString,
             dessertId: UUID().uuidString,
-            dessertName: "巧克力蛋糕",
+            dessertName: "巧克力马卡龙",
             equivalentDessertCount: 1.5,
             caloriesValue: 450,
             workoutRecordId: UUID().uuidString,
@@ -178,11 +180,54 @@ struct DessertVoucher: Identifiable, Codable, Equatable {
             updatedAt: nil,
             expireAt: expireDate,
             imageId: nil,
-            imageURL: "https://example.com/cake.jpg",
+            imageURL: "https://example.com/macaron.jpg",
+            voucherImageURL: nil,
+            dessertIconURL: nil,
             exerciseType: "running",
             exerciseName: "跑步",
             challengeEnrollmentId: UUID().uuidString
         )
+    }
+    
+    /// 完整的初始化器
+    init(
+        id: String,
+        userId: String,
+        dessertId: String?,
+        dessertName: String?,
+        equivalentDessertCount: Double,
+        caloriesValue: Double,
+        workoutRecordId: String?,
+        status: String,
+        createdAt: Date,
+        updatedAt: Date? = nil,
+        expireAt: Date? = nil,
+        imageId: String? = nil,
+        imageURL: String? = nil,
+        voucherImageURL: String? = nil,
+        dessertIconURL: String? = nil,
+        exerciseType: String? = nil,
+        exerciseName: String? = nil,
+        challengeEnrollmentId: String? = nil
+    ) {
+        self.id = id
+        self.userId = userId
+        self.dessertId = dessertId
+        self.dessertName = dessertName
+        self.equivalentDessertCount = equivalentDessertCount
+        self.caloriesValue = caloriesValue
+        self.workoutRecordId = workoutRecordId
+        self.status = status
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.expireAt = expireAt
+        self.imageId = imageId
+        self.imageURL = imageURL
+        self.voucherImageURL = voucherImageURL
+        self.dessertIconURL = dessertIconURL
+        self.exerciseType = exerciseType
+        self.exerciseName = exerciseName
+        self.challengeEnrollmentId = challengeEnrollmentId
     }
     
     /// 定义CodingKeys枚举来处理字段名称映射

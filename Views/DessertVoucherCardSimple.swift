@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 /// 美食券卡片视图（简化版本）
 struct DessertVoucherCardSimple: View {
@@ -22,6 +23,15 @@ struct DessertVoucherCardSimple: View {
     
     /// 强制展开状态（用于弹窗展示）
     var forceExpanded: Bool = false
+    
+    /// 是否用于分享（跳过动画）
+    var isForSharing: Bool = false
+    
+    /// 分享模式下的数据加载状态
+    @State private var sharingDataReady: Bool = false
+    
+    /// 分享模式下的图片加载状态
+    @State private var sharingImagesReady: Bool = false
     
     /// 动画状态
     @State private var isAnimating: Bool = false
@@ -75,206 +85,77 @@ struct DessertVoucherCardSimple: View {
     private var isInactive: Bool { status == .inactive }
     private var isActive: Bool { status == .active }
     
+    /// 添加Combine cancellables
+    @State private var cancellables: Set<AnyCancellable> = []
+    
+    /// 分享模式下的图片加载状态跟踪
+    @State private var voucherImageLoaded: Bool = false
+    @State private var iconImageLoaded: Bool = false
+    @State private var imagesNotificationSent: Bool = false
+    
     var body: some View {
-        GeometryReader { geometry in // 使用GeometryReader获取整体宽度
+        GeometryReader { geometry in
             ZStack(alignment: .top) {
-                // 1. 背景部分 - 直接使用渐变背景
-                if forceExpanded {
-                    // 渐变背景 - 第一阶段直接出现
-                    LinearGradient(
-                        gradient: Gradient(stops: [
-                            .init(color: Color(hex: "#FF9D0B"), location: 0),
-                            .init(color: Color(hex: "#FFEAC5"), location: 0.59),
-                            .init(color: Color(hex: "#FFE5EC"), location: 1)
-                        ]),
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 20))
-                    .frame(height: 220)
-                    .opacity(animateGradientBackground ? 1 : 0)
-                    .animation(.easeIn(duration: 0.3), value: animateGradientBackground)
-                    
-                    // 边缘高亮描边 - 第四阶段
-                    RoundedRectangle(cornerRadius: 20)
-                        .stroke(
-                            LinearGradient(
-                                gradient: Gradient(stops: [
-                                    .init(color: Color.white.opacity(1), location: 0),
-                                    .init(color: Color.white.opacity(0.8), location: 0.3),
-                                    .init(color: Color.white.opacity(0.6), location: 0.7),
-                                    .init(color: Color.white.opacity(0.4), location: 1)
-                                ]),
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ), lineWidth: 2
-                        )
-                        .opacity(animateEdgeHighlight ? 1 : 0)
-                    
-                    // 光韵效果层 - 第四阶段
-                    ZStack {
-                        Color.clear
-                            .frame(height: 220)
-                            .clipShape(RoundedRectangle(cornerRadius: 20))
-                            .overlay(
-                                // 白色光韵从左到右扫过
-                                LinearGradient(
-                                    gradient: Gradient(stops: [
-                                        .init(color: Color.white.opacity(0.0), location: 0),
-                                        .init(color: Color.white.opacity(0.5), location: 0.4),
-                                        .init(color: Color.white.opacity(0.7), location: 0.5),
-                                        .init(color: Color.white.opacity(0.5), location: 0.6),
-                                        .init(color: Color.white.opacity(0.0), location: 1)
-                                    ]),
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                                .frame(width: 300)
-                                .offset(x: shineOffset)
-                                .opacity(animateBackgroundShine ? 1 : 0) // 控制整个光韵效果的显示
-                            )
-                            .mask(RoundedRectangle(cornerRadius: 20).fill(Color.black))
-                    }
-                    .frame(height: 220)
-                } else {
-                    // 收起状态使用白色背景
-                    Color.white
-                        .clipShape(RoundedRectangle(cornerRadius: 20))
-                }
+                // 背景层
+                backgroundLayer
                 
-                // 2. 图标和美食图像 - 第三阶段出现
-                if forceExpanded {
-                    // 展开状态下的图片
-                    Group {
-                        let imgURL = voucher.displayVoucherImageURL
-                        AsyncImage(url: URL(string: imgURL ?? "")) { phase in
-                            if let image = phase.image {
-                                image.resizable()
-                                     .scaledToFit()
-                                     .frame(width: 90, height: 90)
-                            } else {
-                                PlaceholderImageView(size: 90)
-                            }
-                        }
-                    }
-                    .position(x: max(30, geometry.size.width - 60), y: 170)
-                    .scaleEffect(animateVisuals ? 1 : 0.6)
-                    .opacity(animateVisuals ? 1 : 0)
-                    .animation(.spring(response: 0.5, dampingFraction: 0.7), value: animateVisuals)
-                    .zIndex(1)
-                    
-                    // 展开状态下的左侧图标
-                    Group {
-                        AsyncImage(url: URL(string: voucher.displayDessertIconURL ?? "")) { phase in
-                            if let image = phase.image {
-                                image.resizable()
-                                     .scaledToFit()
-                                     .frame(width: 42, height: 42)
-                            } else {
-                                PlaceholderImageView(size: 42)
-                            }
-                        }
-                        .position(x: 22, y: 190)
-                        .scaleEffect(animateVisuals ? 1 : 0.6)
-                        .opacity(animateVisuals ? 1 : 0)
-                        .animation(.spring(response: 0.5, dampingFraction: 0.7), value: animateVisuals)
-                    }
-                    .zIndex(5)
-                } else {
-                    // 收起状态下的图片
-                    Group {
-                        let imgURL = voucher.displayVoucherImageURL
-                        AsyncImage(url: URL(string: imgURL ?? "")) { phase in
-                            if let image = phase.image {
-                                image.resizable()
-                                     .scaledToFit()
-                                     .frame(width: 65, height: 65)
-                            } else {
-                                PlaceholderImageView(size: 65)
-                            }
-                        }
-                    }
-                    .position(x: max(30, geometry.size.width - 40), y: 38)
-                    .zIndex(1)
-                    
-                    // 收起状态下的左侧图标
-                    Group {
-                        AsyncImage(url: URL(string: voucher.displayDessertIconURL ?? "")) { phase in
-                            if let image = phase.image {
-                                image.resizable()
-                                     .scaledToFit()
-                                     .frame(width: 36, height: 36)
-                            } else {
-                                PlaceholderImageView(size: 36)
-                            }
-                        }
-                        .position(x: 22, y: 56)
-                    }
-                    .zIndex(5)
-                }
+                // 图片层
+                imageLayer(geometry: geometry)
                 
-                // 3. 文字内容部分
+                // 文字内容层
                 VStack(spacing: 0) {
                     cardHeader
                 }
-                .zIndex(10)  // 确保文字在最上层
+                .zIndex(10)
                 
-                // 4. 底部操作区 - 第一阶段就完整显示
-                if forceExpanded {
-                    // 底部副券区域已废弃，不再显示
-                } else {
-                    // 收起状态：仅任务卡显示底部操作区
-                    if isInactive {
-                        cardFooter
-                            .frame(width: geometry.size.width)
-                            .offset(y: 75)
-                            .zIndex(10)
-                    }
+                // 底部操作层
+                if !forceExpanded && isInactive {
+                    cardFooter
+                        .frame(width: geometry.size.width)
+                        .offset(y: 75)
+                        .zIndex(10)
                 }
             }
-            .frame(width: geometry.size.width) // 确保整体宽度一致
+            .frame(width: geometry.size.width)
         }
-        // 确保整个卡片没有任何外部padding
         .padding(0)
-        .frame(height: forceExpanded ? 220 : (75 + (isInactive ? 40 : 0))) // 展开无副券，收起任务卡含副券40
-        .id("card-\(stableId)") // 稳定ID，避免因重建导致闪动
-        // 为未激活任务卡添加灰度效果
+        .frame(height: forceExpanded ? 220 : (75 + (isInactive ? 40 : 0)))
+        .id("card-\(stableId)")
         .grayscale(isInactive ? 1.0 : 0.0)
         .onAppear {
-            // 获取美食券相关图片
             loadImages()
             
             if forceExpanded {
-                // 加载详细的运动记录（仅在展开状态加载）
                 loadWorkoutRecordIfNeeded()
                 
-                // 当显示为展开状态时，按顺序启动动画
-                animateSequence()
+                if isForSharing {
+                    checkSharingReadiness()
+                } else {
+                    animateSequence()
+                }
             } else {
-                // 收起状态默认全部显示
                 resetAnimations(true)
             }
         }
-        // 修复iOS 17中onChange废弃问题
         .onChange(of: forceExpanded) { _, newValue in
-            // 当状态变化时，触发动画序列
             if newValue {
-                // 确保加载运动详情记录
                 loadWorkoutRecordIfNeeded()
                 
-                animateSequence()
+                if isForSharing {
+                    resetAnimations(true)
+                    isAnimating = true
+                } else {
+                    animateSequence()
+                }
             } else {
-                // 收起时反向动画
                 reverseAnimateSequence()
             }
         }
         .onTapGesture {
             guard !forceExpanded else { return }
             if isInactive {
-                // 任务卡整体点击 => 去运动
                 NotificationCenter.default.post(name: NSNotification.Name("GoWorkoutFromTaskCard"), object: voucher)
             } else {
-                // 展开美食券
                 var userInfo: [String: Any] = [
                     "preloadedImages": hasLoadedImages,
                     "instanceId": stableId,
@@ -315,32 +196,64 @@ struct DessertVoucherCardSimple: View {
     
     // MARK: - 加载运动记录
     private func loadWorkoutRecordIfNeeded() {
-        // 已有记录，不需要重新加载
-        if workoutRecord != nil || isLoadingRecord {
+        // 检查是否有运动记录ID
+        guard let recordId = voucher.workoutRecordId, !recordId.isEmpty else {
+            DRWarning("[DessertVoucherCard] 没有运动记录ID，跳过加载")
             return
         }
         
-        // 美食券没有关联的运动记录ID，无法加载
-        guard let recordId = voucher.workoutRecordId else {
-            DRWarning("[DessertVoucherCard] 美食券无关联运动记录ID: \(voucher.id)")
+        // 如果已经有记录且非强制刷新，跳过
+        guard workoutRecord == nil else {
+            if isForSharing {
+            }
             return
         }
         
         isLoadingRecord = true
-        DRInfo("[DessertVoucherCard] 开始加载运动记录详情: id=\(recordId)")
         
-        viewModel.loadSingleWorkoutRecord(recordId: recordId) { record in
-            DispatchQueue.main.async {
-                self.workoutRecord = record
-                self.isLoadingRecord = false
-                
-                if record == nil {
-                    DRError("[DessertVoucherCard] 加载运动记录失败: id=\(recordId)")
-                } else {
-                    DRInfo("[DessertVoucherCard] 成功加载运动记录: id=\(recordId)")
+        // 使用APIService直接调用
+        APIService.shared.loadSingleWorkoutRecord(id: recordId)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { completion in
+                    isLoadingRecord = false
+                    
+                    if case .failure(let error) = completion {
+                        DRError("[DessertVoucherCard] 加载运动记录失败: \(error)")
+                        
+                        if isForSharing {
+                            DRError("🎯 分享模式 - 运动记录加载失败，这可能导致分享内容不完整")
+                        }
+                    }
+                },
+                receiveValue: { record in
+                    if let record = record {
+                        workoutRecord = record
+                        
+                        if isForSharing {
+                            
+                            // 通知分享模式运动记录已加载完成
+                            onWorkoutRecordLoaded()
+                            
+                            // 发送运动记录加载完成通知
+                            NotificationCenter.default.post(name: NSNotification.Name("ShareVoucherWorkoutRecordLoaded"), object: nil)
+                        }
+                    } else {
+                        DRError("[DessertVoucherCard] 运动记录为空")
+                        
+                        if isForSharing {
+                            DRError("🎯 分享模式 - 运动记录为空，这可能导致分享内容不完整")
+                            
+                            // 即使运动记录为空，也通知分享模式继续
+                            onWorkoutRecordLoaded()
+                            
+                            // 发送运动记录加载完成通知（即使为空）
+                            NotificationCenter.default.post(name: NSNotification.Name("ShareVoucherWorkoutRecordLoaded"), object: nil)
+                        }
+                    }
                 }
-            }
-        }
+            )
+            .store(in: &cancellables)
     }
     
     // 按照顺序执行动画序列
@@ -595,10 +508,21 @@ struct DessertVoucherCardSimple: View {
                             // 展开时显示运动详情
                             VStack(alignment: .leading, spacing: 8) {
                                 if isLoadingRecord {
-                                    // 正在加载时显示加载状态
+                                    // 正在加载时显示加载状态 - 使用纯SwiftUI旋转指示器
                                     HStack {
-                                        ProgressView()
-                                            .scaleEffect(0.8)
+                                        ZStack {
+                                            Circle()
+                                                .stroke(Color.gray.opacity(0.3), lineWidth: 2)
+                                                .frame(width: 16, height: 16)
+                                            
+                                            Circle()
+                                                .trim(from: 0, to: 0.8)
+                                                .stroke(Color.gray, lineWidth: 2)
+                                                .frame(width: 16, height: 16)
+                                                .rotationEffect(.degrees(isLoadingRecord ? 360 : 0))
+                                                .animation(.linear(duration: 1).repeatForever(autoreverses: false), value: isLoadingRecord)
+                                        }
+                                        .scaleEffect(0.8)
                                         
                                         Text("加载详情...")
                                             .font(.system(size: 14))
@@ -662,6 +586,21 @@ struct DessertVoucherCardSimple: View {
                                         .opacity(animateExtraContent ? 1 : 0) // 第二阶段：额外文字内容
                                         .padding(.top, 2)
                                         .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading) // 修改为可扩展最大宽度
+                                    
+                                    // 添加券号显示
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "ticket")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(Color(hex: "#FF7B15"))
+                                        
+                                        Text("券号: #\(String(voucher.id.prefix(8)))")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(Color(hex: "#919191"))
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                    .opacity(animateExtraContent ? 1 : 0) // 第二阶段：额外文字内容
+                                    .padding(.top, 4)
+                                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                                 } else {
                                     // 运动记录加载失败，显示基本信息
                                     
@@ -686,6 +625,21 @@ struct DessertVoucherCardSimple: View {
                                         .opacity(animateExtraContent ? 1 : 0) // 第二阶段：额外文字内容
                                         .padding(.top, 2)
                                         .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading) // 修改为可扩展最大宽度
+                                    
+                                    // 添加券号显示
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "ticket")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(Color(hex: "#FF7B15"))
+                                        
+                                        Text("券号: #\(String(voucher.id.prefix(8)))")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(Color(hex: "#919191"))
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                    .opacity(animateExtraContent ? 1 : 0) // 第二阶段：额外文字内容
+                                    .padding(.top, 4)
+                                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                                 }
                             }
                             .padding(.top, 6)
@@ -850,6 +804,414 @@ struct DessertVoucherCardSimple: View {
             }
         }
     }
+    
+    // MARK: - 分享模式逻辑
+    private func checkSharingReadiness() {
+        
+        // 分享模式下立即显示所有内容，不等待网络数据
+        sharingDataReady = true
+        
+        // ✅ 关键修复：立即显示图片
+        animateVisuals = true
+        
+        // 检查是否有有效的图片URL
+        let hasVoucherImage = !(voucher.displayVoucherImageURL?.isEmpty ?? true)
+        let hasIconImage = !(voucher.displayDessertIconURL?.isEmpty ?? true)
+        
+        // 如果没有任何图片需要加载，立即标记图片为就绪
+        if !hasVoucherImage && !hasIconImage {
+            voucherImageLoaded = true
+            iconImageLoaded = true
+            sharingImagesReady = true
+        } else {
+            // 根据实际需要加载的图片设置初始状态
+            if !hasVoucherImage {
+                voucherImageLoaded = true
+            }
+            if !hasIconImage {
+                iconImageLoaded = true
+            }
+            
+            // 如果实际上都不需要加载，标记为就绪
+            if voucherImageLoaded && iconImageLoaded {
+                sharingImagesReady = true
+            }
+        }
+        
+        // 立即显示内容
+        resetAnimations(true)
+        isAnimating = true
+        
+        // 如果需要运动记录，在后台加载但不阻塞显示
+        let needsWorkoutRecord = voucher.workoutRecordId != nil && !voucher.workoutRecordId!.isEmpty
+        if needsWorkoutRecord && workoutRecord == nil {
+            loadWorkoutRecordIfNeeded()
+        } else {
+            // 运动记录也不需要加载，检查是否可以立即发送通知
+            if sharingDataReady && sharingImagesReady {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    let notificationName = "ShareContentReady_\(voucher.id)"
+                    NotificationCenter.default.post(name: NSNotification.Name(notificationName), object: nil)
+                }
+            }
+        }
+    }
+    
+    // 监听运动记录加载完成
+    private func onWorkoutRecordLoaded() {
+        if isForSharing {
+            sharingDataReady = true
+            
+            if sharingDataReady && sharingImagesReady {
+                
+                // 稍微延迟一点确保UI完全渲染完成
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    let notificationName = "ShareContentReady_\(voucher.id)"
+                    NotificationCenter.default.post(name: NSNotification.Name(notificationName), object: nil)
+                }
+            } else {
+                
+                // 如果图片都加载完了但sharingImagesReady还是false，手动触发检查
+                if voucherImageLoaded && iconImageLoaded && !sharingImagesReady {
+                    checkAllImagesLoaded()
+                }
+            }
+        }
+    }
+    
+    /// 检查并通知图片加载完成
+    private func checkAndNotifyImagesLoaded() {
+        guard isForSharing && !imagesNotificationSent else { return }
+        
+        // 检查调用来源并更新对应状态
+        if Thread.callStackSymbols.contains(where: { $0.contains("voucher") || $0.contains("displayVoucherImageURL") }) {
+            voucherImageLoaded = true
+        } else if Thread.callStackSymbols.contains(where: { $0.contains("icon") || $0.contains("displayDessertIconURL") }) {
+            iconImageLoaded = true
+        }
+        
+        // 检查是否两个图片都已加载完成
+        if voucherImageLoaded && iconImageLoaded {
+            imagesNotificationSent = true
+            sharingImagesReady = true
+            
+            // 如果是分享模式且所有数据都准备好了，立即发送完整的内容准备通知
+            if isForSharing && sharingDataReady && sharingImagesReady {
+                
+                // 稍微延迟一点确保UI完全渲染完成
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    let notificationName = "ShareContentReady_\(voucher.id)"
+                    NotificationCenter.default.post(name: NSNotification.Name(notificationName), object: nil)
+                }
+            }
+            
+            // 原有的通知保持不变（用于其他用途）
+            NotificationCenter.default.post(name: NSNotification.Name("ShareVoucherImagesLoaded"), object: nil)
+        }
+    }
+    
+    /// 标记美食券大图加载完成
+    private func markVoucherImageLoaded() {
+        guard isForSharing && !imagesNotificationSent else { return }
+        
+        voucherImageLoaded = true
+        checkAllImagesLoaded()
+    }
+    
+    /// 标记图标加载完成
+    private func markIconImageLoaded() {
+        guard isForSharing && !imagesNotificationSent else { return }
+        
+        iconImageLoaded = true
+        checkAllImagesLoaded()
+    }
+    
+    /// 检查所有图片是否加载完成
+    private func checkAllImagesLoaded() {
+        if voucherImageLoaded && iconImageLoaded {
+            imagesNotificationSent = true
+            sharingImagesReady = true
+            
+            // 如果是分享模式且所有数据都准备好了，立即发送完整的内容准备通知
+            if isForSharing && sharingDataReady && sharingImagesReady {
+                
+                // 稍微延迟一点确保UI完全渲染完成
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    let notificationName = "ShareContentReady_\(voucher.id)"
+                    NotificationCenter.default.post(name: NSNotification.Name(notificationName), object: nil)
+                }
+            }
+            
+            // 原有的通知保持不变（用于其他用途）
+            NotificationCenter.default.post(name: NSNotification.Name("ShareVoucherImagesLoaded"), object: nil)
+        }
+    }
+    
+    // MARK: - 拆分的视图组件
+    
+    /// 背景层组件
+    private var backgroundLayer: some View {
+        Group {
+            if forceExpanded {
+                // 展开状态的渐变背景
+                ZStack {
+                    // 渐变背景
+                    LinearGradient(
+                        gradient: Gradient(stops: [
+                            .init(color: Color(hex: "#FF9D0B"), location: 0),
+                            .init(color: Color(hex: "#FFEAC5"), location: 0.59),
+                            .init(color: Color(hex: "#FFE5EC"), location: 1)
+                        ]),
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 20))
+                    .frame(height: 220)
+                    .opacity(animateGradientBackground ? 1 : 0)
+                    .animation(.easeIn(duration: 0.3), value: animateGradientBackground)
+                    
+                    // 边缘高亮描边
+                    borderHighlight
+                    
+                    // 光韵效果
+                    shineEffect
+                }
+            } else {
+                // 收起状态的白色背景
+                Color.white
+                    .clipShape(RoundedRectangle(cornerRadius: 20))
+            }
+        }
+    }
+    
+    /// 边缘高亮描边组件
+    private var borderHighlight: some View {
+        RoundedRectangle(cornerRadius: 20)
+            .stroke(
+                LinearGradient(
+                    gradient: Gradient(stops: [
+                        .init(color: Color.white.opacity(1), location: 0),
+                        .init(color: Color.white.opacity(0.8), location: 0.3),
+                        .init(color: Color.white.opacity(0.6), location: 0.7),
+                        .init(color: Color.white.opacity(0.4), location: 1)
+                    ]),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ), lineWidth: 2
+            )
+            .opacity(animateEdgeHighlight ? 1 : 0)
+    }
+    
+    /// 光韵效果组件
+    private var shineEffect: some View {
+        ZStack {
+            Color.clear
+                .frame(height: 220)
+                .clipShape(RoundedRectangle(cornerRadius: 20))
+                .overlay(
+                    LinearGradient(
+                        gradient: Gradient(stops: [
+                            .init(color: Color.white.opacity(0.0), location: 0),
+                            .init(color: Color.white.opacity(0.5), location: 0.4),
+                            .init(color: Color.white.opacity(0.7), location: 0.5),
+                            .init(color: Color.white.opacity(0.5), location: 0.6),
+                            .init(color: Color.white.opacity(0.0), location: 1)
+                        ]),
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                    .frame(width: 300)
+                    .offset(x: shineOffset)
+                    .opacity(animateBackgroundShine ? 1 : 0)
+                )
+                .mask(RoundedRectangle(cornerRadius: 20).fill(Color.black))
+        }
+        .frame(height: 220)
+    }
+    
+    /// 图片层组件
+    private func imageLayer(geometry: GeometryProxy) -> some View {
+        Group {
+            if forceExpanded {
+                // 展开状态的图片
+                expandedImages(geometry: geometry)
+            } else {
+                // 收起状态的图片
+                collapsedImages(geometry: geometry)
+            }
+        }
+    }
+    
+    /// 展开状态的图片组件
+    private func expandedImages(geometry: GeometryProxy) -> some View {
+        Group {
+            // 美食券大图
+            voucherImageView(size: 90)
+                .position(x: max(30, geometry.size.width - 60), y: 170)
+                .scaleEffect(animateVisuals ? 1 : 0.6)
+                .opacity(animateVisuals ? 1 : 0)
+                .animation(.spring(response: 0.5, dampingFraction: 0.7), value: animateVisuals)
+                .zIndex(1)
+                .onAppear {
+                    if isForSharing {
+                    }
+                }
+            
+            // 美食图标
+            iconImageView(size: 42)
+                .position(x: 22, y: 190)
+                .scaleEffect(animateVisuals ? 1 : 0.6)
+                .opacity(animateVisuals ? 1 : 0)
+                .animation(.spring(response: 0.5, dampingFraction: 0.7), value: animateVisuals)
+                .zIndex(5)
+                .onAppear {
+                    if isForSharing {
+                    }
+                }
+        }
+    }
+    
+    /// 收起状态的图片组件
+    private func collapsedImages(geometry: GeometryProxy) -> some View {
+        Group {
+            // 美食券图片
+            voucherImageView(size: 65)
+                .position(x: max(30, geometry.size.width - 40), y: 38)
+                .zIndex(1)
+            
+            // 美食图标
+            iconImageView(size: 36)
+                .position(x: 22, y: 56)
+                .zIndex(5)
+        }
+    }
+    
+    /// 美食券图片视图
+    private func voucherImageView(size: CGFloat) -> some View {
+        Group {
+            let imgURL = voucher.displayVoucherImageURL
+            
+            if isForSharing {
+                // 分享模式 - 优先使用缓存中的图片
+                if let urlString = imgURL, 
+                   let url = URL(string: urlString),
+                   let cachedResponse = URLCache.shared.cachedResponse(for: URLRequest(url: url)),
+                   let image = UIImage(data: cachedResponse.data) {
+                    
+                    // 直接显示缓存的图片
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: size, height: size)
+                        .onAppear {
+                            markVoucherImageLoaded()
+                        }
+                } else {
+                    // 缓存中没有图片，使用AsyncImage
+                    AsyncImage(url: URL(string: imgURL ?? "")) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image.resizable()
+                                 .scaledToFit()
+                                 .frame(width: size, height: size)
+                                 .onAppear {
+                                     markVoucherImageLoaded()
+                                 }
+                        case .failure(let error):
+                            PlaceholderImageView(size: size)
+                                .onAppear {
+                                    DRError("🎯 分享模式 - 美食券图片AsyncImage加载失败: \(error)")
+                                    markVoucherImageLoaded()
+                                }
+                        case .empty:
+                            PlaceholderImageView(size: size)
+                                .onAppear {
+                                    markVoucherImageLoaded()
+                                }
+                        @unknown default:
+                            PlaceholderImageView(size: size)
+                                .onAppear {
+                                    markVoucherImageLoaded()
+                                }
+                        }
+                    }
+                }
+            } else {
+                // 正常模式
+                AsyncImage(url: URL(string: imgURL ?? "")) { phase in
+                    if let image = phase.image {
+                        image.resizable()
+                             .scaledToFit()
+                             .frame(width: size, height: size)
+                    } else {
+                        PlaceholderImageView(size: size)
+                    }
+                }
+            }
+        }
+    }
+    
+    /// 图标视图
+    private func iconImageView(size: CGFloat) -> some View {
+        Group {
+            if isForSharing {
+                // 分享模式 - 优先使用缓存中的图片
+                if let urlString = voucher.displayDessertIconURL,
+                   let url = URL(string: urlString),
+                   let cachedResponse = URLCache.shared.cachedResponse(for: URLRequest(url: url)),
+                   let image = UIImage(data: cachedResponse.data) {
+                    
+                    // 直接显示缓存的图片
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: size, height: size)
+                        .onAppear {
+                            markIconImageLoaded()
+                        }
+                } else {
+                    // 缓存中没有图片，使用AsyncImage
+                    AsyncImage(url: URL(string: voucher.displayDessertIconURL ?? "")) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image.resizable()
+                                 .scaledToFit()
+                                 .frame(width: size, height: size)
+                                 .onAppear {
+                                     markIconImageLoaded()
+                                 }
+                        case .failure(let error):
+                            PlaceholderImageView(size: size)
+                                .onAppear {
+                                    markIconImageLoaded()
+                                }
+                        case .empty:
+                            PlaceholderImageView(size: size)
+                                .onAppear {
+                                    markIconImageLoaded()
+                                }
+                        @unknown default:
+                            PlaceholderImageView(size: size)
+                                .onAppear {
+                                    markIconImageLoaded()
+                                }
+                        }
+                    }
+                }
+            } else {
+                // 正常模式
+                AsyncImage(url: URL(string: voucher.displayDessertIconURL ?? "")) { phase in
+                    if let image = phase.image {
+                        image.resizable()
+                             .scaledToFit()
+                             .frame(width: size, height: size)
+                    } else {
+                        PlaceholderImageView(size: size)
+                    }
+                }
+            }
+        }
+    }
 }
 
 // MARK: - 辅助扩展
@@ -990,7 +1352,7 @@ struct DiagonalGradientMask: View {
 struct DessertVoucherCardSimple_Previews: PreviewProvider {
     static var previews: some View {
         // 移除样本数据，使用环境预览
-        DessertVoucherCardSimple(voucher: DessertVoucher.createSample())
+        DessertVoucherCardSimple(voucher: DessertVoucher.sample)
             .environmentObject(AppState.shared) // 使用单例而不是初始化新实例
             .frame(width: 350)
             .padding()

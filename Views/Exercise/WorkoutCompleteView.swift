@@ -26,6 +26,9 @@ struct WorkoutCompleteView: View {
     @State private var isShared: Bool = false
     @State private var confettiCounter: Int = 0
     
+    // 分享相关状态
+    @StateObject private var shareManager = VoucherShareManager()
+    
     // 用于导航的状态
     @Binding var isPresented: Bool
     
@@ -134,15 +137,36 @@ struct WorkoutCompleteView: View {
                 // 底部分享按钮（模仿FoodCheckIn中的样式）
                 if showVoucher && !showVoucherFullScreen {
                     Button(action: {
-                        // 分享逻辑
-                        isShared = true
+                        if let voucher = dessertVoucher {
+                            shareManager.shareVoucher(voucher)
+                        }
                     }) {
                         HStack {
-                            Image(systemName: "square.and.arrow.up")
-                                .font(.system(size: 16))
-                            
-                            Text("分享")
-                                .font(.system(size: 14, weight: .medium))
+                            if shareManager.isGenerating {
+                                // 替换UIKit的ProgressView为纯SwiftUI动画
+                                ZStack {
+                                    Circle()
+                                        .stroke(Color.white.opacity(0.3), lineWidth: 2)
+                                        .frame(width: 16, height: 16)
+                                    
+                                    Circle()
+                                        .trim(from: 0, to: 0.8)
+                                        .stroke(Color.white, lineWidth: 2)
+                                        .frame(width: 16, height: 16)
+                                        .rotationEffect(.degrees(shareManager.isGenerating ? 360 : 0))
+                                        .animation(.linear(duration: 1).repeatForever(autoreverses: false), value: shareManager.isGenerating)
+                                }
+                                .scaleEffect(0.8)
+                                
+                                Text("生成中...")
+                                    .font(.system(size: 14, weight: .medium))
+                            } else {
+                                Image(systemName: "square.and.arrow.up")
+                                    .font(.system(size: 16))
+                                
+                                Text("分享")
+                                    .font(.system(size: 14, weight: .medium))
+                            }
                         }
                         .foregroundColor(.white)
                         .padding(.vertical, 10)
@@ -163,6 +187,7 @@ struct WorkoutCompleteView: View {
                         .cornerRadius(24)
                         .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
                     }
+                    .disabled(shareManager.isGenerating)
                     .padding(.top, 12)
                 }
                 
@@ -196,26 +221,26 @@ struct WorkoutCompleteView: View {
                     Spacer()
                 }
             }
+            
+            // 统一的分享图片预览界面
+            if shareManager.showSharePreview, let voucher = dessertVoucher {
+                UnifiedSharePreviewView(voucher: voucher, shareManager: shareManager)
+                    .zIndex(1000) // 确保在最上层
+            }
         }
         // 添加防止点击穿透的修饰器
         .contentShape(Rectangle())
         .onTapGesture {} // 空的点击手势来捕获所有点击事件
-        .sheet(isPresented: $isShared) {
-            // 分享视图
-            VStack {
-                Text("分享美食券")
-                    .font(.system(size: 18, weight: .medium))
-                    .padding()
-                
-                Text("分享\(record.dessert.name)的美食打卡记录")
-                    .font(.system(size: 16))
-                    .padding()
-                
-                Button("关闭") {
-                    isShared = false
-                }
-                .padding()
+        // 分享错误提示
+        .alert("分享失败", isPresented: Binding<Bool>(
+            get: { shareManager.shareError != nil },
+            set: { if !$0 { shareManager.shareError = nil } }
+        )) {
+            Button("确定", role: .cancel) {
+                shareManager.shareError = nil
             }
+        } message: {
+            Text(shareManager.shareError ?? "未知错误")
         }
         .onAppear {
             // 按顺序执行动画
@@ -236,5 +261,52 @@ struct WorkoutCompleteView: View {
             }
         }
     }
+}
+
+#Preview {
+    @Previewable @State var isPresented = true
+    WorkoutCompleteView(
+        record: WorkoutRecord(
+            id: "preview-id",
+            userId: "preview-user",
+            exerciseType: APIExerciseType(
+                id: "preview-exercise-id",
+                type: "running",
+                name: "跑步",
+                description: "跑步运动",
+                iconName: "figure.run",
+                usesDistance: true,
+                backgroundColor: "#FF6B6B",
+                caloriesPerMinPerKg: 0.1,
+                caloriesPerKmPerKg: 0.8,
+                displayOrder: 1
+            ),
+            duration: 30.0,
+            distance: 3000.0,
+            caloriesBurned: 200.0,
+            dessert: DessertItem(
+                id: "preview-dessert",
+                name: "巧克力蛋糕",
+                imageName: "ChocolateCake",
+                calories: "200",
+                category: .cake,
+                description: "美味蛋糕",
+                backgroundColor: nil,
+                isFeatured: false,
+                relatedItems: [],
+                categoryId: "2",
+                categoryName: "蛋糕",
+                displayOrder: 1,
+                images: [DessertImage(id: "1", url: "ChocolateCake", type: "regular", displayOrder: 1)]
+            ),
+            date: Date(),
+            workoutTag: "运动量super!",
+            equivalentDessertCount: 1.0
+        ),
+        challengeProgress: nil,
+        isPresented: $isPresented
+    )
+    .environmentObject(AppState.shared)
+    .environmentObject(WorkoutFlowCoordinator.shared)
 }
 

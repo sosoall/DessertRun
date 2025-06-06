@@ -1018,6 +1018,57 @@ class APIService {
         .mapError { self.handleError($0) }
         .eraseToAnyPublisher()
     }
+    
+    // MARK: - 邀请相关接口
+    
+    /// 处理邀请链接
+    /// - Parameter inviteData: 邀请数据
+    /// - Returns: 邀请处理结果
+    func processInviteLink(inviteData: InviteLinkData) -> AnyPublisher<InviteResponse, APIServiceError> {
+        var parameters: [String: String] = [
+            "invite_type": inviteData.type == .voucherShare ? "voucher_share" : "direct_invite",
+            "utm_source": inviteData.utmSource,
+            "utm_medium": inviteData.utmMedium
+        ]
+        
+        if let voucherId = inviteData.voucherId {
+            parameters["voucher_id"] = voucherId
+        }
+        
+        if let inviteCode = inviteData.inviteCode {
+            parameters["invite_code"] = inviteCode
+        }
+        
+        if let inviteUserId = inviteData.inviteUserId {
+            parameters["invite_user_id"] = inviteUserId
+        }
+        
+        return processAPIRequest(
+            endpoint: "/api/v1/invite/process",
+            method: .post,
+            parameters: parameters,
+            requiresAuth: true
+        )
+    }
+    
+    /// 上报用户来源信息
+    /// - Parameter sourceInfo: 来源信息
+    /// - Returns: 上报结果
+    func reportUserSource(sourceInfo: UserSourceInfo) -> AnyPublisher<EmptyResponseData, APIServiceError> {
+        let parameters: [String: String] = [
+            "source_type": sourceInfo.sourceType,
+            "referrer_user_id": sourceInfo.referrerUserId ?? "",
+            "campaign": sourceInfo.campaign,
+            "timestamp": ISO8601DateFormatter().string(from: sourceInfo.timestamp)
+        ]
+        
+        return processAPIRequest(
+            endpoint: "/api/v1/user/source",
+            method: .post,
+            parameters: parameters,
+            requiresAuth: true
+        )
+    }
 }
 
 /// API错误类型

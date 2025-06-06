@@ -89,9 +89,12 @@ class AppState: ObservableObject {
     /// 是否隐藏状态栏
     @Published var hideStatusBar: Bool = false
     
+    /// 是否隐藏TabBar（用于展开美食券时）
+    @Published var hideTabBarForExpandedVoucher: Bool = false
+    
     /// TabBar是否应该被隐藏
     var shouldHideTabBar: Bool {
-        return hideTabBarForDrag
+        return hideTabBarForDrag || hideTabBarForExpandedVoucher
     }
     
     // MARK: - 应用配置
